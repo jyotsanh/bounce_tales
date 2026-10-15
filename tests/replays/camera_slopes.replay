@@ -1,0 +1,11 @@
+# Slopes level (480 x 320): the camera starts at the left edge, scrolls
+# right with the ball, and stops at the level's right edge (480 - 240).
+# The level is exactly one screen tall, so it never scrolls vertically.
+level slopes
+expect cam.x == 0
+expect cam.y == 0
+60 R
+expect cam.x > 60
+240 R
+expect cam.x == 240
+expect cam.y == 0

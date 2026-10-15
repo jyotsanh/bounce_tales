@@ -34,6 +34,8 @@ pub const FIELDS: &[(&str, Probe)] = &[
     ("ball.speed", |s| s.ball.vel.length() as f64),
     ("ball.grounded", |s| s.ball.grounded as u8 as f64),
     ("ball.angle", |s| s.ball.angle as f64),
+    ("cam.x", |s| s.camera.pos.x as f64),
+    ("cam.y", |s| s.camera.pos.y as f64),
 ];
 
 pub fn probe(sim: &Sim, field: &str) -> Option<f64> {
@@ -268,7 +270,8 @@ mod tests {
     #[test]
     fn sample_passes() {
         let r = Replay::parse(SAMPLE).unwrap();
-        assert_eq!(r.run(&mut Sim::new()), Vec::<String>::new());
+        let mut sim = r.start_sim("flat").unwrap();
+        assert_eq!(r.run(&mut sim), Vec::<String>::new());
     }
 
     #[test]

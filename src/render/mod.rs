@@ -5,10 +5,11 @@
 use macroquad::prelude::*;
 
 use bounce_tales::sim::Sim;
+use bounce_tales::sim::camera::{VIEW_H, VIEW_W};
 use bounce_tales::sim::map::{TILE, TileMap};
 
-pub const SCREEN_W: u32 = 240;
-pub const SCREEN_H: u32 = 320;
+pub const SCREEN_W: u32 = VIEW_W as u32;
+pub const SCREEN_H: u32 = VIEW_H as u32;
 
 const SKY: Color = Color::new(0.55, 0.80, 0.95, 1.0);
 const GRASS: Color = Color::new(0.30, 0.65, 0.20, 1.0);
@@ -36,26 +37,29 @@ pub fn letterbox(window_w: f32, window_h: f32) -> (f32, f32, f32) {
 
 pub struct Renderer {
     target: RenderTarget,
-    camera: Camera2D,
+    /// Fixed camera for screen-space drawing (HUD, debug overlay).
+    screen_camera: Camera2D,
 }
 
 impl Renderer {
     pub fn new() -> Renderer {
         let target = render_target(SCREEN_W, SCREEN_H);
         target.texture.set_filter(FilterMode::Nearest);
-        let mut camera =
-            Camera2D::from_display_rect(Rect::new(0.0, 0.0, SCREEN_W as f32, SCREEN_H as f32));
-        camera.render_target = Some(target.clone());
-        Renderer { target, camera }
+        let screen_camera = target_camera(&target, Vec2::ZERO);
+        Renderer {
+            target,
+            screen_camera,
+        }
     }
 
     /// Draws the game into the 240x320 target. `alpha` blends moving things
     /// between the last two sim steps so motion stays smooth at any FPS.
     pub fn draw_game(&self, sim: &Sim, alpha: f32) {
-        set_camera(&self.camera);
+        let view = sim.camera.render_pos(alpha);
+        set_camera(&target_camera(&self.target, view));
         clear_background(SKY);
 
-        draw_tiles(&sim.map);
+        draw_tiles(&sim.map, view);
 
         // Placeholder ball; real sprite in step 7. The dark stripe turns with
         // the ball so rolling is visible; the highlight stays put (light from
@@ -71,12 +75,13 @@ impl Renderer {
 
     /// F1 overlay: frame rate, tick, ball state and held input.
     pub fn draw_debug(&self, sim: &Sim, fps: i32) {
-        set_camera(&self.camera);
+        set_camera(&self.screen_camera);
         let b = &sim.ball;
         let lines = [
             format!("fps {fps:3}  tick {}", sim.tick),
             format!("pos {:7.2} {:7.2}", b.pos.x, b.pos.y),
             format!("vel {:7.2} {:7.2}", b.vel.x, b.vel.y),
+            format!("cam {:7.2} {:7.2}", sim.camera.pos.x, sim.camera.pos.y),
             format!(
                 "in  {:3} {}",
                 sim.input.to_code(),
@@ -122,12 +127,22 @@ impl Renderer {
     }
 }
 
+/// Camera drawing into the game target with `view` (level pixels) at the
+/// top-left corner.
+fn target_camera(target: &RenderTarget, view: Vec2) -> Camera2D {
+    let mut cam = Camera2D::from_display_rect(Rect::new(view.x, view.y, VIEW_W, VIEW_H));
+    cam.render_target = Some(target.clone());
+    cam
+}
+
 /// Placeholder tile art (real tileset in step 7): dirt shapes, a darker
 /// outline on open faces, and grass on any open face that points upward
-/// (tops and slopes).
-fn draw_tiles(map: &TileMap) {
-    for ty in 0..map.height as i32 {
-        for tx in 0..map.width as i32 {
+/// (tops and slopes). Only tiles inside the view are drawn.
+fn draw_tiles(map: &TileMap, view: Vec2) {
+    let (x0, y0) = TileMap::cell_at(view);
+    let (x1, y1) = TileMap::cell_at(view + vec2(VIEW_W, VIEW_H));
+    for ty in y0.max(0)..=y1.min(map.height as i32 - 1) {
+        for tx in x0.max(0)..=x1.min(map.width as i32 - 1) {
             let tile = map.get(tx, ty);
             if !tile.is_solid() {
                 continue;

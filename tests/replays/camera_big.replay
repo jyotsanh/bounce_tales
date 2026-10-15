@@ -1,0 +1,13 @@
+# Big level (1024 x 640): starts clamped to the bottom-left corner. Hopping
+# right (hold right + jump) clears the step, ramp and pit while the camera
+# scrolls right; climbing into the tower scrolls it up. The exact hop path
+# depends on tuning; if physics numbers change, re-check the numbers here.
+level big
+expect cam.x == 0
+expect cam.y == 320
+200 RJ
+expect cam.x > 250
+expect cam.y == 320
+200 RJ
+expect cam.x == 784
+expect cam.y < 320

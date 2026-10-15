@@ -64,7 +64,7 @@ Key rules:
 - [x] **03.** **Ball on flat ground**: gravity, rolling acceleration, friction, max speed, jump, bounce restitution. Tests for jump height and speed cap.
 - [x] **04.** **Tile collisions**: hardcoded test grid, circle-vs-AABB resolution (floor, walls, ceiling, corners), no tunneling at high speed (sub-stepping).
 - [x] **05.** **Slopes**: 45° and 22.5° tiles, circle-vs-segment, rolling down/up slopes, smooth hand-off between slope and flat tiles.
-- [ ] **06.** **Camera**: follow with deadzone and look-ahead, clamped to level bounds.
+- [x] **06.** **Camera**: follow with deadzone and look-ahead, clamped to level bounds.
 
 ### Phase B — Content pipeline
 - [ ] **07.** **Art pipeline**: `tools/artgen` (ASCII + palette → PNG). Ball sprite with roll rotation, first forest tileset.
@@ -181,3 +181,12 @@ Spare capacity: if a step overruns, the next prompt finishes it before moving on
 - Maps: `test` gained a 1:2 hill + 45° ramp on the floor; new `slopes` level (30 wide: 45° down, 1:2 hill, 45° up). Built with a script so rows are exact.
 - Tests: 10 slope unit tests (roll down, gentle slower, hugging surface across seams ±0.05 px, climb + crest without leaving the ground, gentle climbs faster, follow downslope off a plateau, speed kept at slope→flat, downhill cap, jump on slope, slope underside = ceiling) + map tests (convex/clockwise outlines, spans, hidden edges). Replays `slope_valley`, `slope_rollback`.
 - Not done: upside-down (ceiling) slopes. Add them if the reference levels need them.
+
+### Step 06 — Camera (done)
+- `sim::camera::Camera` lives **in the sim** (deterministic, replay-checkable via `cam.x`/`cam.y`); the renderer only blends `prev_pos→pos` and rounds to whole pixels (`render_pos`). `VIEW_W/H` (240x320) are defined there; `render::SCREEN_W/H` derive from them.
+- Horizontal: focus = ball.x + `look`; dead zone ±8 px around the centre; look-ahead 36 px toward the rolling direction (needs |vx| > 30), swinging at 90 px/s. Stopping keeps the current look (no pan back).
+- Vertical: ball rests at `FOCUS_Y` = 60% down the screen. On the ground the camera eases there at ≤240 px/s. In the air it holds still unless the ball goes more than 64 px above or 24 px below the focus line (a full 52 px jump never moves the view).
+- Clamped to the level; levels smaller than the view are centred. `Camera::snapped_to` is used at start and on respawn.
+- New default level **`big`** (64x40: step, ramp, plateau, 1:2 slope, 3-tile pit, 12-platform zigzag tower, top ledge back left). `test` stays for replays.
+- Renderer: `target_camera(target, view)` builds the Camera2D per frame; `screen_camera` for the overlay (now shows cam); tiles outside the view are culled.
+- Tests: 10 camera unit tests (snap/clamp, centring small levels, screen-sized level never scrolls, look-ahead lead, smooth turn pan, no pan back on stop, jump doesn't bob, gradual recentre, falls followed, whole-pixel render). Replays `camera_slopes`, `camera_big` (hop path depends on tuning; re-check if physics changes).

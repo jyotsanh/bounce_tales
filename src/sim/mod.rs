@@ -7,12 +7,14 @@
 //! iteration order. Replays rely on this.
 
 pub mod ball;
+pub mod camera;
 pub mod input;
 pub mod map;
 pub mod physics;
 pub mod rng;
 
 pub use ball::Ball;
+pub use camera::Camera;
 pub use input::InputFrame;
 pub use map::TileMap;
 pub use rng::Rng;
@@ -22,7 +24,7 @@ pub const TICKS_PER_SECOND: u32 = 60;
 pub const DT: f32 = 1.0 / TICKS_PER_SECOND as f32;
 
 /// Level loaded when none is given.
-pub const DEFAULT_LEVEL: &str = "test";
+pub const DEFAULT_LEVEL: &str = "big";
 
 /// How far below the map the ball may fall before it is put back at the
 /// start. Temporary until deaths and lives exist (steps 11-12).
@@ -35,6 +37,7 @@ pub struct Sim {
     pub tick: u64,
     pub map: TileMap,
     pub ball: Ball,
+    pub camera: Camera,
     pub rng: Rng,
     /// Input used in the most recent step.
     pub input: InputFrame,
@@ -60,9 +63,11 @@ impl Sim {
     }
 
     pub fn with_map(map: TileMap) -> Sim {
+        let ball = Ball::new(map.spawn);
         Sim {
             tick: 0,
-            ball: Ball::new(map.spawn),
+            camera: Camera::snapped_to(&ball, &map),
+            ball,
             map,
             rng: Rng::new(1),
             input: InputFrame::NONE,
@@ -83,6 +88,9 @@ impl Sim {
 
         if self.ball.pos.y > self.map.pixel_size().y + FALL_OUT_MARGIN {
             self.ball = Ball::new(self.map.spawn);
+            self.camera = Camera::snapped_to(&self.ball, &self.map);
+        } else {
+            self.camera.update(&self.ball, &self.map);
         }
     }
 
