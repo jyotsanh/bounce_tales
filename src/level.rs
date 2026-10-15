@@ -65,6 +65,9 @@ pub const TMX_LEVELS: &[(&str, &str)] = &[
     ("big", include_str!("../assets/levels/big.tmx")),
     ("ch01", include_str!("../assets/levels/ch01.tmx")),
     ("ch02", include_str!("../assets/levels/ch02.tmx")),
+    ("ch03", include_str!("../assets/levels/ch03.tmx")),
+    ("ch04", include_str!("../assets/levels/ch04.tmx")),
+    ("ch05", include_str!("../assets/levels/ch05.tmx")),
 ];
 
 /// Embedded tilesets, looked up by file name from `.tmx` references.
@@ -72,6 +75,54 @@ const TILESETS: &[(&str, &str)] = &[
     ("forest.tsx", include_str!("../assets/gen/forest.tsx")),
     ("deco.tsx", include_str!("../assets/gen/deco.tsx")),
 ];
+
+/// Reads `name="value"` from an XML tag's text.
+fn xml_attr<'a>(tag: &'a str, name: &str) -> Option<&'a str> {
+    let key = format!(" {name}=\"");
+    let start = tag.find(&key)? + key.len();
+    let len = tag[start..].find('"')?;
+    Some(&tag[start..start + len])
+}
+
+/// Each tileset reference must leave room for every tile of the previous
+/// one: Tiled resolves a gid to the last tileset whose `firstgid` is not
+/// above it, so an overlap silently turns e.g. spikes into decorations.
+fn check_tileset_ranges(tmx: &str, extra: &[(&str, &str)]) -> Result<(), String> {
+    let mut ranges = Vec::new();
+    for tag in tmx.split("<tileset ").skip(1) {
+        let tag = format!(" {}", &tag[..tag.find('>').unwrap_or(tag.len())]);
+        let (Some(first), Some(source)) = (xml_attr(&tag, "firstgid"), xml_attr(&tag, "source"))
+        else {
+            continue;
+        };
+        let first: u32 = first
+            .parse()
+            .map_err(|_| format!("tileset '{source}': bad firstgid '{first}'"))?;
+        let file = source.rsplit('/').next().unwrap_or(source);
+        let tsx = TILESETS
+            .iter()
+            .chain(extra.iter())
+            .find(|(n, _)| *n == file)
+            .map(|(_, t)| *t);
+        let count = tsx
+            .and_then(|t| xml_attr(t, "tilecount"))
+            .and_then(|c| c.parse::<u32>().ok())
+            .unwrap_or(0);
+        ranges.push((first, count, file.to_owned()));
+    }
+    ranges.sort();
+    for pair in ranges.windows(2) {
+        let ((a, count, file), (b, _, next)) = (&pair[0], &pair[1]);
+        if a + count > *b {
+            return Err(format!(
+                "tileset '{next}' firstgid {b} overlaps '{file}' (gids {a}..{}); use {}",
+                a + count - 1,
+                a + count
+            ));
+        }
+    }
+    Ok(())
+}
 
 /// One drawable tile: which tileset (index into `Level::sheets`) and which
 /// sprite in it.
@@ -478,6 +529,7 @@ impl Level {
         tmx: &str,
         extra_tilesets: &[(&str, &str)],
     ) -> Result<Level, String> {
+        check_tileset_ranges(tmx, extra_tilesets)?;
         let file = format!("{name}.tmx");
         let reader = EmbeddedReader {
             map_file: file.clone(),
@@ -961,12 +1013,12 @@ mod tests {
             .replace(
                 r#"<tileset firstgid="1" source="../gen/forest.tsx"/>"#,
                 r#"<tileset firstgid="1" source="../gen/forest.tsx"/>
- <tileset firstgid="15" source="../gen/deco.tsx"/>"#,
+ <tileset firstgid="101" source="../gen/deco.tsx"/>"#,
             )
             .replace(
                 " </objectgroup>",
-                r#"  <object id="5" gid="17" x="32" y="16" width="16" height="16"/>
-  <object id="6" gid="18" x="48" y="16" width="16" height="16">
+                r#"  <object id="5" gid="103" x="32" y="16" width="16" height="16"/>
+  <object id="6" gid="104" x="48" y="16" width="16" height="16">
    <properties><property name="front" type="bool" value="true"/></properties>
   </object>
   <object id="7" name="goal" type="exit" x="40" y="-16" width="32" height="32">
@@ -1055,6 +1107,18 @@ mod tests {
                 .unwrap_err()
                 .contains("background")
         );
+    }
+
+    #[test]
+    fn overlapping_tilesets_are_rejected() {
+        let tmx = ascii_to_tmx("o.\n##").unwrap().replace(
+            " <tileset firstgid=\"1\" source=\"../gen/forest.tsx\"/>\n",
+            " <tileset firstgid=\"1\" source=\"../gen/forest.tsx\"/>\n <tileset firstgid=\"15\" source=\"../gen/deco.tsx\"/>\n",
+        );
+        let err = Level::from_tmx("t", &tmx).unwrap_err();
+        assert!(err.contains("overlaps"), "{err}");
+        let ok = tmx.replace("firstgid=\"15\"", "firstgid=\"101\"");
+        assert!(Level::from_tmx("t", &ok).is_ok());
     }
 
     #[test]

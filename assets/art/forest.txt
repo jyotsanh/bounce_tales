@@ -34,6 +34,9 @@ palette
   Q #7a746a   ; boulder speckle
   P #5a5650   ; boulder dark edge
   z #2a2620   ; deep crack
+  c #4e3622   ; cave wall
+  b #3e2a1a   ; cave wall dark
+  B #2e1e12   ; cave wall deepest
 end
 sprite grass_top shape=solid
 GGGGGGGGGGGGGGGG
@@ -394,4 +397,22 @@ pQqqqqqqQzqqqqqP
 pqqqQqqqqqzQqqqP
 pqqqqqqQqzqqqqQP
 PPPPPPPPPPPPPPPP
+end
+sprite cave_back
+cccccbcccccccccc
+cbccccccccccbccc
+ccccccBccccccccc
+cccbccccccbccccc
+ccccccccccccccbc
+cccccccbBccccccc
+cbcccccccccccccc
+cccccccccccbcccc
+ccccBccccccccccc
+cccccccccbcccccc
+cccbcccccccccBcc
+cccccccccccccccc
+ccccccbcccccbccc
+cBcccccccccccccc
+cccccccBcccccccc
+ccccccccccccccbc
 end

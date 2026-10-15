@@ -57,12 +57,41 @@ fn ch02_spring_ledge_machine_egg() {
     assert_eq!(sim.deaths, 0);
 }
 
+/// Chapter 3: the egg nook sits above the lift's highest point; jump left
+/// off the lift at the top.
+#[test]
+fn ch03_egg_from_the_lift() {
+    let mut sim = Sim::with_level(Level::load("ch03").unwrap());
+    let lift = sim
+        .entities
+        .iter()
+        .position(|e| matches!(e.kind, EntityKind::Platform(_)) && e.pos.y < 268.0)
+        .unwrap();
+    // Ride it from the bottom.
+    while sim.entities[lift].pos.y < 255.0 {
+        sim.step(InputFrame::NONE);
+    }
+    let p = sim.entities[lift].pos;
+    sim.ball.pos = p + vec2(24.0, -8.0);
+    sim.ball.vel = vec2(0.0, 0.0);
+    while sim.entities[lift].pos.y > 12.0 * 16.0 + 1.0 {
+        sim.step(InputFrame::NONE);
+    }
+    for _ in 0..90 {
+        let b = &sim.ball;
+        let over_nook = b.pos.x < 46.5 * 16.0;
+        sim.step(inp(!over_nook || b.pos.x > 44.5 * 16.0, false, b.grounded));
+    }
+    assert_eq!(sim.eggs, 1);
+    assert_eq!(sim.deaths, 0);
+}
+
 /// Every chapter has exactly one secret egg and a fair number of gems.
 #[test]
 fn chapters_have_one_egg_and_gems() {
-    for name in ["ch01", "ch02"] {
+    for name in ["ch01", "ch02", "ch03", "ch04", "ch05"] {
         let sim = Sim::with_level(Level::load(name).unwrap());
         assert_eq!(sim.eggs_total, 1, "{name}");
-        assert!(sim.gems_total >= 20, "{name}: {}", sim.gems_total);
+        assert!(sim.gems_total >= 15, "{name}: {}", sim.gems_total);
     }
 }

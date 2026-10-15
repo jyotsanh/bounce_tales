@@ -1,7 +1,7 @@
 # Chapter 2, Unfriendly Friends (recorded from a reactive controller that
 # jumps at nearby enemies, pellets and gaps): walker, the flyer over the
 # pit, the hill, jumper and moles, checkpoint, the valley walker, spikes,
-# the shooter on the steps, the exit. Skips the spring/machine/egg route
+# the shooter on the steps, the exit (spikes jumped). Skips the spring/machine/egg route
 # (tests/levels.rs covers it).
 level ch02
 39 R
@@ -12,11 +12,9 @@ level ch02
 1 RJ
 130 R
 1 RJ
-67 R
+119 R
 1 RJ
-94 R
-1 RJ
-53 R
+97 R
 1 RJ
 97 R
 expect exit == 1

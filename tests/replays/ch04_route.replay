@@ -1,0 +1,27 @@
+# Chapter 4, Bumpy Cracks (scripted controller): turn to stone, smash
+# down through the cracks, sink through the tunnel pool (egg in its
+# dip), back to normal, climb out, cross the crumbling bridge, stone
+# again through the cracked wall, normal, hop the walker, exit.
+level ch04
+104 R
+1 RJ
+9 R
+21 -
+1 J
+1 -
+24 L
+19 -
+202 R
+6 RJ
+151 R
+1 RJ
+50 R
+1 RJ
+55 R
+1 RJ
+310 R
+1 RJ
+202 R
+expect exit == 1
+expect deaths == 0
+expect eggs == 1

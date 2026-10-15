@@ -1,0 +1,32 @@
+# Chapter 3, Seeking Answers (scripted controller): swim the first pool,
+# ride the moving platform over the pit, ride the lift to the switch
+# ledge, through the opened door, push the crate to climb the ledge,
+# swim under the flyer, exit.
+level ch03
+20 R
+1 RJ
+166 R
+2 RJ
+46 R
+1 -
+15 L
+163 -
+24 R
+177 -
+16 R
+1 RJ
+58 R
+1 RJ
+60 -
+35 L
+1 LJ
+3 -
+23 R
+39 -
+212 R
+1 RJ
+89 R
+1 RJ
+219 R
+expect exit == 1
+expect deaths == 0
