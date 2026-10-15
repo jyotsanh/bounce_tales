@@ -1,0 +1,11 @@
+# Slopes level: stop pushing halfway up the right 45° slope and the ball
+# rolls back down on its own, then friction stops it on the flat.
+level slopes
+150 R
+expect ball.y < 280
+15 -
+expect ball.vx < 0
+expect ball.grounded == 1
+90 -
+expect ball.vx == 0
+expect ball.y == 280

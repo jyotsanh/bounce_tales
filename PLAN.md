@@ -63,7 +63,7 @@ Key rules:
 - [x] **02.** **Headless sim + replays**: `Sim`/`InputFrame`, deterministic stepping, replay file format, test harness in `tests/replays`, F1 debug overlay (FPS, ball pos/vel).
 - [x] **03.** **Ball on flat ground**: gravity, rolling acceleration, friction, max speed, jump, bounce restitution. Tests for jump height and speed cap.
 - [x] **04.** **Tile collisions**: hardcoded test grid, circle-vs-AABB resolution (floor, walls, ceiling, corners), no tunneling at high speed (sub-stepping).
-- [ ] **05.** **Slopes**: 45° and 22.5° tiles, circle-vs-segment, rolling down/up slopes, smooth hand-off between slope and flat tiles.
+- [x] **05.** **Slopes**: 45° and 22.5° tiles, circle-vs-segment, rolling down/up slopes, smooth hand-off between slope and flat tiles.
 - [ ] **06.** **Camera**: follow with deadzone and look-ahead, clamped to level bounds.
 
 ### Phase B — Content pipeline
@@ -168,3 +168,16 @@ Spare capacity: if a step overruns, the next prompt finishes it before moving on
 - Ghost edges: `closest_point` extends a tile into solid neighbours (no seams on floors or walls). **Bug found and fixed:** extending both ways at an inside corner filled the empty diagonal cell and lifted the ball 8 px when it hit a step. Now returns `None` if the diagonal cell is empty. Covered by `inside_corner_cell_is_not_filled` and the y-check in `one_tile_step_blocks_rolling`.
 - Tests: 12 new collision unit tests (still resting, seams, ceiling, wall slide, step, corner roll-off, ledge + coyote, 1-tile tunnel, fast tunnelling x/y). Replays moved to `level flat` (rest y = 280, walls at x 16/224); new `ceiling_bonk`, `step_block` on `test`.
 - Debug trick: a throwaway `tests/zz_trace.rs` that prints per-step state is quick for tuning replay timings (delete afterwards).
+
+### Step 05 — Slopes (done)
+- `map::Tile` shapes: `Solid`, `Slope45Right` `/`, `Slope45Left` `\`, 1:2 (≈26.6°) two-tile slopes `r R` (rising right: low, high) and `L l` (rising left: high, low). `Tile::polygon()` gives a clockwise convex outline in tile-local px; `side_span(side)` says how much of each square side the shape covers.
+- `TileMap::edge_hidden(x, y, a, b)`: an edge is hidden when the neighbour's opposite side covers it fully. This **replaces the step 4 "extend into neighbours" trick**. Seams are safe because the deepest contact on an open surface is always the flat one, never a seam corner.
+- `physics::penetration` = circle vs the nearest open polygon edge (centre-inside case leaves through the nearest open edge).
+- `Ball::roll` (ground movement) works in speed along the surface tangent: downhill pull = gravity·t.y; pushing uphill only fights `uphill_gravity` (0.5) of it; friction × grip (1 on flat → 0 at 45°), so the ball never sticks on slopes; `max_roll_speed` 260; a small push into the surface keeps contact. Air movement unchanged (`drive()` helper shared).
+- Rolling ball (grounded and not jumping):
+  - meeting a new floor angle = no bounce; speed kept and redirected along the new surface;
+  - losing contact → `snap_to_floor` pulls up to 6 px **along the old normal** (straight down failed at 45° crests: the slope push-out shoved the ball backwards every step).
+- `Ball.ground_normal` is new; spin uses speed along the surface.
+- Maps: `test` gained a 1:2 hill + 45° ramp on the floor; new `slopes` level (30 wide: 45° down, 1:2 hill, 45° up). Built with a script so rows are exact.
+- Tests: 10 slope unit tests (roll down, gentle slower, hugging surface across seams ±0.05 px, climb + crest without leaving the ground, gentle climbs faster, follow downslope off a plateau, speed kept at slope→flat, downhill cap, jump on slope, slope underside = ceiling) + map tests (convex/clockwise outlines, spans, hidden edges). Replays `slope_valley`, `slope_rollback`.
+- Not done: upside-down (ceiling) slopes. Add them if the reference levels need them.

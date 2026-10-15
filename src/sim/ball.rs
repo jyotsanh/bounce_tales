@@ -40,6 +40,10 @@ pub struct BallParams {
     pub coyote_ticks: u32,
     /// Steps a jump press is remembered while in the air.
     pub jump_buffer_ticks: u32,
+    /// Share of the downhill pull felt while pushing uphill (0..1).
+    pub uphill_gravity: f32,
+    /// Fastest the ball can roll along the ground (downhill), px/s.
+    pub max_roll_speed: f32,
 }
 
 impl BallParams {
@@ -60,6 +64,8 @@ impl BallParams {
         wall_restitution: 0.3,
         coyote_ticks: 5,
         jump_buffer_ticks: 8,
+        uphill_gravity: 0.5,
+        max_roll_speed: 260.0,
     };
 
     /// Take-off speed that reaches `jump_height` under `gravity` with the
@@ -81,6 +87,9 @@ pub struct Ball {
     pub params: BallParams,
     /// Resting on the ground (set by collision each step).
     pub grounded: bool,
+    /// Normal of the floor last touched (points away from it). (0, -1) on
+    /// flat ground.
+    pub ground_normal: Vec2,
     /// Steps since the ball last touched the ground.
     pub air_ticks: u32,
     /// Steps left in which a jump press is still remembered.
@@ -104,6 +113,7 @@ impl Ball {
             radius: params.radius,
             params,
             grounded: false,
+            ground_normal: vec2(0.0, -1.0),
             air_ticks: 0,
             jump_buffer: 0,
             jumping: false,
@@ -124,32 +134,16 @@ impl Ball {
         let p = self.params;
         self.prev_pos = self.pos;
 
-        // Horizontal: accelerate toward input, faster when reversing,
-        // otherwise slow down by friction/drag.
         let axis = input.axis();
-        let (accel, friction) = if self.grounded {
-            (p.ground_accel, p.ground_friction)
+        if self.grounded {
+            self.roll(axis);
         } else {
-            (p.air_accel, p.air_drag)
-        };
-        if axis != 0.0 {
-            let reversing = self.vel.x * axis < 0.0;
-            let a = if reversing { accel + friction } else { accel };
-            let before = self.vel.x * axis;
-            self.vel.x += axis * a * DT;
-            // Input alone cannot push past top speed. Faster motion (from
-            // springs or slopes later) is not increased and bleeds off by
-            // friction.
-            let cap = p.max_speed.max(before - friction * DT);
-            if self.vel.x * axis > cap {
-                self.vel.x = cap * axis;
-            }
-        } else {
-            self.vel.x = approach(self.vel.x, 0.0, friction * DT);
+            self.vel.x = drive(self.vel.x, axis, p.air_accel, p.air_drag, p.max_speed);
         }
 
         // Jump: a press is buffered for a few steps; holding jump keeps
-        // re-jumping on every landing, like the original.
+        // re-jumping on every landing, like the original. Jumps go straight
+        // up, even on slopes.
         if jump_pressed {
             self.jump_buffer = p.jump_buffer_ticks;
         }
@@ -163,19 +157,72 @@ impl Ball {
             self.jump_buffer = self.jump_buffer.saturating_sub(1);
         }
 
-        // Gravity always pulls, even when resting: the floor contact cancels
-        // it each step. This keeps one rule for flat ground and (step 5)
-        // slopes, where the ball must roll downhill.
-        self.vel.y = (self.vel.y + p.gravity * DT).min(p.max_fall);
+        if !self.grounded {
+            self.vel.y = (self.vel.y + p.gravity * DT).min(p.max_fall);
+        }
     }
 
-    /// Updates rotation after collision. Spin follows ground speed while
-    /// rolling; in the air it keeps whatever it had.
+    /// Ground movement. Speed is tracked along the surface (the tangent of
+    /// `ground_normal`), so the same rules work on flat ground and slopes:
+    /// - gravity's pull along the slope rolls the ball downhill;
+    /// - pushing uphill only fights part of that pull, so 45° is climbable;
+    /// - friction fades out on steep slopes, so the ball never sticks there;
+    /// - a small push into the surface keeps contact every step.
+    fn roll(&mut self, axis: f32) {
+        let p = self.params;
+        let n = self.ground_normal;
+        let t = vec2(-n.y, n.x); // along the surface, pointing right
+        let mut s = self.vel.dot(t);
+
+        // 1 on flat ground, falling to 0 at 45°.
+        let grip = ((-n.y - COS_45) / (1.0 - COS_45)).clamp(0.0, 1.0);
+        let mut pull = p.gravity * t.y; // gravity along the surface
+        if axis * pull < 0.0 {
+            pull *= p.uphill_gravity;
+        }
+        s = drive(
+            s,
+            axis,
+            p.ground_accel,
+            p.ground_friction * grip,
+            p.max_speed,
+        );
+        s = (s + pull * DT).clamp(-p.max_roll_speed, p.max_roll_speed);
+
+        let press = p.gravity * -n.y * DT;
+        self.vel = t * s - n * press;
+    }
+
+    /// Updates rotation after collision. Spin follows speed along the
+    /// ground while rolling; in the air it keeps whatever it had.
     pub fn update_spin(&mut self) {
         if self.grounded {
-            self.spin = self.vel.x / self.radius;
+            let n = self.ground_normal;
+            self.spin = self.vel.dot(vec2(-n.y, n.x)) / self.radius;
         }
         self.angle = (self.angle + self.spin * DT).rem_euclid(std::f32::consts::TAU);
+    }
+}
+
+const COS_45: f32 = std::f32::consts::FRAC_1_SQRT_2;
+
+/// One axis of input-driven speed: accelerate toward `axis` (faster when
+/// reversing), otherwise slow down by `friction`. Input alone cannot push
+/// past `max`; faster motion (slopes, springs) is not increased and bleeds
+/// off by friction instead of snapping back.
+pub fn drive(v: f32, axis: f32, accel: f32, friction: f32, max: f32) -> f32 {
+    if axis == 0.0 {
+        return approach(v, 0.0, friction * DT);
+    }
+    let reversing = v * axis < 0.0;
+    let a = if reversing { accel + friction } else { accel };
+    let before = v * axis;
+    let after = v + axis * a * DT;
+    let cap = max.max(before - friction * DT);
+    if after * axis > cap {
+        cap * axis
+    } else {
+        after
     }
 }
 

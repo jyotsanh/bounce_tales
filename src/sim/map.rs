@@ -7,17 +7,146 @@ use macroquad::math::{Vec2, vec2};
 /// tile wide, like the original where the ball fits one-tile tunnels.
 pub const TILE: f32 = 16.0;
 
+/// One side of a tile square.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Side {
+    Top,
+    Bottom,
+    Left,
+    Right,
+}
+
+impl Side {
+    pub fn opposite(self) -> Side {
+        match self {
+            Side::Top => Side::Bottom,
+            Side::Bottom => Side::Top,
+            Side::Left => Side::Right,
+            Side::Right => Side::Left,
+        }
+    }
+
+    /// Grid offset to the neighbour across this side.
+    pub fn offset(self) -> (i32, i32) {
+        match self {
+            Side::Top => (0, -1),
+            Side::Bottom => (0, 1),
+            Side::Left => (-1, 0),
+            Side::Right => (1, 0),
+        }
+    }
+}
+
+/// Tile shapes. Slopes are named by which way they rise when read left to
+/// right. The 1:2 slopes (about 26.6°) take two tiles: a low half then a
+/// high half.
+///
+/// ASCII glyphs: `#` solid, `/` 45° rising right, `\` 45° rising left,
+/// `r` `R` 1:2 rising right (low, high), `L` `l` 1:2 rising left (high, low).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Tile {
     #[default]
     Empty,
     Solid,
+    Slope45Right,
+    Slope45Left,
+    Slope2RightLow,
+    Slope2RightHigh,
+    Slope2LeftHigh,
+    Slope2LeftLow,
 }
 
+const fn v(x: f32, y: f32) -> Vec2 {
+    Vec2::new(x, y)
+}
+
+const T: f32 = TILE;
+const H: f32 = TILE / 2.0;
+
 impl Tile {
+    pub const ALL: [Tile; 8] = [
+        Tile::Empty,
+        Tile::Solid,
+        Tile::Slope45Right,
+        Tile::Slope45Left,
+        Tile::Slope2RightLow,
+        Tile::Slope2RightHigh,
+        Tile::Slope2LeftHigh,
+        Tile::Slope2LeftLow,
+    ];
+
+    /// True for anything the ball collides with.
     pub fn is_solid(self) -> bool {
-        matches!(self, Tile::Solid)
+        !matches!(self, Tile::Empty)
     }
+
+    pub fn from_glyph(c: char) -> Option<Tile> {
+        Some(match c {
+            '.' => Tile::Empty,
+            '#' => Tile::Solid,
+            '/' => Tile::Slope45Right,
+            '\\' => Tile::Slope45Left,
+            'r' => Tile::Slope2RightLow,
+            'R' => Tile::Slope2RightHigh,
+            'L' => Tile::Slope2LeftHigh,
+            'l' => Tile::Slope2LeftLow,
+            _ => return None,
+        })
+    }
+
+    /// Outline in tile-local pixels (0..16, y down), clockwise on screen.
+    /// Empty tiles have no outline.
+    pub fn polygon(self) -> &'static [Vec2] {
+        const SOLID: [Vec2; 4] = [v(0.0, 0.0), v(T, 0.0), v(T, T), v(0.0, T)];
+        const S45R: [Vec2; 3] = [v(T, 0.0), v(T, T), v(0.0, T)];
+        const S45L: [Vec2; 3] = [v(0.0, 0.0), v(T, T), v(0.0, T)];
+        const S2RL: [Vec2; 3] = [v(T, H), v(T, T), v(0.0, T)];
+        const S2RH: [Vec2; 4] = [v(0.0, H), v(T, 0.0), v(T, T), v(0.0, T)];
+        const S2LH: [Vec2; 4] = [v(0.0, 0.0), v(T, H), v(T, T), v(0.0, T)];
+        const S2LL: [Vec2; 3] = [v(0.0, H), v(T, T), v(0.0, T)];
+        match self {
+            Tile::Empty => &[],
+            Tile::Solid => &SOLID,
+            Tile::Slope45Right => &S45R,
+            Tile::Slope45Left => &S45L,
+            Tile::Slope2RightLow => &S2RL,
+            Tile::Slope2RightHigh => &S2RH,
+            Tile::Slope2LeftHigh => &S2LH,
+            Tile::Slope2LeftLow => &S2LL,
+        }
+    }
+
+    /// Edges of the outline as (start, end) pairs.
+    pub fn edges(self) -> impl Iterator<Item = (Vec2, Vec2)> {
+        let poly = self.polygon();
+        (0..poly.len()).map(move |i| (poly[i], poly[(i + 1) % poly.len()]))
+    }
+
+    /// The part of `side` this tile's outline covers, as a span along that
+    /// side (x for top/bottom, y for left/right), or `None`.
+    pub fn side_span(self, side: Side) -> Option<(f32, f32)> {
+        self.edges()
+            .filter_map(|(a, b)| edge_side(a, b))
+            .find(|(s, _, _)| *s == side)
+            .map(|(_, lo, hi)| (lo, hi))
+    }
+}
+
+/// Which tile side an edge lies on (if any) and the span it covers.
+pub fn edge_side(a: Vec2, b: Vec2) -> Option<(Side, f32, f32)> {
+    let span = |p: f32, q: f32| (p.min(q), p.max(q));
+    let (side, (lo, hi)) = if a.y == 0.0 && b.y == 0.0 {
+        (Side::Top, span(a.x, b.x))
+    } else if a.y == T && b.y == T {
+        (Side::Bottom, span(a.x, b.x))
+    } else if a.x == 0.0 && b.x == 0.0 {
+        (Side::Left, span(a.y, b.y))
+    } else if a.x == T && b.x == T {
+        (Side::Right, span(a.y, b.y))
+    } else {
+        return None;
+    };
+    Some((side, lo, hi))
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -32,9 +161,9 @@ pub struct TileMap {
 }
 
 impl TileMap {
-    /// Parses a map drawn in text, one row per line:
-    /// `#` solid, `.` empty, `o` ball start (empty tile, ball resting on the
-    /// tile's bottom edge). All rows must be the same length.
+    /// Parses a map drawn in text, one row per line. Tile glyphs are listed
+    /// on [`Tile`]; `o` marks the ball start (an empty tile, ball resting on
+    /// the tile's bottom edge). All rows must be the same length.
     pub fn from_ascii(text: &str) -> Result<TileMap, String> {
         let rows: Vec<&str> = text
             .lines()
@@ -54,8 +183,6 @@ impl TileMap {
             }
             for (x, c) in row.chars().enumerate() {
                 tiles.push(match c {
-                    '#' => Tile::Solid,
-                    '.' => Tile::Empty,
                     'o' => {
                         if spawn.is_some() {
                             return Err("more than one 'o' spawn".into());
@@ -67,7 +194,8 @@ impl TileMap {
                         ));
                         Tile::Empty
                     }
-                    other => return Err(format!("unknown tile '{other}' at {x},{y}")),
+                    other => Tile::from_glyph(other)
+                        .ok_or_else(|| format!("unknown tile '{other}' at {x},{y}"))?,
                 });
             }
         }
@@ -101,6 +229,20 @@ impl TileMap {
         self.get(x, y).is_solid()
     }
 
+    /// True if the edge `a`-`b` of tile (x, y) is hidden by the neighbour
+    /// across it (the neighbour's matching side covers the whole edge).
+    /// Hidden edges are not real surfaces and never collide; this is what
+    /// stops the ball catching on the seams between tiles.
+    pub fn edge_hidden(&self, x: i32, y: i32, a: Vec2, b: Vec2) -> bool {
+        let Some((side, lo, hi)) = edge_side(a, b) else {
+            return false;
+        };
+        let (dx, dy) = side.offset();
+        self.get(x + dx, y + dy)
+            .side_span(side.opposite())
+            .is_some_and(|(nlo, nhi)| nlo <= lo + 1e-4 && nhi >= hi - 1e-4)
+    }
+
     /// Grid cell containing a pixel position.
     pub fn cell_at(p: Vec2) -> (i32, i32) {
         ((p.x / TILE).floor() as i32, (p.y / TILE).floor() as i32)
@@ -112,16 +254,17 @@ pub fn builtin(name: &str) -> Option<TileMap> {
     let text = match name {
         "test" => TEST_MAP,
         "flat" => FLAT_MAP,
+        "slopes" => SLOPES_MAP,
         _ => return None,
     };
     Some(TileMap::from_ascii(text).expect("built-in maps are valid"))
 }
 
-pub const BUILTIN_NAMES: &[&str] = &["test", "flat"];
+pub const BUILTIN_NAMES: &[&str] = &["test", "flat", "slopes"];
 
-/// Default map: one screen with a step block, a low ceiling, a tunnel and a
-/// staircase of platforms to climb.
-const TEST_MAP: &str = "
+/// Default map: one screen with a step block, a low ceiling, a tunnel, a
+/// staircase of platforms, a 45° ramp and a gentle 1:2 hill.
+const TEST_MAP: &str = r"
     #.............#
     #.............#
     #.............#
@@ -139,13 +282,13 @@ const TEST_MAP: &str = "
     #........######
     #..##.........#
     #.............#
-    #...o.##......#
+    #...o.##.rRLl/#
     ###############
     ###############
 ";
 
 /// Empty room with a flat floor, for physics replays.
-const FLAT_MAP: &str = "
+const FLAT_MAP: &str = r"
     #.............#
     #.............#
     #.............#
@@ -168,6 +311,32 @@ const FLAT_MAP: &str = "
     ###############
 ";
 
+/// Valley of slopes for physics replays: a 45° slope down from the left
+/// plateau (x 64..144), a flat bottom, a one-tile 1:2 hill (x 192..256),
+/// flat, then a 45° slope (x 336..416) up to the right plateau. 30 tiles wide.
+const SLOPES_MAP: &str = r"
+    #............................#
+    #............................#
+    #............................#
+    #............................#
+    #............................#
+    #............................#
+    #............................#
+    #............................#
+    #............................#
+    #............................#
+    #............................#
+    #............................#
+    #o...........................#
+    ####\..................../####
+    #####\................../#####
+    ######\................/######
+    #######\............../#######
+    ########\...rRLl...../########
+    ##############################
+    ##############################
+";
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -176,9 +345,60 @@ mod tests {
     fn builtins_parse() {
         for name in BUILTIN_NAMES {
             let m = builtin(name).unwrap();
-            assert_eq!((m.width, m.height), (15, 20), "{name}");
+            assert_eq!(m.height, 20, "{name}");
         }
         assert!(builtin("nope").is_none());
+    }
+
+    #[test]
+    fn glyphs_round_trip() {
+        for c in ['.', '#', '/', '\\', 'r', 'R', 'L', 'l'] {
+            assert!(Tile::from_glyph(c).is_some(), "{c}");
+        }
+        assert!(Tile::from_glyph('x').is_none());
+    }
+
+    #[test]
+    fn polygons_are_convex_and_clockwise() {
+        for t in Tile::ALL {
+            let poly = t.polygon();
+            for i in 0..poly.len() {
+                let a = poly[i];
+                let b = poly[(i + 1) % poly.len()];
+                let c = poly[(i + 2) % poly.len()];
+                let cross = (b - a).perp_dot(c - b);
+                assert!(cross > 0.0, "{t:?} not clockwise/convex at {i}");
+            }
+        }
+    }
+
+    #[test]
+    fn side_spans() {
+        assert_eq!(Tile::Solid.side_span(Side::Left), Some((0.0, T)));
+        assert_eq!(Tile::Slope45Right.side_span(Side::Right), Some((0.0, T)));
+        assert_eq!(Tile::Slope45Right.side_span(Side::Left), None);
+        assert_eq!(Tile::Slope45Right.side_span(Side::Top), None);
+        assert_eq!(Tile::Slope2RightLow.side_span(Side::Right), Some((H, T)));
+        assert_eq!(Tile::Slope2RightHigh.side_span(Side::Left), Some((H, T)));
+    }
+
+    #[test]
+    fn hidden_edges() {
+        let m = TileMap::from_ascii("o....\n.rR#.\n#####").unwrap();
+        let (top, bottom) = (v(0.0, 0.0), v(0.0, T));
+        // Low half's right edge is fully covered by the high half's left.
+        assert!(m.edge_hidden(1, 1, v(T, T), v(T, H)));
+        // High half's left edge likewise covered by the low half.
+        assert!(m.edge_hidden(2, 1, v(0.0, T), v(0.0, H)));
+        // The high half's right side is full height, so the solid's left
+        // face is hidden...
+        assert!(m.edge_hidden(3, 1, bottom, top));
+        // ...but next to a low half (right side only half covered) it is not.
+        let m2 = TileMap::from_ascii("o..\n.r#\n###").unwrap();
+        assert!(!m2.edge_hidden(2, 1, bottom, top));
+        // Floor tops under slopes are hidden; slope surfaces never are.
+        assert!(m.edge_hidden(1, 2, v(0.0, 0.0), v(T, 0.0)));
+        assert!(!m.edge_hidden(1, 1, v(0.0, T), v(T, H)));
     }
 
     #[test]

@@ -1,25 +1,34 @@
 //! Collision between the ball and the tile map.
 //!
-//! The ball is a circle; solid tiles are squares. Each step the ball's motion
-//! is split into sub-steps no longer than half its radius, so even very fast
-//! balls cannot pass through a one-tile wall. After each sub-step the ball is
-//! pushed out of every tile it overlaps.
+//! The ball is a circle; every solid tile is a small convex polygon (square
+//! or slope, see [`Tile::polygon`]). Each step the ball's motion is split
+//! into sub-steps no longer than half its radius, so even very fast balls
+//! cannot pass through a one-tile wall. After each sub-step the ball is
+//! pushed out of the tile it overlaps most, a few times over.
 //!
-//! "Ghost edges": where two solid tiles meet, the shared face is not a real
-//! surface. Rolling across a floor of separate tiles must not catch on the
-//! corners between them, so a tile's box is treated as extending into any
-//! solid neighbour (see [`closest_point`]).
+//! Seams: an edge covered by the neighbouring tile ([`TileMap::edge_hidden`])
+//! is not a surface and is skipped. On an open surface made of several tiles
+//! the ball touches every tile's edge at the same depth, so taking the
+//! deepest contact never picks a seam corner.
+//!
+//! Staying on the ground: a ball that was rolling (not jumping) and lost
+//! contact this step is pulled down up to [`SNAP_DISTANCE`] to find the floor
+//! again, so it follows convex bends (slope crests) instead of hopping off.
+//! When the floor angle changes under a rolling ball, its speed is kept and
+//! redirected along the new surface.
 
 use macroquad::math::{Vec2, vec2};
 
 use super::DT;
 use super::ball::Ball;
-use super::map::{TILE, TileMap};
+use super::map::{TILE, Tile, TileMap};
 
 /// Contact normals with `y` below this count as floor (up to ~53° slopes).
 pub const FLOOR_NORMAL_Y: f32 = -0.6;
 /// Contact normals with `y` above this count as ceiling.
 pub const CEILING_NORMAL_Y: f32 = 0.6;
+/// How far a rolling ball is pulled down to stay on the ground, px.
+pub const SNAP_DISTANCE: f32 = 6.0;
 /// Most sub-steps per step (limits cost of absurd speeds).
 const MAX_SUBSTEPS: u32 = 16;
 /// Push-out passes per sub-step (handles corners touching two tiles).
@@ -38,22 +47,71 @@ pub struct Contacts {
 }
 
 /// Moves the ball by its velocity for one step, colliding with the map, then
-/// applies landing/bounce rules.
+/// applies ground-following and landing/bounce rules.
 pub fn move_and_collide(ball: &mut Ball, map: &TileMap) -> Contacts {
+    let rolling = ball.grounded && !ball.jumping;
+    let old_normal = ball.ground_normal;
+    // Speed along the old surface (ignores the small push into the floor
+    // that keeps a rolling ball in contact).
+    let surface_speed = (ball.vel - old_normal * ball.vel.dot(old_normal)).length();
+
     let distance = ball.vel.length() * DT;
     let substeps = ((distance / (ball.radius * 0.5)).ceil() as u32).clamp(1, MAX_SUBSTEPS);
     let mut c = Contacts::default();
     for _ in 0..substeps {
         // Velocity can change mid-step (wall hit), so re-read it each time.
         ball.pos += ball.vel * (DT / substeps as f32);
-        for _ in 0..RESOLVE_PASSES {
-            if !resolve_deepest(ball, map, &mut c) {
-                break;
-            }
+        resolve(ball, map, &mut c);
+    }
+
+    if rolling && !c.floor {
+        snap_to_floor(ball, map, old_normal, &mut c);
+    }
+    if rolling && c.floor {
+        // A rolling ball meeting a new floor angle is not a landing: no
+        // bounce, however sharp the bend.
+        c.impact_speed = 0.0;
+        let n = c.floor_normal;
+        if !c.wall && n.distance(old_normal) > 1e-3 {
+            // Floor angle changed under a rolling ball: keep its speed and
+            // send it along the new surface in the same horizontal direction.
+            let t = vec2(-n.y, n.x);
+            let dir = if ball.vel.dot(t) >= 0.0 { t } else { -t };
+            ball.vel = dir * surface_speed;
         }
     }
     land(ball, c);
     c
+}
+
+/// Runs push-out passes until the ball overlaps nothing (or passes run out).
+fn resolve(ball: &mut Ball, map: &TileMap, c: &mut Contacts) {
+    for _ in 0..RESOLVE_PASSES {
+        if !resolve_deepest(ball, map, c) {
+            break;
+        }
+    }
+}
+
+/// Pulls a ball that just lost the ground back onto a floor within reach,
+/// if nothing else is in the way. The pull goes into the surface it was
+/// rolling on (`old_normal` reversed), not straight down: at a 45° crest a
+/// straight-down pull lands back on the slope, whose push-out would shove
+/// the ball backwards every step.
+fn snap_to_floor(ball: &mut Ball, map: &TileMap, old_normal: Vec2, c: &mut Contacts) {
+    let (pos, vel) = (ball.pos, ball.vel);
+    ball.pos -= old_normal * SNAP_DISTANCE;
+    let mut probe = Contacts::default();
+    resolve(ball, map, &mut probe);
+    let moved_into_surface = (ball.pos - pos).dot(old_normal) <= 1e-3;
+    if probe.floor && !probe.wall && !probe.ceiling && moved_into_surface {
+        c.floor = true;
+        c.floor_normal = probe.floor_normal;
+        ball.vel = vel;
+    } else {
+        ball.pos = pos;
+        ball.vel = vel;
+    }
 }
 
 /// Pushes the ball out of the tile it overlaps most and updates its
@@ -67,9 +125,6 @@ fn resolve_deepest(ball: &mut Ball, map: &TileMap, c: &mut Contacts) -> bool {
     let mut best: Option<(f32, Vec2)> = None; // (penetration, normal)
     for ty in y0..=y1 {
         for tx in x0..=x1 {
-            if !map.is_solid(tx, ty) {
-                continue;
-            }
             if let Some((pen, n)) = penetration(map, tx, ty, p, r)
                 && best.is_none_or(|(b, _)| pen > b)
             {
@@ -86,74 +141,57 @@ fn resolve_deepest(ball: &mut Ball, map: &TileMap, c: &mut Contacts) -> bool {
 }
 
 /// How far a circle at `p` overlaps tile (tx, ty), and the direction to push
-/// it out.
+/// it out. Only edges that are real surfaces (not hidden by a neighbour)
+/// count.
 fn penetration(map: &TileMap, tx: i32, ty: i32, p: Vec2, r: f32) -> Option<(f32, Vec2)> {
-    let q = closest_point(map, tx, ty, p)?;
-    let d = p - q;
-    let dist = d.length();
+    let tile = map.get(tx, ty);
+    if !tile.is_solid() {
+        return None;
+    }
+    let origin = vec2(tx as f32, ty as f32) * TILE;
+    let local = p - origin;
+
+    // Nearest open edge: (distance, closest point, outward normal).
+    let mut nearest: Option<(f32, Vec2, Vec2)> = None;
+    for (a, b) in tile.edges() {
+        if map.edge_hidden(tx, ty, a, b) {
+            continue;
+        }
+        let q = closest_on_segment(local, a, b);
+        let d = local.distance(q);
+        if nearest.is_none_or(|(best, _, _)| d < best) {
+            let e = b - a;
+            // Clockwise outline (y down): outward normal is (e.y, -e.x).
+            nearest = Some((d, q, vec2(e.y, -e.x).normalize()));
+        }
+    }
+    let (dist, q, outward) = nearest?;
+
+    if inside_convex(tile, local) {
+        // Centre inside the tile (only after a deep hit or a spawn inside):
+        // leave through the nearest open edge.
+        return Some((dist + r, outward));
+    }
     if dist >= r {
         return None;
     }
-    if dist > 1e-4 {
-        return Some((r - dist, d / dist));
-    }
-    // Centre inside the tile (only after a deep hit): leave through the
-    // nearest face that is open to empty space.
-    let min = vec2(tx as f32, ty as f32) * TILE;
-    let max = min + Vec2::splat(TILE);
-    let faces = [
-        (p.y - min.y, vec2(0.0, -1.0), (tx, ty - 1)),
-        (max.y - p.y, vec2(0.0, 1.0), (tx, ty + 1)),
-        (p.x - min.x, vec2(-1.0, 0.0), (tx - 1, ty)),
-        (max.x - p.x, vec2(1.0, 0.0), (tx + 1, ty)),
-    ];
-    faces
-        .iter()
-        .filter(|(_, _, (nx, ny))| !map.is_solid(*nx, *ny))
-        .min_by(|a, b| a.0.total_cmp(&b.0))
-        .map(|&(depth, n, _)| (depth + r, n))
-        .or(Some((r, vec2(0.0, -1.0))))
+    let n = if dist > 1e-4 {
+        (local - q) / dist
+    } else {
+        outward
+    };
+    Some((r - dist, n))
 }
 
-/// Closest point on tile (tx, ty) to `p`, treating the tile as extending into
-/// solid neighbours so their shared faces and corners never push the ball.
-///
-/// Returns `None` when `p` sits in the diagonal cell of an inside corner
-/// (both side neighbours solid, the diagonal cell empty): the two neighbours
-/// own that contact, and extending both ways would fill the empty corner.
-fn closest_point(map: &TileMap, tx: i32, ty: i32, p: Vec2) -> Option<Vec2> {
-    let min = vec2(tx as f32, ty as f32) * TILE;
-    let max = min + Vec2::splat(TILE);
-    let mut q = p.clamp(min, max);
-    let side_x = if p.x < min.x {
-        Some(tx - 1)
-    } else if p.x > max.x {
-        Some(tx + 1)
-    } else {
-        None
-    };
-    let side_y = if p.y < min.y {
-        Some(ty - 1)
-    } else if p.y > max.y {
-        Some(ty + 1)
-    } else {
-        None
-    };
-    let extend_x = side_x.is_some_and(|nx| map.is_solid(nx, ty));
-    let extend_y = side_y.is_some_and(|ny| map.is_solid(tx, ny));
-    if extend_x && extend_y {
-        let (nx, ny) = (side_x.unwrap(), side_y.unwrap());
-        if !map.is_solid(nx, ny) {
-            return None;
-        }
-    }
-    if extend_x {
-        q.x = p.x;
-    }
-    if extend_y {
-        q.y = p.y;
-    }
-    Some(q)
+fn closest_on_segment(p: Vec2, a: Vec2, b: Vec2) -> Vec2 {
+    let ab = b - a;
+    let t = ((p - a).dot(ab) / ab.length_squared()).clamp(0.0, 1.0);
+    a + ab * t
+}
+
+/// Point strictly inside a tile's (clockwise, convex) outline.
+fn inside_convex(tile: Tile, p: Vec2) -> bool {
+    tile.edges().all(|(a, b)| (b - a).perp_dot(p - a) > 0.0)
 }
 
 /// Velocity response to touching a surface with normal `n`.
@@ -190,6 +228,7 @@ fn land(ball: &mut Ball, c: Contacts) {
     if c.floor {
         ball.jumping = false;
         ball.air_ticks = 0;
+        ball.ground_normal = c.floor_normal;
         if c.impact_speed > p.min_bounce_speed {
             ball.vel += c.floor_normal * c.impact_speed * p.restitution;
             ball.grounded = false;
@@ -423,9 +462,9 @@ mod tests {
     #[test]
     fn extra_speed_bleeds_off_instead_of_snapping() {
         let mut w = World::resting(MID);
-        w.ball.vel.x = 300.0; // e.g. from a spring later on
+        w.ball.vel.x = 250.0; // e.g. from a slope or spring
         w.step("R");
-        assert!(w.ball.vel.x > 290.0, "{}", w.ball.vel.x);
+        assert!(w.ball.vel.x > 240.0, "{}", w.ball.vel.x);
         w.run("R", 120);
         assert!((w.ball.vel.x - BallParams::NORMAL.max_speed).abs() < 1e-3);
     }
@@ -627,21 +666,263 @@ mod tests {
     }
 
     #[test]
-    fn closest_point_ignores_faces_shared_with_solid_tiles() {
+    fn seam_contact_is_never_deeper_than_the_flat_contact() {
         let m = map_with(&["##"]);
-        // Ball over the seam between (0,17) and (1,17), slightly to the
-        // right: tile 0's right face is shared, so its closest point is
-        // straight below the ball, not its corner.
+        // Ball just right of the seam between (0,17) and (1,17): tile 0 only
+        // offers its corner, tile 1 its flat top, which must win.
         let p = vec2(16.5, 17.0 * TILE - 5.0);
-        assert_eq!(closest_point(&m, 0, 17, p), Some(vec2(16.5, 17.0 * TILE)));
+        let (corner_pen, _) = penetration(&m, 0, 17, p, 8.0).unwrap();
+        let (flat_pen, n) = penetration(&m, 1, 17, p, 8.0).unwrap();
+        assert!(flat_pen > corner_pen);
+        assert_eq!(n, vec2(0.0, -1.0));
     }
 
     #[test]
-    fn inside_corner_cell_is_not_filled() {
-        // Floor row 18 with a block on top at column 6: the empty cell (5,17)
-        // is an inside corner of floor tile (6,18).
+    fn tile_with_only_hidden_edges_never_collides() {
+        // Floor tile (6,18) under a block: all its edges are covered, so a
+        // ball in the inside corner beside the block only touches real faces.
         let m = map_with(&["......#"]);
         let p = vec2(5.5 * TILE, 17.5 * TILE);
-        assert_eq!(closest_point(&m, 6, 18, p), None);
+        assert_eq!(penetration(&m, 6, 18, p, 8.0), None);
+    }
+
+    // ---- slopes ----
+
+    /// First slope column of the generated slope maps.
+    const C0: usize = 6;
+
+    /// Map with a slope rising to the right from x = C0*16 on the floor,
+    /// `rise` tiles high, then a plateau. `kind` 1 = 45°, 2 = 1:2.
+    fn rising_right(kind: usize, rise: usize) -> TileMap {
+        let width = C0 + kind * rise + 8;
+        let rows: Vec<String> = (0..rise)
+            .map(|i| {
+                let level = rise - 1 - i; // 0 = bottom row
+                let start = C0 + kind * level;
+                (0..width)
+                    .map(|x| match (kind, x) {
+                        _ if x < start => '.',
+                        (1, x) if x == start => '/',
+                        (2, x) if x == start => 'r',
+                        (2, x) if x == start + 1 => 'R',
+                        _ => '#',
+                    })
+                    .collect()
+            })
+            .collect();
+        let refs: Vec<&str> = rows.iter().map(String::as_str).collect();
+        map_with(&refs)
+    }
+
+    /// The same, mirrored: plateau on the left, slope falling to the right,
+    /// reaching the floor at x = C0*16 + kind*rise*16.
+    fn falling_right(kind: usize, rise: usize) -> TileMap {
+        let width = C0 + kind * rise + 8;
+        let rows: Vec<String> = (0..rise)
+            .map(|i| {
+                let start = C0 + kind * i;
+                (0..width)
+                    .map(|x| match (kind, x) {
+                        _ if x < start => '#',
+                        (1, x) if x == start => '\\',
+                        (2, x) if x == start => 'L',
+                        (2, x) if x == start + 1 => 'l',
+                        _ => '.',
+                    })
+                    .collect()
+            })
+            .collect();
+        let refs: Vec<&str> = rows.iter().map(String::as_str).collect();
+        map_with(&refs)
+    }
+
+    /// Surface height of a `rising_right` slope at x.
+    fn rising_surface(kind: usize, x: f32) -> f32 {
+        FLOOR - (x - C0 as f32 * TILE) / kind as f32
+    }
+
+    /// Ball resting on a `rising_right` slope at x (centre pushed out along
+    /// the normal).
+    fn on_rising(kind: usize, rise: usize, x: f32) -> World {
+        let n = vec2(-1.0, -(kind as f32)).normalize();
+        let surface = vec2(x, rising_surface(kind, x));
+        let p = surface + n * 8.0;
+        let mut w = World::new(rising_right(kind, rise), p.x, p.y);
+        w.ball.grounded = true;
+        w.ball.ground_normal = n;
+        w
+    }
+
+    /// Distance from the ball centre to a `rising_right` slope's line.
+    fn gap_to_rising(kind: usize, b: &Ball) -> f32 {
+        let k = kind as f32;
+        // Line: x + k*y = C0*16 + k*FLOOR, normal (1, k)/len.
+        (C0 as f32 * TILE + k * FLOOR - b.pos.x - k * b.pos.y) / (1.0 + k * k).sqrt()
+    }
+
+    #[test]
+    fn rolls_down_a_45_slope_with_no_input() {
+        let mut w = on_rising(1, 8, C0 as f32 * TILE + 100.0);
+        let x0 = w.ball.pos.x;
+        w.run("-", 30);
+        assert!(w.ball.vel.x < -100.0, "vx {}", w.ball.vel.x);
+        assert!(w.ball.pos.x < x0 - 20.0);
+    }
+
+    #[test]
+    fn rolls_down_a_gentle_slope_more_slowly() {
+        let mut steep = on_rising(1, 8, C0 as f32 * TILE + 100.0);
+        let mut gentle = on_rising(2, 4, C0 as f32 * TILE + 100.0);
+        steep.run("-", 30);
+        gentle.run("-", 30);
+        assert!(gentle.ball.vel.x < -5.0, "gentle slope should still roll");
+        assert!(gentle.ball.vel.length() < steep.ball.vel.length());
+    }
+
+    #[test]
+    fn rolling_down_hugs_the_surface_across_seams() {
+        for kind in [1, 2] {
+            let mut w = on_rising(kind, 6, C0 as f32 * TILE + 90.0);
+            for _ in 0..60 {
+                w.step("L");
+                if w.ball.pos.x < C0 as f32 * TILE + 12.0 {
+                    break; // reached the bottom
+                }
+                let gap = gap_to_rising(kind, &w.ball);
+                assert!(
+                    w.ball.grounded,
+                    "kind {kind}: airborne at x={}",
+                    w.ball.pos.x
+                );
+                assert!(
+                    (gap - 8.0).abs() < 0.05,
+                    "kind {kind}: gap {gap} at x={}",
+                    w.ball.pos.x
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn climbs_a_45_slope_and_crests_without_hopping() {
+        let rise = 5;
+        let mut w = World::new(rising_right(1, rise), 2.0 * TILE, FLOOR - 8.0);
+        w.run("-", 3);
+        let top = FLOOR - rise as f32 * TILE - 8.0;
+        for i in 0..240 {
+            w.step("R");
+            assert!(w.ball.grounded, "airborne at step {i}, x={}", w.ball.pos.x);
+            if w.ball.pos.x > (C0 + rise + 2) as f32 * TILE {
+                assert_eq!(w.ball.pos.y, top, "should be on the plateau");
+                return;
+            }
+        }
+        panic!("never reached the plateau: x={}", w.ball.pos.x);
+    }
+
+    #[test]
+    fn climbs_a_gentle_slope_faster_than_a_steep_one() {
+        let time_to_top = |kind: usize| {
+            let rise = 3;
+            let mut w = World::new(
+                rising_right(kind, rise),
+                C0 as f32 * TILE - 8.0,
+                FLOOR - 8.0,
+            );
+            let top_x = (C0 + kind * rise) as f32 * TILE;
+            let mut steps = 0;
+            while w.ball.pos.x < top_x {
+                w.step("R");
+                steps += 1;
+                assert!(steps < 600, "kind {kind} never reached the top");
+            }
+            steps as f32 / (kind * rise) as f32 // steps per tile of run
+        };
+        assert!(time_to_top(2) < time_to_top(1));
+    }
+
+    #[test]
+    fn follows_a_downslope_off_a_plateau() {
+        for kind in [1, 2] {
+            let rise = 4;
+            let mut w = World::new(
+                falling_right(kind, rise),
+                2.0 * TILE,
+                FLOOR - rise as f32 * TILE - 8.0,
+            );
+            w.run("-", 3);
+            let bottom_x = (C0 + kind * rise) as f32 * TILE;
+            for i in 0..300 {
+                w.step("R");
+                assert!(
+                    w.ball.grounded,
+                    "kind {kind}: airborne at step {i}, x={}",
+                    w.ball.pos.x
+                );
+                if w.ball.pos.x > bottom_x + 32.0 {
+                    assert_eq!(w.ball.pos.y, FLOOR - 8.0);
+                    break;
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn speed_is_kept_when_a_slope_meets_flat_ground() {
+        let mut w = on_rising(1, 8, C0 as f32 * TILE + 110.0);
+        let mut last_speed = 0.0;
+        for _ in 0..120 {
+            w.step("-");
+            if w.ball.ground_normal == vec2(0.0, -1.0) {
+                let speed = w.ball.vel.length();
+                assert!(
+                    speed > last_speed * 0.97,
+                    "lost speed: {last_speed} -> {speed}"
+                );
+                assert!(speed > 150.0, "should arrive fast: {speed}");
+                return;
+            }
+            last_speed = w.ball.vel.length();
+        }
+        panic!("never reached flat ground");
+    }
+
+    #[test]
+    fn rolling_speed_is_capped_downhill() {
+        let mut w = on_rising(1, 16, C0 as f32 * TILE + 250.0);
+        let mut fastest: f32 = 0.0;
+        for _ in 0..90 {
+            w.step("L");
+            fastest = fastest.max(w.ball.vel.length());
+        }
+        assert!(
+            fastest <= BallParams::NORMAL.max_roll_speed + 1.0,
+            "{fastest}"
+        );
+    }
+
+    #[test]
+    fn jumping_on_a_slope_goes_straight_up() {
+        let mut w = on_rising(1, 8, C0 as f32 * TILE + 60.0);
+        w.step("J");
+        assert!(w.ball.vel.y < -250.0, "vy {}", w.ball.vel.y);
+        assert!(!w.ball.grounded);
+    }
+
+    #[test]
+    fn slope_underside_is_a_ceiling() {
+        // A lone 45° tile floating in the air; jump into its flat bottom.
+        let mut w = World::new(
+            map_with(&["..../....", ".........", "........."]),
+            4.5 * TILE,
+            FLOOR - 8.0,
+        );
+        w.run("-", 3);
+        w.step("J");
+        let mut bonked = false;
+        for _ in 0..30 {
+            bonked |= w.step("-").ceiling;
+        }
+        assert!(bonked);
     }
 }

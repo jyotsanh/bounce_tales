@@ -1,0 +1,17 @@
+# Slopes level: hold right from the left plateau. The ball rolls down the
+# 45° slope picking up speed past the normal top speed, stays on the ground
+# over the 1:2 hill, and climbs the 45° slope onto the right plateau
+# (plateau top y=208, ball y=200).
+level slopes
+45 R
+expect ball.grounded == 1
+expect ball.vx > 150
+15 R
+expect ball.y == 280
+expect ball.vx > 200
+30 R
+expect ball.grounded == 1
+150 R
+expect ball.x > 420
+expect ball.y == 200
+expect ball.grounded == 1

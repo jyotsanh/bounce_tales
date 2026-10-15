@@ -122,19 +122,55 @@ impl Renderer {
     }
 }
 
-/// Placeholder tile art (real tileset in step 7): dirt blocks with grass on
-/// any top face open to the sky.
+/// Placeholder tile art (real tileset in step 7): dirt shapes, a darker
+/// outline on open faces, and grass on any open face that points upward
+/// (tops and slopes).
 fn draw_tiles(map: &TileMap) {
     for ty in 0..map.height as i32 {
         for tx in 0..map.width as i32 {
-            if !map.is_solid(tx, ty) {
+            let tile = map.get(tx, ty);
+            if !tile.is_solid() {
                 continue;
             }
-            let (x, y) = (tx as f32 * TILE, ty as f32 * TILE);
-            draw_rectangle(x, y, TILE, TILE, DIRT_EDGE);
-            draw_rectangle(x + 1.0, y + 1.0, TILE - 2.0, TILE - 2.0, DIRT);
-            if !map.is_solid(tx, ty - 1) {
-                draw_rectangle(x, y, TILE, 4.0, GRASS);
+            let origin = vec2(tx as f32, ty as f32) * TILE;
+            let poly = tile.polygon();
+            for i in 1..poly.len() - 1 {
+                draw_triangle(
+                    origin + poly[0],
+                    origin + poly[i],
+                    origin + poly[i + 1],
+                    DIRT,
+                );
+            }
+            for (a, b) in tile.edges() {
+                if map.edge_hidden(tx, ty, a, b) {
+                    continue;
+                }
+                let e = b - a;
+                let outward = vec2(e.y, -e.x).normalize();
+                let (pa, pb) = (origin + a, origin + b);
+                if outward.y < -0.5 {
+                    // Grass strip just inside the surface.
+                    let inset = -outward * 1.5;
+                    draw_line(
+                        pa.x + inset.x,
+                        pa.y + inset.y,
+                        pb.x + inset.x,
+                        pb.y + inset.y,
+                        3.0,
+                        GRASS,
+                    );
+                } else {
+                    let inset = -outward * 0.5;
+                    draw_line(
+                        pa.x + inset.x,
+                        pa.y + inset.y,
+                        pb.x + inset.x,
+                        pb.y + inset.y,
+                        1.0,
+                        DIRT_EDGE,
+                    );
+                }
             }
         }
     }
