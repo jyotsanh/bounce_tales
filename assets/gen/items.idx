@@ -18,3 +18,6 @@ fan_1 0 32 16 16
 crate 16 32 16 16
 seesaw_post 32 32 16 16
 hub 48 32 16 16
+walker_0 64 32 16 16
+walker_1 80 32 16 16
+walker_freed 96 32 16 16

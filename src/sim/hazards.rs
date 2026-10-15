@@ -11,6 +11,8 @@ pub enum Cause {
     Spikes,
     /// Fell out of the bottom of the level.
     Pit,
+    /// Touched an enemy the wrong way.
+    Enemy,
 }
 
 /// Danger box of a spike cell, relative to the cell's top-left. A little

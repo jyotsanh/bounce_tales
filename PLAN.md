@@ -93,7 +93,7 @@ Key rules:
 - [x] **24.** **Balloon/light ball** (+ any other form from your references): floats up, slow fall, pops on spikes.
 
 ### Phase F — Enemies & boss
-- [ ] **25.** **Enemy framework + walkers** (hypnotized creatures): patrol, damage vs stomp rules.
+- [x] **25.** **Enemy framework + walkers** (hypnotized creatures): patrol, damage vs stomp rules.
 - [ ] **26.** **Flyers, jumpers, shooters**, projectiles.
 - [ ] **27.** **Hypno Cube boss**: arena, attack patterns, phases, win condition.
 
@@ -348,3 +348,11 @@ Spare capacity: if a step overruns, the next prompt finishes it before moving on
 - Spikes pop it like any ball; a balloon death has its own FX (light-blue shreds + "POP!" popup). `Particles::burst` takes the colours.
 - No other forms were given by the user; the framework (`Form`, per-form params/sprites, transformers) takes more if the reference levels need them.
 - New ASCII level `balloon` (32 tall — vertical scrolling): balloon transformer, a shaft the red ball can't climb, a spiked ledge (float up the right side) and a spiked shelf (swing left), the exit on the top room's floor. Replay `balloon_route` (recorded from a height-based steering controller). Tests: floats up / sinks slowly, red ball can't climb the shaft, pops on spikes, rides high in water, fans fling it.
+
+### Step 25 — Enemies: walkers (done)
+- `src/sim/enemies.rs`: `Enemy { kind: EnemyKind::Walker, vel, dir, speed, grounded, prev_pos, freed, gone }`. Walkers (30 px/s): gravity, turn at walls **and ledges** (never walk off), blocked by crates (`crates::blockers` now `pub(crate)`), fall out → gone.
+- `Enemy::touch(ball, pos, size)` → `Touch::Stomp` (ball coming down with its centre above the enemy's top), `Touch::Crush` (stone, any other side), `Touch::Hurt`. Stomp/crush **free** the creature (it turns pink, hops away, vanishes after 45 ticks; harmless meanwhile), +100 (`FREE_POINTS`), `Event::EnemyFreed`, `Sim.enemies_freed` (replay field `freed`). Stomp bounce 280 px/s (×1.25 with jump held). Hurt → `Cause::Enemy` death. Freed enemies stay freed after a death; game over restores them.
+- `walker` objects (rect; `dir` left|right default left, `speed`); ASCII `w`. `EntityKind::Enemy` — **step 26 adds flyers/jumpers/shooters as more `EnemyKind`s**.
+- Art: items `walker_0/1` (purple dazed critter, 2 walk frames), `walker_freed` (pink, happy eyes); drawn facing their direction (`Atlas::draw_flipped`). FX: pink sparkles + "+100".
+- New ASCII level `enemies` (penned walker, step to a platform walker, pit, walker by the exit). Replays: `enemies_route` (reactive controller jumping over everything) and `enemy_stomp` (timing found by brute-force search). Mid-air steering onto oncoming critters didn't work for a controller (they pass under at combined speed) — stomp coverage is unit tests + the searched replay.
+- Tests: walls, ledges, stomp/hurt/crush rules, stomp frees + bounces + scores, walking into one kills, stone crushes, platform walker stays up, game over restores.

@@ -80,6 +80,22 @@ impl Atlas {
         }
     }
 
+    /// Draws a sprite at `pos`, mirrored left-right if `flip`.
+    pub fn draw_flipped(&self, sprite: &str, pos: Vec2, flip: bool) {
+        let pos = pos.round();
+        draw_texture_ex(
+            &self.texture,
+            pos.x,
+            pos.y,
+            WHITE,
+            DrawTextureParams {
+                source: Some(self.rect(sprite)),
+                flip_x: flip,
+                ..Default::default()
+            },
+        );
+    }
+
     /// Draws a sprite stretched to `size`, tinted (multiplied) by `color`.
     pub fn draw_tinted(&self, sprite: &str, pos: Vec2, size: Vec2, color: Color) {
         let pos = pos.round();

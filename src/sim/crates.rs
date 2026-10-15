@@ -105,7 +105,7 @@ impl Crate {
 
 /// Solid things overlapping a box at `pos` of `size` (strictly, so boxes
 /// resting flush against each other don't count).
-fn blockers(pos: Vec2, size: Vec2, map: &TileMap, others: &[SolidBox]) -> Vec<SolidBox> {
+pub(crate) fn blockers(pos: Vec2, size: Vec2, map: &TileMap, others: &[SolidBox]) -> Vec<SolidBox> {
     const EPS: f32 = 1e-3;
     let overlaps = |min: Vec2, max: Vec2| {
         pos.x + size.x > min.x + EPS

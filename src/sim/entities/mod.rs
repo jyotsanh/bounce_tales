@@ -10,6 +10,7 @@ use macroquad::math::{Vec2, vec2};
 use crate::level::{ObjectSpec, Prop};
 use crate::sim::ball::{Ball, Form};
 use crate::sim::crates::Crate;
+use crate::sim::enemies::{self, Enemy};
 use crate::sim::hazards::Cause;
 use crate::sim::platforms::{self, Platform};
 use crate::sim::seesaw::{self, Seesaw};
@@ -44,6 +45,8 @@ pub enum Event {
     /// The ball changed form at `pos` (by a transformer, or a timed form
     /// running out).
     Transformed { form: Form, pos: Vec2 },
+    /// An enemy was freed (stomped, or crushed by the stone) at `pos`.
+    EnemyFreed { pos: Vec2 },
     /// A spring or catapult launched the ball from `pos`.
     Launched { pos: Vec2 },
     /// A collectible was picked up at `pos` (its centre).
@@ -123,6 +126,8 @@ pub enum EntityKind {
     /// Plank on a pivot (turned by `Sim::step`); also motor-driven
     /// spinners.
     Seesaw(Seesaw),
+    /// A hypnotized creature (moved by `Sim::step`).
+    Enemy(Enemy),
     /// Touching it turns the ball into `form`; `duration` steps (0 = until
     /// changed again).
     Transformer { form: Form, duration: u32 },
@@ -208,6 +213,7 @@ pub const KNOWN_TYPES: &[&str] = &[
     "wheel",
     "cannon",
     "transformer",
+    "walker",
 ];
 
 /// Reads a string property with a default.
@@ -329,6 +335,21 @@ pub fn build(spec: &ObjectSpec) -> Result<Entity, String> {
                 max.to_radians(),
                 spec.pos.y + spec.size.y,
             ))
+        }
+        "walker" => {
+            need_rect(spec)?;
+            let dir = match str_prop(spec, "dir", "left")? {
+                "left" => -1.0,
+                "right" => 1.0,
+                other => {
+                    return Err(format!(
+                        "walker '{}': dir must be left or right, got '{other}'",
+                        spec.name
+                    ));
+                }
+            };
+            let speed = num_prop(spec, "speed", enemies::WALKER_SPEED)?;
+            EntityKind::Enemy(Enemy::walker(spec.pos, dir, speed))
         }
         "transformer" => {
             need_rect(spec)?;
@@ -593,7 +614,8 @@ impl Entity {
             | EntityKind::Fan { .. }
             | EntityKind::Crate(_)
             | EntityKind::Seesaw(_)
-            | EntityKind::Transformer { .. } => {}
+            | EntityKind::Transformer { .. }
+            | EntityKind::Enemy(_) => {}
             EntityKind::Wheel { angle, speed, .. } => *angle += *speed * crate::sim::DT,
             EntityKind::Cannon {
                 aim,

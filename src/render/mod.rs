@@ -67,6 +67,9 @@ pub const ENTITY_SPRITES: &[&str] = &[
     "transformer_stone",
     "transformer_balloon",
     "transformer_normal",
+    "walker_0",
+    "walker_1",
+    "walker_freed",
 ];
 
 /// Stone landings faster than this shake the screen, px/s.
@@ -308,6 +311,18 @@ impl Renderer {
                 }
                 self.sprites.items.draw("hub", *centre - vec2(8.0, 8.0));
             }
+            EntityKind::Enemy(en) if !en.gone => {
+                let pos = en.prev_pos.lerp(e.pos, alpha);
+                let name = if en.freed.is_some() {
+                    "walker_freed".to_owned()
+                } else {
+                    format!("walker_{}", (tick / 10) % 2)
+                };
+                // Face the way it walks (the art faces right).
+                let flip = en.dir < 0.0;
+                self.sprites.items.draw_flipped(&name, pos, flip);
+            }
+            EntityKind::Enemy(_) => {}
             EntityKind::Transformer { form, .. } => {
                 let name = format!("transformer_{}", form.name());
                 self.sprites.objects.draw(&name, e.pos);

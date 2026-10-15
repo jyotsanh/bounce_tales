@@ -41,7 +41,7 @@
 //! wheel (4 cars, radius 48, centred on the cell), `Z` = spinner (4-tile
 //! plank turning about the cell's centre), `K` = cannon firing up-right by
 //! itself, `Q` = swinging cannon that fires on jump, `1` / `2` / `0` =
-//! transformer to stone / balloon / normal.
+//! transformer to stone / balloon / normal, `w` = walker (heading left).
 
 use std::io::Cursor;
 use std::path::Path;
@@ -259,6 +259,7 @@ fn ascii_marker(c: char) -> Option<Marker> {
             props: vec![("form".into(), Prop::Str("normal".into()))],
             ..m("transformer", "transformer", TRANSFORMER_SIZE)
         },
+        'w' => m("walker", "walker", ITEM_SIZE),
         'K' => Marker {
             props: vec![
                 ("angle".into(), Prop::Int(-60)),

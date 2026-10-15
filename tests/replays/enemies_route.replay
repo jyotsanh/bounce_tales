@@ -1,0 +1,14 @@
+# Enemies level (recorded from a reactive controller): hold right and jump
+# over every block, gap and walker; no deaths.
+level enemies
+35 R
+1 RJ
+63 R
+1 RJ
+108 R
+1 RJ
+59 R
+1 RJ
+35 R
+expect exit == 1
+expect deaths == 0

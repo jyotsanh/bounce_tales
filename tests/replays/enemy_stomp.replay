@@ -1,0 +1,10 @@
+# Enemies level: a running jump over the first block that drops onto the
+# penned walker (found by a timing search), freeing it with a bounce and
+# +100, and no deaths.
+level enemies
+20 R
+RJ
+119 -
+expect freed == 1
+expect score == 100
+expect deaths == 0

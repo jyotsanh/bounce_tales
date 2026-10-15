@@ -9,6 +9,7 @@
 pub mod ball;
 pub mod camera;
 pub mod crates;
+pub mod enemies;
 pub mod entities;
 pub mod hazards;
 pub mod input;
@@ -138,6 +139,8 @@ pub struct Sim {
     pub held: Option<(usize, u32)>,
     /// Total deaths this level.
     pub deaths: u32,
+    /// Enemies freed this level.
+    pub enemies_freed: u32,
     /// Balls left, including the one in play. Losing the last one is game
     /// over.
     pub lives: u32,
@@ -224,6 +227,7 @@ impl Sim {
             respawn_form: ball::Form::Normal,
             on_seesaw: None,
             deaths: 0,
+            enemies_freed: 0,
             lives: carry.lives,
             game_over: 0,
             restarts: 0,
@@ -286,12 +290,16 @@ impl Sim {
             }
         }
         self.update_crates();
+        self.update_enemies();
         self.update_seesaws();
         self.ball.wind = self.wind_at(self.ball.pos);
         if !self.hold_in_catapult() {
             self.move_ball(input);
             self.use_launchers();
             self.use_transformers();
+            if self.touch_enemies() {
+                return;
+            }
         }
         self.tick_form();
 
@@ -411,6 +419,56 @@ impl Sim {
             })
             .map(|(i, e)| (i, (e.pos, e.pos + e.size)))
             .unzip()
+    }
+
+    /// Moves every enemy one step (crates block them).
+    fn update_enemies(&mut self) {
+        let (_, crates) = self.crate_boxes(None);
+        for e in &mut self.entities {
+            let (pos, size) = (e.pos, e.size);
+            if let EntityKind::Enemy(en) = &mut e.kind {
+                e.pos = en.advance(pos, size, &self.level.map, &crates);
+            }
+        }
+    }
+
+    /// Ball against enemies: a stomp frees one and bounces the ball (higher
+    /// with jump held), a stone crushes it, anything else kills the ball.
+    /// Returns true if the ball died.
+    fn touch_enemies(&mut self) -> bool {
+        let mut freed = Vec::new();
+        let mut hurt = false;
+        for e in &mut self.entities {
+            let (pos, size) = (e.pos, e.size);
+            let EntityKind::Enemy(en) = &mut e.kind else {
+                continue;
+            };
+            match en.touch(&self.ball, pos, size) {
+                Some(enemies::Touch::Stomp) => {
+                    en.free();
+                    let boost = if self.input.jump { 1.25 } else { 1.0 };
+                    self.ball.vel.y = -enemies::STOMP_BOUNCE * boost;
+                    self.ball.jumping = true;
+                    self.ball.grounded = false;
+                    freed.push(pos + size / 2.0);
+                }
+                Some(enemies::Touch::Crush) => {
+                    en.free();
+                    freed.push(pos + size / 2.0);
+                }
+                Some(enemies::Touch::Hurt) => hurt = true,
+                None => {}
+            }
+        }
+        for pos in freed {
+            self.score += enemies::FREE_POINTS;
+            self.enemies_freed += 1;
+            self.events.push(Event::EnemyFreed { pos });
+        }
+        if hurt {
+            self.die(Cause::Enemy);
+        }
+        hurt
     }
 
     /// Moves every crate one step (in level order, so results never depend
@@ -2034,6 +2092,106 @@ mod tests {
             fastest = fastest.max(-sim.ball.vel.y);
         }
         assert!(fastest >= ball::MAX_WIND_RISE - 1.0, "rose at {fastest}");
+    }
+
+    fn first_enemy(sim: &Sim) -> (Vec2, enemies::Enemy) {
+        sim.entities
+            .iter()
+            .find_map(|e| match &e.kind {
+                EntityKind::Enemy(en) => Some((e.pos, en.clone())),
+                _ => None,
+            })
+            .unwrap()
+    }
+
+    #[test]
+    fn stomping_a_walker_frees_it_and_bounces() {
+        let mut sim = Sim::for_level("enemies").unwrap();
+        let (pos, _) = first_enemy(&sim);
+        sim.ball.pos = pos + macroquad::math::vec2(8.0, -40.0);
+        let mut bounced = false;
+        for _ in 0..40 {
+            sim.step(InputFrame::NONE);
+            if sim
+                .events
+                .iter()
+                .any(|e| matches!(e, Event::EnemyFreed { .. }))
+            {
+                bounced = sim.ball.vel.y < -200.0;
+                break;
+            }
+        }
+        assert!(bounced, "freed with a bounce");
+        assert_eq!(sim.enemies_freed, 1);
+        assert_eq!(sim.score, enemies::FREE_POINTS);
+        assert_eq!(sim.deaths, 0);
+        assert!(!first_enemy(&sim).1.active());
+    }
+
+    #[test]
+    fn walking_into_a_walker_costs_a_life() {
+        let mut sim = Sim::for_level("enemies").unwrap();
+        sim.ball.pos = macroquad::math::vec2(140.0, 232.0); // in the walker's pen
+        let mut cause = None;
+        for _ in 0..240 {
+            sim.step(press("R"));
+            if let Some(Event::Died { cause: c, .. }) = sim.events.first() {
+                cause = Some(*c);
+                break;
+            }
+        }
+        assert_eq!(cause, Some(Cause::Enemy));
+    }
+
+    #[test]
+    fn a_rolling_stone_crushes_walkers() {
+        let mut sim = Sim::for_level("enemies").unwrap();
+        sim.ball = Ball::with_form(macroquad::math::vec2(140.0, 232.0), ball::Form::Stone);
+        for _ in 0..240 {
+            sim.step(press("R"));
+        }
+        assert_eq!(sim.deaths, 0);
+        assert_eq!(sim.enemies_freed, 1);
+    }
+
+    #[test]
+    fn platform_walker_stays_on_its_platform() {
+        let mut sim = Sim::for_level("enemies").unwrap();
+        // The walker that starts on the platform (top y 176).
+        let i = sim
+            .entities
+            .iter()
+            .position(|e| matches!(e.kind, EntityKind::Enemy(_)) && e.pos.y == 160.0)
+            .unwrap();
+        sim.ball.pos = macroquad::math::vec2(40.0, 232.0);
+        for _ in 0..600 {
+            sim.step(InputFrame::NONE);
+        }
+        let pos = sim.entities[i].pos;
+        let EntityKind::Enemy(en) = &sim.entities[i].kind else {
+            unreachable!()
+        };
+        assert!(en.active());
+        assert_eq!(pos.y, 176.0 - 16.0, "still on the platform");
+        assert!(
+            pos.x >= 320.0 - 0.5 && pos.x <= 448.0 - 16.0 + 0.5,
+            "x {}",
+            pos.x
+        );
+    }
+
+    #[test]
+    fn game_over_brings_freed_walkers_back() {
+        let mut sim = Sim::for_level("enemies").unwrap();
+        let (pos, _) = first_enemy(&sim);
+        sim.ball.pos = pos + macroquad::math::vec2(8.0, -40.0);
+        for _ in 0..30 {
+            sim.step(InputFrame::NONE);
+        }
+        assert_eq!(sim.enemies_freed, 1);
+        sim.restart_level();
+        assert!(first_enemy(&sim).1.active());
+        assert_eq!(sim.enemies_freed, 0);
     }
 
     #[test]

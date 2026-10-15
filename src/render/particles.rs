@@ -58,6 +58,7 @@ const STONE: [Color; 3] = [
     Color::new(0.35, 0.34, 0.31, 1.0),
 ];
 const WATER_DROP: Color = Color::new(0.62, 0.84, 1.0, 1.0);
+const FREED_PINK: Color = Color::new(1.0, 0.6, 0.8, 1.0);
 const GOLD_SPARK: Color = Color::new(1.0, 0.85, 0.25, 1.0);
 const GEM_SPARK: Color = Color::new(0.62, 0.89, 1.0, 1.0);
 const LIFE_GREEN: Color = Color::new(0.3, 0.82, 0.24, 1.0);
@@ -136,6 +137,15 @@ impl Particles {
                 Event::Switched { pos } => self.sparkle(pos, LIFE_GREEN),
                 Event::GateMoved { pos } => self.puffs(pos, 8, 50.0),
                 Event::Launched { pos } => self.puffs(pos, 8, 70.0),
+                Event::EnemyFreed { pos } => {
+                    self.sparkle(pos, FREED_PINK);
+                    self.popups.push(Popup {
+                        text: "+100".to_owned(),
+                        pos: pos - vec2(0.0, 12.0),
+                        life: POPUP_LIFE,
+                        color: FREED_PINK,
+                    });
+                }
                 Event::Transformed { form, pos } => {
                     let color = match form {
                         Form::Normal => Color::new(1.0, 0.45, 0.4, 1.0),
