@@ -19,6 +19,9 @@ pub struct Options {
     pub record: Option<PathBuf>,
     /// Start with the debug overlay shown (F1 toggles it).
     pub debug: bool,
+    /// Start with sound off (M toggles it). Scripted runs (--frames,
+    /// --replay) are always silent.
+    pub mute: bool,
     /// Initial window scale factor (window = 240*scale x 320*scale).
     pub scale: u32,
 }
@@ -36,6 +39,7 @@ Options:
                        (needs --frames or --replay)
   --record <file>      Record keyboard input to a replay file on exit
   --debug              Start with the debug overlay on (F1 toggles)
+  --mute               Start with sound off (M toggles)
   --scale <N>          Window scale factor (default 2)
   -h, --help           Show this help";
 
@@ -69,6 +73,7 @@ impl Options {
                 "--screenshot" => opts.screenshot = Some(value("--screenshot")?.into()),
                 "--record" => opts.record = Some(value("--record")?.into()),
                 "--debug" => opts.debug = true,
+                "--mute" => opts.mute = true,
                 "--scale" => {
                     let s = parse_num("--scale", &value("--scale")?)?;
                     if !(1..=8).contains(&s) {
@@ -126,6 +131,7 @@ mod tests {
             "s.png",
             "--scale",
             "3",
+            "--mute",
         ])
         .unwrap();
         assert_eq!(o.level.as_deref(), Some("l1"));
@@ -133,6 +139,7 @@ mod tests {
         assert_eq!(o.replay, Some("r.txt".into()));
         assert_eq!(o.screenshot, Some("s.png".into()));
         assert_eq!(o.scale, 3);
+        assert!(o.mute);
     }
 
     #[test]

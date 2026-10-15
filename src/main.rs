@@ -1,4 +1,5 @@
 mod render;
+mod sound;
 
 use macroquad::prelude::*;
 
@@ -7,6 +8,7 @@ use bounce_tales::game::Game;
 use bounce_tales::replay::Replay;
 use bounce_tales::sim::{DEFAULT_LEVEL, FixedStep, InputFrame};
 use render::{Renderer, SCREEN_H, SCREEN_W};
+use sound::Sounds;
 
 fn options() -> Options {
     match Options::parse(std::env::args().skip(1)) {
@@ -64,6 +66,11 @@ async fn main() {
 
     prevent_quit();
     let mut renderer = Renderer::new();
+    let mut sounds = if frame_limit.is_some() {
+        Sounds::silent()
+    } else {
+        Sounds::load(opts.mute).await
+    };
     // A replay's own `level` line wins over --level.
     let level = replay
         .as_ref()
@@ -91,6 +98,9 @@ async fn main() {
         if is_key_pressed(KeyCode::F1) {
             debug = !debug;
         }
+        if is_key_pressed(KeyCode::M) {
+            sounds.muted = !sounds.muted;
+        }
 
         let steps = match frame_limit {
             Some(limit) if step_count >= limit => {
@@ -113,6 +123,7 @@ async fn main() {
             game.step(input);
             step_count += 1;
             renderer.on_step(&game.sim);
+            sounds.on_step(&game.sim);
             if opts.record.is_some() {
                 recorded.inputs.push(input);
             }

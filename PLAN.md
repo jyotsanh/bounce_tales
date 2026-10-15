@@ -98,7 +98,7 @@ Key rules:
 - [x] **27.** **Hypno Cube boss**: arena, attack patterns, phases, win condition.
 
 ### Phase G — Audio
-- [ ] **28.** **SFX synth**: square/triangle/noise + envelopes → WAV bytes. Bounce, jump, pickup, splash, death, transform sounds.
+- [x] **28.** **SFX synth**: square/triangle/noise + envelopes → WAV bytes. Bounce, jump, pickup, splash, death, transform sounds.
 - [ ] **29.** **Chiptune music**: small pattern sequencer. Title, forest, cave, castle and boss tracks. Volume control.
 
 ### Phase H — Menus & story
@@ -371,3 +371,12 @@ Spare capacity: if a step overruns, the next prompt finishes it before moving on
 - Object `boss` (rect: top-left where it hovers), ASCII `M` (centred). New ASCII level `hypno` (one-screen flat arena), added as the **last campaign level** (`game::CAMPAIGN` = big, hazards, hypno until steps 34-38).
 - Art: `assets/art/boss.txt` (40x40: 4 spinning-spiral frames, dizzy face). HUD: "HYPNO CUBE" + HP pips. FX: hit sparkles + "+1000", shatter burst + confetti, white hit flash.
 - Replay `boss_fight` (controller-recorded win in ~20 s, no deaths, 3000 points). Tests: state cycle (fires, warns, slams over the ball, lands dazed, rises back), 3 hits → dead, touch rules incl. harmless while rising, full win in the sim → exit.
+
+### Step 28 — SFX synth (done)
+- `src/audio/synth.rs` (lib, pure): `Wave` (pulse with duty, triangle, LFSR noise), `Envelope` (ADSR; release ≥ 1.0 = fade over the whole note), `Tone` (start, length, exponential pitch slide, vibrato, volume) → `render` (mono f32, 44.1 kHz = the mixer's rate, hard-clipped) → `wav_bytes` (16-bit PCM). Deterministic.
+- `src/audio/sfx.rs`: 25 effects (`Sfx::ALL`): bounce, jump, gem, egg, life, splash, death, balloon pop, respawn, checkpoint, three transforms (stone falls, balloon rises, normal), crumble, smash, switch, gate, spring boing, shot, tink (pellet on stone), freed, boss hit, boss defeated, exit fanfare, game over. `for_event(event, form)` picks one (landing/splash volume from speed; the balloon pops instead of bursting); `for_step` plays each effect once per step at its loudest.
+- Binary: `src/sound.rs` loads every effect at start (`macroquad` `audio` feature) and plays the step's effects. **M** toggles sound, `--mute` starts muted; scripted runs (`--frames`/`--replay`) never open the audio device.
+- `build.rs`: if the linker's `libasound.so` dev symlink is missing (no `libasound2-dev`), links against the runtime `libasound.so.2` via a symlink in OUT_DIR.
+- `Game` clears the frozen sim's events on the finished screen (they would replay every step).
+- `cargo run --bin sfx2wav [dir]` writes every effect as a WAV (default `shots/sfx`) to audition them.
+- Tests: pitch, slides, envelopes, noise, clipping, WAV header, every effect short/audible/ends silent, event mapping, one-per-step.

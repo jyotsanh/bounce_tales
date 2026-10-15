@@ -155,6 +155,9 @@ impl Game {
             }
             Mode::Finished { ticks } => {
                 *ticks += 1;
+                // The sim is frozen: its last events must not replay (sound,
+                // particles) every step.
+                self.sim.events.clear();
                 if jump_pressed && *ticks >= CONTINUE_AFTER {
                     // Start the campaign over from the first level.
                     let first = self
@@ -312,6 +315,7 @@ mod tests {
         assert_eq!(game.mode, Mode::Finished { ticks: 0 });
         assert_eq!(game.eggs_found(), (0, 0));
         run(&mut game, "-", CONTINUE_AFTER);
+        assert!(game.sim.events.is_empty(), "frozen sim replays nothing");
         game.step(press("J"));
         assert_eq!(game.mode, Mode::Playing);
         assert_eq!(game.sim.score, 0);
