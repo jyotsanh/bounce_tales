@@ -141,8 +141,14 @@ impl Tone {
             let t = i as f32 / rate;
             let k = t / self.len;
             let (vib_rate, vib_depth) = self.vibrato;
-            let vib = 1.0 + vib_depth * (std::f32::consts::TAU * vib_rate * t).sin();
-            let freq = self.from * ratio.powf(k) * vib;
+            let mut freq = if ratio == 1.0 {
+                self.from
+            } else {
+                self.from * ratio.powf(k)
+            };
+            if vib_depth != 0.0 {
+                freq *= 1.0 + vib_depth * (std::f32::consts::TAU * vib_rate * t).sin();
+            }
             let prev = phase;
             phase = (phase + freq / rate).fract();
             let sample = match self.wave {

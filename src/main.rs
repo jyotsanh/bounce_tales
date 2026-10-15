@@ -3,12 +3,16 @@ mod sound;
 
 use macroquad::prelude::*;
 
+use bounce_tales::audio::Volume;
 use bounce_tales::cli::{self, CliError, Options};
 use bounce_tales::game::Game;
 use bounce_tales::replay::Replay;
 use bounce_tales::sim::{DEFAULT_LEVEL, FixedStep, InputFrame};
 use render::{Renderer, SCREEN_H, SCREEN_W};
-use sound::Sounds;
+use sound::{Sounds, VolumeKey};
+
+/// How long a volume message stays up, frames.
+const TOAST_FRAMES: u32 = 75;
 
 fn options() -> Options {
     match Options::parse(std::env::args().skip(1)) {
@@ -69,7 +73,11 @@ async fn main() {
     let mut sounds = if frame_limit.is_some() {
         Sounds::silent()
     } else {
-        Sounds::load(opts.mute).await
+        Sounds::load(Volume {
+            muted: opts.mute,
+            ..Volume::DEFAULT
+        })
+        .await
     };
     // A replay's own `level` line wins over --level.
     let level = replay
@@ -87,6 +95,8 @@ async fn main() {
     let mut recorded = Replay::default();
     let mut failures = Vec::new();
     let mut debug = opts.debug;
+    // A short message (volume changes), frames left to show it.
+    let mut toast: Option<(String, u32)> = None;
     if let Some(r) = &replay {
         failures.extend(r.failures_now(&game.sim));
     }
@@ -98,8 +108,17 @@ async fn main() {
         if is_key_pressed(KeyCode::F1) {
             debug = !debug;
         }
-        if is_key_pressed(KeyCode::M) {
-            sounds.muted = !sounds.muted;
+        let volume_key = |k: VolumeKey| {
+            is_key_pressed(match k {
+                VolumeKey::Mute => KeyCode::M,
+                VolumeKey::MusicDown => KeyCode::Minus,
+                VolumeKey::MusicUp => KeyCode::Equal,
+                VolumeKey::SfxDown => KeyCode::LeftBracket,
+                VolumeKey::SfxUp => KeyCode::RightBracket,
+            })
+        };
+        if let Some(msg) = sounds.handle_keys(volume_key) {
+            toast = Some((msg, TOAST_FRAMES));
         }
 
         let steps = match frame_limit {
@@ -132,6 +151,8 @@ async fn main() {
             }
         }
 
+        sounds.update_music(&game).await;
+
         let alpha = if frame_limit.is_some() {
             1.0
         } else {
@@ -140,6 +161,13 @@ async fn main() {
         renderer.draw_game(&game.sim, alpha);
         renderer.draw_hud(&game.sim);
         renderer.draw_flow(&game);
+        if let Some((msg, frames)) = &mut toast {
+            renderer.draw_toast(msg);
+            *frames -= 1;
+            if *frames == 0 {
+                toast = None;
+            }
+        }
         if debug {
             renderer.draw_debug(&game.sim, get_fps());
         }

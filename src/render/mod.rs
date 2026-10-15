@@ -639,6 +639,15 @@ impl Renderer {
         }
     }
 
+    /// A short message under the HUD (e.g. a volume change).
+    pub fn draw_toast(&self, text: &str) {
+        set_camera(&self.screen_camera);
+        let w = font::width(text, 1.0) + 8.0;
+        let (x, y) = ((VIEW_W - w) / 2.0, 30.0);
+        draw_rectangle(x, y, w, 13.0, Color::new(0.0, 0.0, 0.0, 0.7));
+        font::draw_centred(&self.sprites.font, text, VIEW_W / 2.0, y + 3.0, 1.0, WHITE);
+    }
+
     /// F1 overlay: frame rate, tick, ball state and held input.
     pub fn draw_debug(&self, sim: &Sim, fps: i32) {
         set_camera(&self.screen_camera);

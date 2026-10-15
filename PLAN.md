@@ -16,7 +16,7 @@ Gameplay is copied as closely as possible. All art, audio and level files are **
 | Levels scope | Full story set + bonus levels. You share screenshots/notes before each level prompt |
 | Features | Transformations, enemies + Hypno Cube boss, cutscenes + menus, eggs/lives/checkpoints/save |
 | Audio | Chiptune SFX + music synthesized in code (no external files) |
-| Controls | Keyboard: arrows/WASD to roll, Up/W/Space to jump, Esc to pause |
+| Controls | Keyboard: arrows/WASD to roll, Up/W/Space to jump, Esc to pause; M mute, -/= music volume, [/] effects volume |
 | Difficulty | Like the original: limited lives, game over restarts the level |
 | Testing | `cargo test` + headless replay sim + a screenshot from a real run |
 | Git | **You commit, not me.** At the end of each step I leave the changes uncommitted and give you a ready-to-paste commit message (`step NN: <title>` + short body). Branch rename `master` → `main` is your command to run too (`git branch -m master main`) |
@@ -99,7 +99,7 @@ Key rules:
 
 ### Phase G — Audio
 - [x] **28.** **SFX synth**: square/triangle/noise + envelopes → WAV bytes. Bounce, jump, pickup, splash, death, transform sounds.
-- [ ] **29.** **Chiptune music**: small pattern sequencer. Title, forest, cave, castle and boss tracks. Volume control.
+- [x] **29.** **Chiptune music**: small pattern sequencer. Title, forest, cave, castle and boss tracks. Volume control.
 
 ### Phase H — Menus & story
 - [ ] **30.** **Game state machine & menus**: title, main menu, pause, game over, screen transitions.
@@ -380,3 +380,13 @@ Spare capacity: if a step overruns, the next prompt finishes it before moving on
 - `Game` clears the frozen sim's events on the finished screen (they would replay every step).
 - `cargo run --bin sfx2wav [dir]` writes every effect as a WAV (default `shots/sfx`) to audition them.
 - Tests: pitch, slides, envelopes, noise, clipping, WAV header, every effect short/audible/ends silent, event mapping, one-per-step.
+
+### Step 29 — Chiptune music (done)
+- `src/audio/music.rs`: pattern sequencer. A `Track` (bpm, steps per beat) has `Part`s per `Voice` (Lead 25 % pulse with vibrato on long notes, Harmony 12.5 % pulse, triangle Bass, noise/triangle Drums). Parts are text: note names (`C4`, `F#5`, `Bb3`), `-` hold, `.` rest, `|` bar lines; drums `k s h o`. Shorter parts repeat (must divide the loop). Helpers build bass lines and arpeggios from chord lists, and an `echo` of the lead. The whole loop renders to one WAV (padded to the exact loop length; every note ends inside it, so it loops without a click).
+- Five original tunes (`TRACKS`): `title` (gentle, 104 bpm), `forest` (bouncy C major, 16 bars, 138 bpm), `cave` (A minor with a dripping echo, 96 bpm), `castle` (D minor march, 150 bpm), `boss` (driving E minor, 168 bpm). 8–30 s loops.
+- Level map property `music` (validated; default `forest`; ASCII maps with a boss play `boss`) → `Level.music`.
+- `music::for_game`: level tune while playing; silence once the exit is reached, on the results screen and during a game over (the jingles play then); `title` on the finished screen.
+- `audio::Volume { music, sfx: 0..=10, muted }` with squared gain curve (default 6 / 8). Keys: **M** mute all, **- / =** music, **[ / ]** effects (plays a gem sample). A toast ("MUSIC 6/10") shows for 75 frames under the HUD. Saved settings come in step 32.
+- Binary: `Sounds::update_music` renders a track on first use (~0.1 s debug), plays it looped, stops/switches when the game state wants another; volume changes apply live.
+- `sfx2wav` renamed `audio2wav`: writes `sfx_*.wav` and `music_*.wav` to `shots/audio`.
+- Tests: note parsing round-trip, holds/rests timing, repeating parts + divide check, bad tokens, echo, every track builds/loops silently at the seam/has sane length and level, determinism, music follows the game, level `music` property, volume steps.

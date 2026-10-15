@@ -19,7 +19,7 @@ pub struct Options {
     pub record: Option<PathBuf>,
     /// Start with the debug overlay shown (F1 toggles it).
     pub debug: bool,
-    /// Start with sound off (M toggles it). Scripted runs (--frames,
+    /// Start with sound and music off (M toggles it). Scripted runs (--frames,
     /// --replay) are always silent.
     pub mute: bool,
     /// Initial window scale factor (window = 240*scale x 320*scale).

@@ -26,6 +26,9 @@
 //!
 //! - Map property `background` (string) picks the parallax backdrop; one of
 //!   [`BACKGROUNDS`] (default `forest`).
+//! - Map property `music` (string) picks the tune; one of
+//!   [`crate::audio::music::TRACKS`] (default `forest`; ASCII maps with a
+//!   boss play `boss`).
 //! - Map property `par` (int, seconds) is the target time for the time
 //!   bonus on the results screen (default [`DEFAULT_PAR_SECONDS`]).
 //!
@@ -146,7 +149,12 @@ pub struct Level {
     pub background: String,
     /// Target time for the time bonus, seconds.
     pub par_seconds: u32,
+    /// Music track name (one of [`crate::audio::music::TRACKS`]).
+    pub music: String,
 }
+
+/// Music when a level sets none.
+pub const DEFAULT_MUSIC: &str = "forest";
 
 /// Target time when a level sets no `par` property, seconds.
 pub const DEFAULT_PAR_SECONDS: u32 = 120;
@@ -419,6 +427,11 @@ impl Level {
             height: map.height,
             cells,
         };
+        let music = if objects.iter().any(|o| o.kind == "boss") {
+            "boss".into()
+        } else {
+            DEFAULT_MUSIC.into()
+        };
         Ok(Level {
             map,
             layers: vec![layer],
@@ -427,6 +440,7 @@ impl Level {
             decorations: Vec::new(),
             background: BACKGROUNDS[0].into(),
             par_seconds: ASCII_PAR_SECONDS,
+            music,
         })
     }
 
@@ -646,6 +660,17 @@ impl Level {
                 ));
             }
         };
+        let tracks = crate::audio::music::TRACKS;
+        let music = match tm.properties.get("music") {
+            None => DEFAULT_MUSIC.to_owned(),
+            Some(tiled::PropertyValue::StringValue(m)) if tracks.contains(&m.as_str()) => m.clone(),
+            Some(other) => {
+                return Err(format!(
+                    "map property 'music' = {other:?}; known: {}",
+                    tracks.join(", ")
+                ));
+            }
+        };
         let par_seconds = match tm.properties.get("par") {
             None => DEFAULT_PAR_SECONDS,
             Some(tiled::PropertyValue::IntValue(p)) if *p > 0 => *p as u32,
@@ -665,6 +690,7 @@ impl Level {
             decorations,
             background,
             par_seconds,
+            music,
         })
     }
 }
@@ -997,6 +1023,28 @@ mod tests {
                 .unwrap_err()
                 .contains("background")
         );
+    }
+
+    #[test]
+    fn music_property() {
+        let tmx = ascii_to_tmx("o.\n##").unwrap();
+        assert_eq!(Level::from_tmx("t", &tmx).unwrap().music, "forest");
+        let with = |v: &str| {
+            tmx.replace(
+                "<tileset firstgid",
+                &format!(
+                    "<properties><property name=\"music\" value=\"{v}\"/></properties>\n <tileset firstgid"
+                ),
+            )
+        };
+        assert_eq!(Level::from_tmx("t", &with("cave")).unwrap().music, "cave");
+        assert!(
+            Level::from_tmx("t", &with("disco"))
+                .unwrap_err()
+                .contains("music")
+        );
+        assert_eq!(Level::load("hypno").unwrap().music, "boss");
+        assert_eq!(Level::load("flat").unwrap().music, "forest");
     }
 
     #[test]
