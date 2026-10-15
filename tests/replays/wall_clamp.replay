@@ -1,5 +1,7 @@
-# Holding left for 3 seconds must stop at the left screen edge.
+# Holding left for 3 seconds rolls into the left screen edge and stays there.
 180 L
-expect ball.x == 8
-LR
+expect ball.x <= 8.5
+expect ball.x >= 8
+30 -
 expect ball.vx == 0
+expect ball.x < 20

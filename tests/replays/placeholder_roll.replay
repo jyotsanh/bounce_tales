@@ -1,9 +1,0 @@
-# Placeholder movement (constant 90 px/s) until real physics in step 3.
-# Step 3 must rewrite these expectations.
-60 R
-expect tick == 60
-expect ball.x == 210 +- 0.01
-expect ball.vx == 90 +- 0.01
-30 -
-expect ball.vx == 0
-expect ball.x == 210 +- 0.01

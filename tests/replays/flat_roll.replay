@@ -1,0 +1,10 @@
+# Rolling on flat ground: near top speed after a quarter second, capped at
+# 120 px/s, and friction stops the ball within half a second of letting go.
+15 R
+expect ball.vx > 100
+expect ball.grounded == 1
+25 R
+expect ball.vx == 120
+30 -
+expect ball.vx == 0
+expect ball.grounded == 1

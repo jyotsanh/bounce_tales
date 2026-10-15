@@ -8,6 +8,7 @@
 
 pub mod ball;
 pub mod input;
+pub mod physics;
 pub mod rng;
 
 use macroquad::math::vec2;
@@ -24,8 +25,6 @@ pub const DT: f32 = 1.0 / TICKS_PER_SECOND as f32;
 pub const WORLD_W: f32 = 240.0;
 /// Temporary flat floor (y of the ground surface) until tile maps (step 4).
 pub const GROUND_Y: f32 = 260.0;
-/// Placeholder roll speed. Real rolling physics comes in step 3.
-const PLACEHOLDER_SPEED: f32 = 90.0;
 
 /// Whole game state.
 #[derive(Debug, Clone, PartialEq)]
@@ -64,12 +63,9 @@ impl Sim {
         self.input = input;
         self.tick += 1;
 
-        // Placeholder movement: constant-speed roll, clamped to the screen.
-        let b = &mut self.ball;
-        b.prev_pos = b.pos;
-        b.vel = vec2(input.axis() * PLACEHOLDER_SPEED, 0.0);
-        b.pos += b.vel * DT;
-        b.pos.x = b.pos.x.clamp(b.radius, WORLD_W - b.radius);
+        let jump_pressed = self.jump_pressed();
+        self.ball.update(input, jump_pressed);
+        physics::collide_flat(&mut self.ball, GROUND_Y, WORLD_W);
     }
 
     /// True on the first step the jump button is held.

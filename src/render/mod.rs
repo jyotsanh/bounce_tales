@@ -13,6 +13,7 @@ const SKY: Color = Color::new(0.55, 0.80, 0.95, 1.0);
 const GRASS: Color = Color::new(0.30, 0.65, 0.20, 1.0);
 const DIRT: Color = Color::new(0.50, 0.33, 0.18, 1.0);
 const BALL_RED: Color = Color::new(0.85, 0.10, 0.10, 1.0);
+const BALL_DARK: Color = Color::new(0.55, 0.05, 0.05, 1.0);
 const LETTERBOX: Color = Color::new(0.05, 0.05, 0.07, 1.0);
 
 /// Where the game image goes on the window: largest whole-number scale that
@@ -55,10 +56,15 @@ impl Renderer {
         draw_rectangle(0.0, GROUND_Y, SCREEN_W as f32, 6.0, GRASS);
         draw_rectangle(0.0, GROUND_Y + 6.0, SCREEN_W as f32, SCREEN_H as f32, DIRT);
 
-        // Placeholder ball; real sprite in step 7.
-        let p = sim.ball.render_pos(alpha);
-        let r = sim.ball.radius;
+        // Placeholder ball; real sprite in step 7. The dark stripe turns with
+        // the ball so rolling is visible; the highlight stays put (light from
+        // the top-left).
+        let b = &sim.ball;
+        let p = b.render_pos(alpha);
+        let r = b.radius;
         draw_circle(p.x, p.y, r, BALL_RED);
+        let d = vec2(b.angle.cos(), b.angle.sin()) * (r - 1.5);
+        draw_line(p.x - d.x, p.y - d.y, p.x + d.x, p.y + d.y, 2.0, BALL_DARK);
         draw_circle(p.x - 3.0, p.y - 3.0, 2.0, WHITE);
 
         draw_text("BOUNCE TALES", 60.0, 120.0, 24.0, BALL_RED);
@@ -72,7 +78,11 @@ impl Renderer {
             format!("fps {fps:3}  tick {}", sim.tick),
             format!("pos {:7.2} {:7.2}", b.pos.x, b.pos.y),
             format!("vel {:7.2} {:7.2}", b.vel.x, b.vel.y),
-            format!("in  {}", sim.input.to_code()),
+            format!(
+                "in  {:3} {}",
+                sim.input.to_code(),
+                if b.grounded { "ground" } else { "air" }
+            ),
         ];
         let line_h = 10.0;
         draw_rectangle(

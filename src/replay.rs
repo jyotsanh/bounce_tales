@@ -10,7 +10,7 @@
 //! 20 -                   # nothing held for 20 steps
 //! expect ball.x > 150    # checked after all steps above have run
 //! expect tick == 51
-//! expect ball.y == 252 +- 0.5
+//! expect ball.y == 252 +- 0.5   # booleans read as 0 / 1
 //! ```
 //!
 //! Inputs use `L`, `R`, `J` (any order) or `-` for nothing.
@@ -32,6 +32,8 @@ pub const FIELDS: &[(&str, Probe)] = &[
     ("ball.vx", |s| s.ball.vel.x as f64),
     ("ball.vy", |s| s.ball.vel.y as f64),
     ("ball.speed", |s| s.ball.vel.length() as f64),
+    ("ball.grounded", |s| s.ball.grounded as u8 as f64),
+    ("ball.angle", |s| s.ball.angle as f64),
 ];
 
 pub fn probe(sim: &Sim, field: &str) -> Option<f64> {
@@ -242,7 +244,7 @@ mod tests {
         2 -
         expect tick == 6
         expect ball.x > 120
-        expect ball.vx == 0 +- 0.5
+        expect ball.vx != 0 +- 0.5
     ";
 
     #[test]

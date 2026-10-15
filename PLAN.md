@@ -61,7 +61,7 @@ Key rules:
 ### Phase A — Foundation
 - [x] **01.** **Bootstrap**: (you run `git branch -m master main`). Add macroquad. Module skeleton, `PLAN.md`, `scripts/check.sh`. Fixed-timestep loop, 240×320 target integer-scaled to the window, CLI flags + screenshot capture.
 - [x] **02.** **Headless sim + replays**: `Sim`/`InputFrame`, deterministic stepping, replay file format, test harness in `tests/replays`, F1 debug overlay (FPS, ball pos/vel).
-- [ ] **03.** **Ball on flat ground**: gravity, rolling acceleration, friction, max speed, jump, bounce restitution. Tests for jump height and speed cap.
+- [x] **03.** **Ball on flat ground**: gravity, rolling acceleration, friction, max speed, jump, bounce restitution. Tests for jump height and speed cap.
 - [ ] **04.** **Tile collisions**: hardcoded test grid, circle-vs-AABB resolution (floor, walls, ceiling, corners), no tunneling at high speed (sub-stepping).
 - [ ] **05.** **Slopes**: 45° and 22.5° tiles, circle-vs-segment, rolling down/up slopes, smooth hand-off between slope and flat tiles.
 - [ ] **06.** **Camera**: follow with deadzone and look-ahead, clamped to level bounds.
@@ -148,3 +148,14 @@ Spare capacity: if a step overruns, the next prompt finishes it before moving on
 - CLI: `--replay` drives input, prints check failures, exits 1 on failure, runs to end if no `--frames`. `--record <file>` saves live input on exit (Esc or window close; `prevent_quit` used). `--debug` / F1 overlay: fps, tick, pos, vel, held input.
 - Placeholder movement (constant 90 px/s, flat floor `GROUND_Y`=260, clamped to 240 px wide). **Step 3 must rewrite `placeholder_roll.replay` and `wall_clamp.replay`.**
 - No xdotool on this machine, so live keyboard recording was tested by hand only; the write path was verified with `--frames 30 --record`.
+
+### Step 03 — Ball on flat ground (done)
+- `sim::ball::BallParams` holds all movement tuning; `BallParams::NORMAL` is the red ball. Forms (step 22) = other param sets.
+- NORMAL values: gravity 900, max_fall 420, ground_accel 600, air_accel 420, ground_friction 450, air_drag 60, max_speed 120, jump_height 52 (≈3.25 ball heights, ~0.7 s air time), restitution 0.35, min_bounce_speed 60, wall_restitution 0.3, coyote 5 ticks, jump buffer 8 ticks.
+- `jump_speed()` adds ½·g·DT to make up for semi-implicit Euler, so the apex really is `jump_height` (tested to ±1 px).
+- Holding jump re-jumps on every landing (like the original). A tap in the air is buffered for 8 steps. Coyote time is blocked after a real jump (`jumping` flag).
+- Input can't push past max_speed, but extra speed (springs or slopes later) bleeds off by friction instead of snapping back.
+- `sim::physics::collide_flat` = temporary flat floor + screen-edge walls; `land()` holds the shared bounce/rest rules. **Step 4 replaces collide_flat with tile collision but should reuse `land()`.**
+- `Ball.angle/spin`: spin = vx / r on the ground, kept in the air. The render draws a rotating stripe.
+- New replay fields: `ball.grounded`, `ball.angle`. Replays: `flat_roll`, `jump`, `hold_jump`, `wall_clamp`.
+- 15 movement unit tests in `physics.rs` use a 100000 px wide world and start at `MID`, so walls don't interfere.
