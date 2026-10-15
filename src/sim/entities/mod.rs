@@ -9,6 +9,7 @@ use macroquad::math::Vec2;
 
 use crate::level::ObjectSpec;
 use crate::sim::ball::Ball;
+use crate::sim::hazards::Cause;
 
 /// Something that happened during a step, for sound/effects/UI to react to.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -20,6 +21,10 @@ pub enum Event {
     /// The ball hit the floor from the air at `speed` px/s (only hard
     /// enough landings, not rolling bumps); `pos` is the contact point.
     Landed { pos: Vec2, speed: f32 },
+    /// The ball was destroyed at `pos`.
+    Died { pos: Vec2, cause: Cause },
+    /// The ball reappeared at the respawn point.
+    Respawned { pos: Vec2 },
 }
 
 #[derive(Debug, Clone, PartialEq)]

@@ -16,7 +16,7 @@ use bounce_tales::level::{Decoration, TileLayer};
 use bounce_tales::sim::Sim;
 use bounce_tales::sim::camera::{VIEW_H, VIEW_W};
 use bounce_tales::sim::map::{TILE, TileMap};
-use bounce_tales::sim::{Entity, EntityKind};
+use bounce_tales::sim::{Entity, EntityKind, RESPAWN_ANIM_TICKS};
 
 pub const SCREEN_W: u32 = VIEW_W as u32;
 pub const SCREEN_H: u32 = VIEW_H as u32;
@@ -96,16 +96,20 @@ impl Renderer {
 
         self.particles.draw();
 
-        // Squash/stretch keeps the ball's bottom on the ground.
+        // Squash/stretch keeps the ball's bottom on the ground. Hidden while
+        // dying (the burst shows instead); grows in after a respawn.
         let b = &sim.ball;
         let p = b.render_pos(alpha);
-        let d = b.radius * 2.0;
+        let grow = 1.0 - sim.respawn_anim as f32 / RESPAWN_ANIM_TICKS as f32;
+        let d = b.radius * 2.0 * (0.2 + 0.8 * grow);
         let size = vec2(d * (1.0 + b.squash), d * (1.0 - b.squash)).round();
         let top_left = vec2(p.x - size.x / 2.0, p.y + b.radius - size.y);
         let frame = ball_frame(b.angle);
-        self.sprites
-            .ball
-            .draw_scaled(&format!("roll_{frame}"), top_left, size);
+        if sim.dying == 0 {
+            self.sprites
+                .ball
+                .draw_scaled(&format!("roll_{frame}"), top_left, size);
+        }
 
         for layer in level.layers.iter().filter(|l| l.front) {
             self.draw_layer(layer, &level.sheets, view);
@@ -149,6 +153,11 @@ impl Renderer {
             format!("pos {:7.2} {:7.2}", b.pos.x, b.pos.y),
             format!("vel {:7.2} {:7.2}", b.vel.x, b.vel.y),
             format!("cam {:7.2} {:7.2}", sim.camera.pos.x, sim.camera.pos.y),
+            format!(
+                "deaths {}{}",
+                sim.deaths,
+                if sim.dying > 0 { " (dying)" } else { "" }
+            ),
             format!(
                 "in  {:3} {}",
                 sim.input.to_code(),

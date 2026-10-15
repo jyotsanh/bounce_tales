@@ -1,0 +1,11 @@
+# Hazards level: hop the floor spikes (window: ticks 13-30), roll under the
+# hanging spikes without jumping, jump the pit (window: ticks ~89-120 after
+# a jump at 20), reach the exit with no deaths.
+level hazards
+20 R
+RJ
+75 R
+RJ
+60 R
+expect deaths == 0
+expect exit == 1

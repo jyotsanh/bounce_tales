@@ -1,0 +1,9 @@
+# Rolling into the floor spikes pops the ball; it stays gone for a second
+# (input ignored), then reappears at the start (x 56).
+level hazards
+60 R
+expect deaths == 1
+expect dying == 1
+60 -
+expect dying == 0
+expect ball.x == 56

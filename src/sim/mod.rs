@@ -9,6 +9,7 @@
 pub mod ball;
 pub mod camera;
 pub mod entities;
+pub mod hazards;
 pub mod input;
 pub mod map;
 pub mod physics;
@@ -20,7 +21,10 @@ pub use entities::{Entity, EntityKind, Event};
 pub use input::InputFrame;
 pub use map::TileMap;
 
+use macroquad::math::Vec2;
+
 use crate::level::Level;
+use hazards::Cause;
 pub use rng::Rng;
 
 /// Simulation rate. The sim always advances in steps of exactly `DT`.
@@ -33,9 +37,10 @@ pub const LAND_EVENT_MIN_SPEED: f32 = 100.0;
 /// Level loaded when none is given.
 pub const DEFAULT_LEVEL: &str = "big";
 
-/// How far below the map the ball may fall before it is put back at the
-/// start. Temporary until deaths and lives exist (steps 11-12).
-const FALL_OUT_MARGIN: f32 = 4.0 * map::TILE;
+/// Steps between dying and reappearing (1 s: the burst plays out).
+pub const DEATH_TICKS: u32 = 60;
+/// Steps of the grow-in effect after respawning (drawing only).
+pub const RESPAWN_ANIM_TICKS: u32 = 12;
 
 /// Whole game state.
 #[derive(Debug, Clone, PartialEq)]
@@ -52,6 +57,16 @@ pub struct Sim {
     pub events: Vec<Event>,
     /// The ball has reached the exit (stays true).
     pub exit_reached: bool,
+    /// Where the ball comes back after dying (level start; checkpoints move
+    /// it in step 12). Ball centre, px.
+    pub respawn_point: Vec2,
+    /// Steps left before respawning; 0 = alive. While dying the ball is
+    /// hidden and input is ignored.
+    pub dying: u32,
+    /// Counts down from `RESPAWN_ANIM_TICKS` after a respawn (drawing).
+    pub respawn_anim: u32,
+    /// Total deaths this level.
+    pub deaths: u32,
     pub rng: Rng,
     /// Input used in the most recent step.
     pub input: InputFrame,
@@ -85,6 +100,10 @@ impl Sim {
             entities,
             events: Vec::new(),
             exit_reached: false,
+            respawn_point: level.map.spawn,
+            dying: 0,
+            respawn_anim: 0,
+            deaths: 0,
             camera: Camera::snapped_to(&ball, &level.map),
             ball,
             level,
@@ -100,6 +119,15 @@ impl Sim {
         self.input = input;
         self.tick += 1;
         self.events.clear();
+        self.respawn_anim = self.respawn_anim.saturating_sub(1);
+
+        if self.dying > 0 {
+            self.dying -= 1;
+            if self.dying == 0 {
+                self.respawn();
+            }
+            return;
+        }
 
         let jump_pressed = self.jump_pressed();
         let bottom = |b: &Ball| b.pos + macroquad::math::vec2(0.0, b.radius);
@@ -119,11 +147,10 @@ impl Sim {
         self.ball.update_spin();
         self.ball.update_squash(contacts.impact_speed, jumped);
 
-        if self.ball.pos.y > self.level.map.pixel_size().y + FALL_OUT_MARGIN {
-            self.ball = Ball::new(self.level.map.spawn);
-            self.camera = Camera::snapped_to(&self.ball, &self.level.map);
-        } else {
-            self.camera.update(&self.ball, &self.level.map);
+        self.camera.update(&self.ball, &self.level.map);
+        if let Some(cause) = hazards::check(&self.ball, &self.level.map) {
+            self.die(cause);
+            return;
         }
 
         for e in &mut self.entities {
@@ -132,6 +159,26 @@ impl Sim {
         if self.events.contains(&Event::ExitReached) {
             self.exit_reached = true;
         }
+    }
+
+    /// Destroys the ball; it comes back after `DEATH_TICKS` steps.
+    pub fn die(&mut self, cause: Cause) {
+        self.events.push(Event::Died {
+            pos: self.ball.pos,
+            cause,
+        });
+        self.deaths += 1;
+        self.dying = DEATH_TICKS;
+        self.ball.vel = Vec2::ZERO;
+    }
+
+    fn respawn(&mut self) {
+        self.ball = Ball::new(self.respawn_point);
+        self.camera = Camera::snapped_to(&self.ball, &self.level.map);
+        self.respawn_anim = RESPAWN_ANIM_TICKS;
+        self.events.push(Event::Respawned {
+            pos: self.respawn_point,
+        });
     }
 
     /// True on the first step the jump button is held.
@@ -256,6 +303,53 @@ mod tests {
             sim.step(InputFrame::NONE);
         }
         sim
+    }
+
+    #[test]
+    fn spikes_kill_then_respawn_at_the_start() {
+        let mut sim = Sim::for_level("hazards").unwrap();
+        let start = sim.ball.pos;
+        let mut died_at = None;
+        for i in 0..200 {
+            sim.step(press("R"));
+            if let Some(Event::Died { cause, .. }) = sim.events.first().copied() {
+                assert_eq!(cause, Cause::Spikes);
+                died_at = Some(i);
+                break;
+            }
+        }
+        assert!(died_at.is_some(), "never hit the spikes");
+        assert_eq!(sim.deaths, 1);
+        let frozen = sim.ball.pos;
+        for _ in 0..DEATH_TICKS - 1 {
+            sim.step(press("R"));
+            assert_eq!(sim.ball.pos, frozen, "input ignored while dying");
+            assert!(sim.dying > 0);
+        }
+        sim.step(press("R"));
+        assert!(
+            matches!(sim.events[..], [Event::Respawned { .. }]),
+            "{:?}",
+            sim.events
+        );
+        assert_eq!(sim.dying, 0);
+        assert_eq!(sim.ball.pos, start);
+        assert_eq!(sim.respawn_anim, RESPAWN_ANIM_TICKS);
+    }
+
+    #[test]
+    fn falling_out_of_the_level_kills() {
+        let mut sim = Sim::for_level("hazards").unwrap();
+        sim.ball.pos = macroquad::math::vec2(288.0, 200.0); // above the pit
+        let mut cause = None;
+        for _ in 0..120 {
+            sim.step(InputFrame::NONE);
+            if let Some(Event::Died { cause: c, .. }) = sim.events.first().copied() {
+                cause = Some(c);
+                break;
+            }
+        }
+        assert_eq!(cause, Some(Cause::Pit));
     }
 
     #[test]

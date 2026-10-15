@@ -5,6 +5,7 @@
 
 use macroquad::prelude::*;
 
+use bounce_tales::sim::hazards::Cause;
 use bounce_tales::sim::{DT, Event, Rng, Sim};
 
 struct Particle {
@@ -31,6 +32,12 @@ const CONFETTI: [Color; 5] = [
     Color::new(0.96, 0.96, 0.96, 1.0),
     Color::new(0.34, 0.69, 0.19, 1.0),
     Color::new(0.30, 0.55, 0.95, 1.0),
+];
+/// Colours of the ball's fragments when it pops.
+const BALL_BITS: [Color; 3] = [
+    Color::new(0.89, 0.14, 0.11, 1.0),
+    Color::new(0.66, 0.08, 0.06, 1.0),
+    Color::new(1.0, 0.85, 0.82, 1.0),
 ];
 /// Ground speed above which a rolling ball kicks up dust, px/s.
 const ROLL_DUST_SPEED: f32 = 110.0;
@@ -61,10 +68,20 @@ impl Particles {
                 }
                 Event::Jumped { pos } => self.puffs(pos, 4, 40.0),
                 Event::ExitReached => self.confetti(sim.ball.pos),
+                // A pit death happens off screen: nothing to show.
+                Event::Died {
+                    cause: Cause::Pit, ..
+                } => {}
+                Event::Died { pos, .. } => self.burst(pos),
+                Event::Respawned { pos } => self.sparkle(pos),
             }
         }
         let b = &sim.ball;
-        if b.grounded && b.vel.length() > ROLL_DUST_SPEED && sim.tick.is_multiple_of(6) {
+        if sim.dying == 0
+            && b.grounded
+            && b.vel.length() > ROLL_DUST_SPEED
+            && sim.tick.is_multiple_of(6)
+        {
             let behind = vec2(-b.vel.x.signum() * 4.0, b.radius);
             self.puffs(b.pos + behind, 1, 20.0);
         }
@@ -98,6 +115,41 @@ impl Particles {
                 color: DUST,
                 size: self.rng.range(1.5, 2.5),
                 gravity: 150.0,
+            });
+        }
+    }
+
+    /// The ball pops: rubber fragments fly out in every direction.
+    fn burst(&mut self, at: Vec2) {
+        for i in 0..16 {
+            let angle = i as f32 / 16.0 * std::f32::consts::TAU + self.rng.range(-0.2, 0.2);
+            let speed = self.rng.range(70.0, 170.0);
+            let life = self.rng.range(0.6, 0.9);
+            self.list.push(Particle {
+                pos: at,
+                vel: vec2(angle.cos(), angle.sin()) * speed - vec2(0.0, 60.0),
+                life,
+                max_life: life,
+                color: BALL_BITS[i % BALL_BITS.len()],
+                size: self.rng.range(2.0, 3.5),
+                gravity: 500.0,
+            });
+        }
+    }
+
+    /// A ring of sparkles where the ball reappears.
+    fn sparkle(&mut self, at: Vec2) {
+        for i in 0..10 {
+            let angle = i as f32 / 10.0 * std::f32::consts::TAU;
+            let life = 0.35;
+            self.list.push(Particle {
+                pos: at + vec2(angle.cos(), angle.sin()) * 12.0,
+                vel: vec2(angle.cos(), angle.sin()) * 40.0,
+                life,
+                max_life: life,
+                color: WHITE,
+                size: 2.0,
+                gravity: 0.0,
             });
         }
     }
@@ -178,6 +230,23 @@ mod tests {
                 .collect::<Vec<_>>()
         };
         assert_eq!(run(), run());
+    }
+
+    #[test]
+    fn popping_bursts_into_fragments() {
+        let mut sim = Sim::for_level("hazards").unwrap();
+        let mut fx = Particles::new();
+        let mut burst = 0;
+        for _ in 0..200 {
+            sim.step(InputFrame::from_code("R").unwrap());
+            let before = fx.len();
+            fx.on_step(&sim);
+            if sim.events.iter().any(|e| matches!(e, Event::Died { .. })) {
+                burst = fx.len().saturating_sub(before);
+                break;
+            }
+        }
+        assert!(burst >= 12, "burst {burst}");
     }
 
     #[test]

@@ -2,7 +2,7 @@
 //! the generated atlas index, and the auto-tiler that picks forest pictures
 //! for plain shape maps (ASCII maps and the `ascii2tmx` tool).
 
-use crate::sim::map::{Side, Tile, TileMap};
+use crate::sim::map::{Side, Tile, TileMap, flags};
 
 /// Forest tileset sprite names in id order (id = position in the sheet).
 pub fn forest_names() -> Vec<&'static str> {
@@ -42,6 +42,13 @@ fn side_open(map: &TileMap, x: i32, y: i32, side: Side) -> bool {
 /// Picks a forest tile picture for a map cell from its shape and its
 /// neighbours.
 pub fn autotile(map: &TileMap, x: i32, y: i32) -> Option<&'static str> {
+    let f = map.flags(x, y);
+    if f & flags::SPIKE != 0 {
+        return Some("spikes");
+    }
+    if f & flags::SPIKE_DOWN != 0 {
+        return Some("spikes_down");
+    }
     Some(match map.get(x, y) {
         Tile::Empty => return None,
         Tile::Slope45Right => "slope45_r",

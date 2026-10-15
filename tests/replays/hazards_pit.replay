@@ -1,0 +1,11 @@
+# Clear the spikes but never jump the pit: falling out of the level counts
+# as a death and the ball comes back at the start.
+level hazards
+20 R
+RJ
+140 R
+expect deaths == 1
+60 -
+expect deaths == 1
+expect dying == 0
+expect ball.x == 56

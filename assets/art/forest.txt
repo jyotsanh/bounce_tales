@@ -2,7 +2,8 @@
 ; position (0 = first sprite, 8 per row). Only append new tiles at the end.
 ; `shape=` sets the collision shape a Tiled level gets from the tile
 ; (solid, slope45_r, slope45_l, slope2_r_low, slope2_r_high, slope2_l_high,
-; slope2_l_low; no shape = decoration). Later: spike=true, water=true.
+; slope2_l_low; no shape = decoration). spike=true / spike_down=true make a
+; hazard (spikes pointing up from the cell bottom / down from its top).
 ; Run `cargo run -p artgen` after editing.
 sheet forest cell 16x16 columns 8 tileset
 palette
@@ -15,6 +16,9 @@ palette
   O #3b2410   ; dirt deepest / roots
   S #bdb6aa   ; stone light
   s #7d766c   ; stone dark
+  M #e4eaee   ; metal light
+  m #9aa6ae   ; metal
+  N #565e66   ; metal dark
 end
 sprite grass_top shape=solid
 GGGGGGGGGGGGGGGG
@@ -267,4 +271,40 @@ VVgggGGGG.......
 dVVVgggGGGG.....
 dVdVVVgggGGGG...
 ddddVVVVgggGGGG.
+end
+sprite spikes spike=true
+................
+................
+................
+................
+...Mm......Mm...
+...Mm......Mm...
+...Mm......Mm...
+..MMmm....MMmm..
+..MMmm....MMmm..
+..MMmm....MMmm..
+.MMMmmm..MMMmmm.
+.MMMmmm..MMMmmm.
+.MMMmmm..MMMmmm.
+NMMMmmmNNMMMmmmN
+NMMMmmmNNMMMmmmN
+NNNNNNNNNNNNNNNN
+end
+sprite spikes_down spike_down=true
+NNNNNNNNNNNNNNNN
+NMMMmmmNNMMMmmmN
+NMMMmmmNNMMMmmmN
+.MMMmmm..MMMmmm.
+.MMMmmm..MMMmmm.
+.MMMmmm..MMMmmm.
+..MMmm....MMmm..
+..MMmm....MMmm..
+..MMmm....MMmm..
+...Mm......Mm...
+...Mm......Mm...
+...Mm......Mm...
+................
+................
+................
+................
 end

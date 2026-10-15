@@ -10,7 +10,8 @@
 //! - Tiles are 16x16; maps are finite; tiles must not be flipped/rotated.
 //! - Tilesets come from `assets/gen/*.tsx` (written by artgen). Each tile
 //!   has a `name` and, if it collides, a `shape` property (see
-//!   `Tile::from_shape_name`); `spike`/`water` bool properties set flags.
+//!   `Tile::from_shape_name`); `spike`/`spike_down`/`water` bool properties
+//!   set flags.
 //! - The tile layer named **`ground`** is the collision layer. Every tile
 //!   layer is drawn; layers with a bool property `front = true` are drawn in
 //!   front of the ball, others behind, in file order.
@@ -334,6 +335,9 @@ impl Level {
                                 }
                                 if is_true("water") {
                                     cell_flags[i] |= map::flags::WATER;
+                                }
+                                if is_true("spike_down") {
+                                    cell_flags[i] |= map::flags::SPIKE_DOWN;
                                 }
                             }
                         }

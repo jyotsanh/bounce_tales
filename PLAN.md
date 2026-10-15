@@ -73,7 +73,7 @@ Key rules:
 - [x] **10.** **Visual polish base**: parallax backgrounds, ball squash/stretch on landing, simple particles.
 
 ### Phase C — Core gameplay
-- [ ] **11.** **Hazards & death**: spikes, bottomless pits, death animation, respawn.
+- [x] **11.** **Hazards & death**: spikes, bottomless pits, death animation, respawn.
 - [ ] **12.** **Lives & checkpoints**: checkpoint objects, lives counter, game over → level restart.
 - [ ] **13.** **Collectibles & HUD**: eggs/gems, score, bitmap font, HUD.
 - [ ] **14.** **Level exit & completion**: exit gate, results screen (eggs found, time), next level.
@@ -229,3 +229,11 @@ Spare capacity: if a step overruns, the next prompt finishes it before moving on
 - **Parallax** (`src/render/background.rs`): 6 sky bands, clouds (x factor 0.08 + drift), far hills (0.2), near hills with round trees (0.45). Textures are generated at start-up from sines with whole-number periods per 256 px (seamless, tested). Layers sink as the camera climbs (`climb` = how far above the level's lowest camera position; y factors 0.05/0.1/0.25). Drawn in screen space before the world.
 - Map property `background` (default `forest`; must be in `level::BACKGROUNDS`, else load error).
 - Tests: squash on landing + return to round, rebound wobble, jump stretch + event, no landings while rolling across slopes, dust appears and dies, effects repeatable, exit confetti, hill tiling/fit, background property.
+
+### Step 11 — Hazards & death (done)
+- Spikes are **flags, not shapes** (no collision): `flags::SPIKE` (up, from the cell bottom) and the new `flags::SPIKE_DOWN` = 4 (hanging from the cell top). Tile properties `spike=true` / `spike_down=true` (the loader reads both; the round-trip test caught `spike_down` missing at first). ASCII glyphs `^` / `v`. Forest tiles 14 `spikes`, 15 `spikes_down` (appended; two stepped metal spikes per tile). The auto-tiler picks them from flags.
+- `sim::hazards::check(ball, map) -> Option<Cause>`: spike danger boxes are smaller than the art (up: x 2..14, y 7..16 in the cell; down: y 0..9), so grazes are forgiven. `Cause::Pit` when the ball is fully below the level (replaces the old silent respawn).
+- `Sim`: `die(cause)` → `Event::Died { pos, cause }`, `deaths += 1`, `dying = DEATH_TICKS` (60). While dying, `step` only counts down (input ignored, ball hidden); then it respawns at `respawn_point` (= level start; **step 12 checkpoints set it**), snaps the camera, emits `Event::Respawned`, and sets `respawn_anim` (12 ticks grow-in, drawing only).
+- FX: popping burst (16 rubber fragments; none for pit deaths, which happen off screen), sparkle ring on respawn, no rolling dust while dying. Overlay shows deaths.
+- New ASCII level `hazards` (24 wide): floor spikes, ceiling with hanging spikes, 2-tile pit, exit. The first 20-wide layout had a **1-tick jump window** (found by brute-force searching jump ticks); it was widened to an 18-tick spike window and a 32-tick pit window.
+- Replay fields `deaths`, `dying`. Replays `hazards_course` (no-death run to the exit), `hazards_spikes`, `hazards_pit`. Unit tests: hazard boxes, grace, pit, death→freeze→respawn, pit death, burst FX.

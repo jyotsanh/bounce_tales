@@ -178,16 +178,20 @@ pub struct TileMap {
 
 /// Per-cell flag bits from tile properties (used from steps 11 and 15).
 pub mod flags {
-    /// `spike=true`: touching it kills the ball.
+    /// `spike=true`: spikes pointing up from the bottom of the cell;
+    /// touching them pops the ball.
     pub const SPIKE: u8 = 1;
     /// `water=true`: the ball floats in it.
     pub const WATER: u8 = 2;
+    /// `spike_down=true`: spikes hanging from the top of the cell.
+    pub const SPIKE_DOWN: u8 = 4;
 }
 
 impl TileMap {
     /// Parses a map drawn in text, one row per line. Tile glyphs are listed
     /// on [`Tile`]; `o` marks the ball start (an empty tile, ball resting on
-    /// the tile's bottom edge). All rows must be the same length. Object
+    /// the tile's bottom edge). `^` / `v` are spikes pointing up / down
+    /// (no collision shape). All rows must be the same length. Object
     /// markers (`E`) are empty space here; `level::Level::from_ascii` turns
     /// them into objects.
     pub fn from_ascii(text: &str) -> Result<TileMap, String> {
@@ -202,6 +206,7 @@ impl TileMap {
             return Err("empty map".into());
         }
         let mut tiles = Vec::with_capacity(width * height);
+        let mut cell_flags = vec![0u8; width * height];
         let mut spawn = None;
         for (y, row) in rows.iter().enumerate() {
             if row.chars().count() != width {
@@ -221,6 +226,14 @@ impl TileMap {
                         Tile::Empty
                     }
                     'E' => Tile::Empty,
+                    '^' => {
+                        cell_flags[y * width + x] = flags::SPIKE;
+                        Tile::Empty
+                    }
+                    'v' => {
+                        cell_flags[y * width + x] = flags::SPIKE_DOWN;
+                        Tile::Empty
+                    }
                     other => Tile::from_glyph(other)
                         .ok_or_else(|| format!("unknown tile '{other}' at {x},{y}"))?,
                 });
@@ -230,7 +243,7 @@ impl TileMap {
             width,
             height,
             tiles,
-            vec![0; width * height],
+            cell_flags,
             spawn.ok_or("map has no 'o' spawn")?,
         )
     }
@@ -315,6 +328,7 @@ pub fn builtin_text(name: &str) -> Option<&'static str> {
         "test" => TEST_MAP,
         "flat" => FLAT_MAP,
         "slopes" => SLOPES_MAP,
+        "hazards" => HAZARDS_MAP,
         _ => return None,
     })
 }
@@ -324,7 +338,7 @@ pub fn builtin(name: &str) -> Option<TileMap> {
     builtin_text(name).map(|t| TileMap::from_ascii(t).expect("built-in maps are valid"))
 }
 
-pub const BUILTIN_NAMES: &[&str] = &["test", "flat", "slopes"];
+pub const BUILTIN_NAMES: &[&str] = &["test", "flat", "slopes", "hazards"];
 
 /// Test map: one screen with a step block, a low ceiling, a tunnel, a
 /// staircase of platforms up to an exit, a 45° ramp and a gentle 1:2 hill.
@@ -400,6 +414,32 @@ const SLOPES_MAP: &str = r"
     ########\...rRLl...../########
     ##############################
     ##############################
+";
+
+/// Hazard course (24 wide): floor spikes at x 112..144, a low ceiling with
+/// hanging spikes at x 192..240 (bottom of the spikes at y 240), a 2-tile
+/// bottomless pit at x 272..304, then an exit.
+const HAZARDS_MAP: &str = r"
+    #......................#
+    #......................#
+    #......................#
+    #......................#
+    #......................#
+    #......................#
+    #......................#
+    #......................#
+    #......................#
+    #......................#
+    #......................#
+    #......................#
+    #......................#
+    #...........###........#
+    #...........vvv........#
+    #......................#
+    #......................#
+    #..o...^^.............E#
+    #################..#####
+    #################..#####
 ";
 
 #[cfg(test)]

@@ -12,3 +12,5 @@ slope2_r_low 32 16 16 16
 slope2_r_high 48 16 16 16
 slope2_l_high 64 16 16 16
 slope2_l_low 80 16 16 16
+spikes 96 16 16 16
+spikes_down 112 16 16 16
