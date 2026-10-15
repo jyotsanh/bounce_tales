@@ -107,12 +107,13 @@ Key rules:
 - [x] **32.** **Save & options**: progress, eggs, settings (volume, scale, fullscreen) saved to an XDG path.
 - [x] **33.** **Cutscene engine**: comic panels + text boxes. Intro, between-level and ending scenes.
 
-### Phase I — Levels (you share references before each one)
-- [ ] **34.** **Levels 1–2** (forest) + tileset.
-- [ ] **35.** **Levels 3–4** + second tileset (caves/water).
-- [ ] **36.** **Levels 5–6** + third tileset.
-- [ ] **37.** **Final levels + Hypno Cube castle**, boss arena wired in. Exact count checked against your references.
-- [ ] **38.** **Bonus levels**, egg placement, collectible balance.
+### Phase I — Levels (reference: the original 2008 Bounce Tales: 14 chapters + bonus)
+References: walkthrough video https://www.youtube.com/watch?v=AQa0Sx_ezxA, decompilation https://github.com/HelloOO7/BounceTales (no game data in it), MIT clone https://github.com/abdellatifAhammad/bounce_tales (chapter list, chapter 1 collision layout).
+- [x] **34.** **Chapters 1–2**: Misty Morning, Unfriendly Friends (forest) + moles and hypno machines.
+- [ ] **35.** **Chapters 3–5**: Seeking Answers, Bumpy Cracks, Secret Stalkway.
+- [ ] **36.** **Chapters 6–8** + mine/cave tileset: Into the Mines, A Gloomy Path, Rumbling Sounds.
+- [ ] **37.** **Chapters 9–11** + machine/castle tileset: Trapped in Machine, Tunnel of Treasures, Wicked Circus.
+- [ ] **38.** **Chapters 12–14 + bonus**: Hunting Colours, Almost There, Final Ride (Hypno Cube), Bonus Chapter: Fantastic Fair; egg/collectible balance.
 
 ### Phase J — Finish
 - [ ] **39.** **Tuning & bug bash**: physics feel pass against the original, difficulty curve. Regression replays: every level loads and runs 3000 frames without panic, plus scripted runs through key sections. Performance check.
@@ -426,3 +427,12 @@ Spare capacity: if a step overruns, the next prompt finishes it before moving on
 - App: `Screen::Cutscene`, `Action::PlayScene(name)` then `after_scene` (the map). Music: title for intro/ending, the world's tune for world openings.
 - Render (`src/render/cutscenes.rs`): framed 208x156 picture drawn from shapes + game sprites (meadow with friends, night sky and descending cube with rings, spellbound creatures before pulsing rings, Bounce rolling off along the path, cave with stalactites/drips/glowing gems, castle with the spiral in its tower, showdown with rays and a shaking cube, shatter sparkles with flash, celebration with confetti, credits logo); everything spilling out of the frame is masked; caption on cream paper; page count, blinking NEXT > / END >, ESC SKIP.
 - Tests: wrapping, every caption fits 4 lines, typing → reveal → turn → done, wipe timing, auto-typing never turns, Esc skip, which scene follows which level; app: intro once, Esc skips to the map, beating the last level plays the ending then the map.
+
+### Step 34 — Chapters 1–2 (done)
+- References (from the user): the original **2008 Bounce Tales** (not 2001 Bounce). The decompilation repo holds code only (assets come from a user-supplied JAR), so nothing copied from it. The MIT-licensed JS clone gives the **chapter list** (1 Misty Morning, 2 Unfriendly Friends, 3 Seeking Answers, 4 Bumpy Cracks, 5 Secret Stalkway, 6 Into the Mines, 7 A Gloomy Path, 8 Rumbling Sounds, 9 Trapped in Machine, 10 Tunnel of Treasures, 11 Wicked Circus, 12 Hunting Colours, 13 Almost There, 14 Final Ride, bonus Fantastic Fair) and a traced **chapter 1 collision layout** (`level1_map.tmx`, 64 px tiles), plus what its objects do: yellow eggs (common, = our gems), one blue egg (rare, = our egg), a switch opening a barrier, a hypno "machine" broken from above, a "topo" (mole) popping up and down.
+- Phase I re-planned around the 15 chapters (steps 35–38 above).
+- New enemies (`sim::enemies`): `Mole { timer, home_y }`: 170-step loop (70 under, 10 rising, 80 out, 10 sinking), harmless while under (out < 0.6), faces the ball, stomp frees it, sides hurt; drawn cropped at the ground line over a dirt mound. `Machine { broken }`: stands still; from above = broken (bounce 330 px/s ×1.25 with jump, +250, `Event::MachineBroken`, `Sim.machines_broken`, replay field `machines`), sides = `Touch::Bump` (pushed out at 120 px/s, harmless); a broken one stays as a wreck. Objects `mole` (`delay` s) and `machine`; ASCII `T` / `h`. Art: `mole_0/1` (items), `machine_0..2` + `machine_broken` (objects, 20x28 in a 32x32 cell). Machine break sound + debris/sparkle/"+250".
+- **ch01 Misty Morning** (`assets/levels/ch01.tmx`, 87x20): the reference layout rebuilt at 1 tile = 45 ref px (ball sizes match): the start tower with three zig-zag ledges (the inner wall reaches down to the last ledge, so you drop left to the floor), the block and hill, the dip where the broken bridge was, the pillar with the switch ledge reached from a stepping ledge, the barrier under a stepped overhang (door), checkpoint, the meadow with the mole (blue egg above it, reached by stomping the mole with jump held), the hypno machine, slopes down to the raised exit. 24 gems at the reference egg spots.
+- **ch02 Unfriendly Friends** (no reference layout; our design in the same spirit, 112x22): walker under a gem arc, flyer over a bottomless pit, hill, upper ledge vs. jumper below, two moles, checkpoint, valley walker, spring to a high ledge with a hypno machine whose bounce reaches the blue egg, spikes between steps, shooter at the top step, exit.
+- Built as ASCII → `ascii2tmx` → a small script adds map properties (`title`, `music`, `par`) and scattered decorations. Campaign is now **ch01, ch02, hypno** (big/hazards stay as test levels).
+- Replays `ch01_route` (1036 steps, 0 deaths, 20+ gems) and `ch02_route` (859 steps, 0 deaths) recorded from scripted controllers; `tests/levels.rs`: ch01 egg from the mole, ch02 spring → ledge → machine → egg, every chapter has 1 egg and 20+ gems. Unit tests for mole cycle/safety/stomp and machine break/bump.

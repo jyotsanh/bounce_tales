@@ -38,6 +38,8 @@ pub enum Sfx {
     BossDefeated,
     Exit,
     GameOver,
+    /// A hypno machine breaking.
+    MachineBreak,
     /// Menu cursor moved.
     MenuMove,
     /// Menu item chosen.
@@ -47,7 +49,7 @@ pub enum Sfx {
 }
 
 impl Sfx {
-    pub const ALL: [Sfx; 28] = [
+    pub const ALL: [Sfx; 29] = [
         Sfx::Bounce,
         Sfx::Jump,
         Sfx::Gem,
@@ -73,6 +75,7 @@ impl Sfx {
         Sfx::BossDefeated,
         Sfx::Exit,
         Sfx::GameOver,
+        Sfx::MachineBreak,
         Sfx::MenuMove,
         Sfx::MenuSelect,
         Sfx::MenuBack,
@@ -211,6 +214,23 @@ impl Sfx {
                 v.push(t(TRI, 0.3, 0.45, note(55), note(55)).volume(0.45));
                 v
             }
+            Sfx::MachineBreak => {
+                let mut v = vec![
+                    t(NOISE, 0.0, 0.25, 2200.0, 600.0).volume(0.45),
+                    t(SQUARE, 0.0, 0.3, 500.0, 120.0)
+                        .volume(0.2)
+                        .vibrato(30.0, 0.1),
+                ];
+                v.extend(
+                    arpeggio(PULSE, &[84, 88, 91], 0.05, 0.12, 0.18)
+                        .into_iter()
+                        .map(|n| Tone {
+                            at: n.at + 0.2,
+                            ..n
+                        }),
+                );
+                v
+            }
             Sfx::MenuMove => vec![t(PULSE, 0.0, 0.04, note(84), note(84)).volume(0.18)],
             Sfx::MenuSelect => vec![
                 t(PULSE, 0.0, 0.05, note(79), note(79)).volume(0.2),
@@ -296,6 +316,7 @@ pub fn for_event(event: &Event, form: Form) -> Option<(Sfx, f32)> {
         Event::Shot { .. } => Sfx::Shot,
         Event::ShotBlocked { .. } => Sfx::Tink,
         Event::EnemyFreed { .. } => Sfx::Freed,
+        Event::MachineBroken { .. } => Sfx::MachineBreak,
         Event::BossHit { .. } => Sfx::BossHit,
         Event::BossDefeated { .. } => Sfx::BossDefeated,
         Event::ExitReached => Sfx::Exit,

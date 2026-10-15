@@ -42,6 +42,10 @@ palette
   U #b8641c   ; shooter shade
   z #ff6a3a   ; pellet
   Z #fff0a0   ; pellet core
+  O #9a6438   ; mole
+  D #5e3a1c   ; mole shade
+  q #ff9aa8   ; mole nose
+  x #e6c49a   ; mole snout
 end
 sprite gem_0
 ................
@@ -582,4 +586,40 @@ sprite shot
 ................
 ................
 ................
+end
+sprite mole_0
+................
+.....DDDDDD.....
+....DOOOOOOD....
+...DOOOOOOOOD...
+..DOfffOOfffOD..
+..DOfhfOOfhfOD..
+..DOfffOOfffOD..
+..DOOOxxxxOOOD..
+..DOOxxqqxxOOD..
+..DOOOxxxxOOOD..
+.xDOOOOOOOOOODx.
+xxDOOOOOOOOOODxx
+..DOOOOOOOOOOD..
+..DOOOOOOOOOOD..
+..DOOOOOOOOOOD..
+..DDOOOOOOOOODD.
+end
+sprite mole_1
+................
+.....DDDDDD.....
+....DOOOOOOD....
+...DOOOOOOOOD...
+..DOfffOOfffOD..
+..DOhffOOhffOD..
+..DOfffOOfffOD..
+..DOOOxxxxOOOD..
+..DOOxxqqxxOOD..
+..DOOOxxxxOOOD..
+.xDOOOOOOOOOODx.
+xxDOOOOOOOOOODxx
+..DOOOOOOOOOOD..
+..DOOOOOOOOOOD..
+..DOOOOOOOOOOD..
+..DDOOOOOOOOODD.
 end

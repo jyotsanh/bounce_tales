@@ -48,7 +48,8 @@
 //! transformer to stone / balloon / normal, `w` = walker (heading left),
 //! `y` / `Y` = flyer gliding 4 tiles right / down and back, `J` = jumper,
 //! `G` / `g` = shooter facing left / right, `M` = the Hypno Cube (centred
-//! on the cell where it hovers).
+//! on the cell where it hovers), `T` = mole popping out of the ground in
+//! that cell, `h` = hypno machine (20x28 standing on the cell's floor).
 
 use std::io::Cursor;
 use std::path::Path;
@@ -60,7 +61,11 @@ use crate::sim::map::{self, TILE, Tile, TileMap};
 use crate::tileset;
 
 /// Embedded Tiled levels: (name, tmx text).
-pub const TMX_LEVELS: &[(&str, &str)] = &[("big", include_str!("../assets/levels/big.tmx"))];
+pub const TMX_LEVELS: &[(&str, &str)] = &[
+    ("big", include_str!("../assets/levels/big.tmx")),
+    ("ch01", include_str!("../assets/levels/ch01.tmx")),
+    ("ch02", include_str!("../assets/levels/ch02.tmx")),
+];
 
 /// Embedded tilesets, looked up by file name from `.tmx` references.
 const TILESETS: &[(&str, &str)] = &[
@@ -172,6 +177,8 @@ pub const BACKGROUNDS: &[&str] = &["forest"];
 pub const EXIT_SIZE: Vec2 = Vec2::new(32.0, 32.0);
 /// Size of a collectible (gem, egg, extra life), px.
 pub const ITEM_SIZE: Vec2 = Vec2::new(16.0, 16.0);
+/// A hypno machine, px.
+pub const MACHINE_SIZE: Vec2 = Vec2::new(20.0, 28.0);
 /// Size of an ASCII crate (`X`: a big 2x2-tile crate standing on the
 /// cell's floor, centred on it), px. Tiled crates can be any size.
 pub const CRATE_SIZE: Vec2 = Vec2::new(32.0, 32.0);
@@ -284,6 +291,8 @@ fn ascii_marker(c: char) -> Option<Marker> {
             ..m("flyer", "flyer", ITEM_SIZE)
         },
         'J' => m("jumper", "jumper", ITEM_SIZE),
+        'T' => m("mole", "mole", ITEM_SIZE),
+        'h' => m("machine", "machine", MACHINE_SIZE),
         'M' => centred("boss", BOSS_BOX),
         'G' => m("shooter", "shooter", ITEM_SIZE),
         'g' => Marker {

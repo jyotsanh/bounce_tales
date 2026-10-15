@@ -340,6 +340,28 @@ impl Renderer {
                             // Mouth opens just before and after a shot.
                             format!("shooter_{}", if timer < 10 { 1 } else { 0 })
                         }
+                        EnemyKind::Mole { home_y, .. } => {
+                            // Only what is above the hole shows; a dirt
+                            // mound marks the hole.
+                            let ground = home_y + e.size.y;
+                            let mound = Color::new(0.45, 0.3, 0.16, 1.0);
+                            draw_rectangle(e.pos.x + 2.0, ground - 2.0, e.size.x - 4.0, 2.0, mound);
+                            let name = format!("mole_{}", (tick / 20) % 2);
+                            self.sprites
+                                .items
+                                .draw_top(&name, pos, ground - pos.y, en.dir < 0.0);
+                            return;
+                        }
+                        EnemyKind::Machine { broken } => {
+                            let name = if broken {
+                                "machine_broken".to_owned()
+                            } else {
+                                format!("machine_{}", (tick / 6) % 3)
+                            };
+                            // The 20x28 box sits in a 32x32 cell.
+                            self.sprites.objects.draw(&name, pos - vec2(6.0, 4.0));
+                            return;
+                        }
                     }
                 };
                 // Face the way it walks (the art faces right).

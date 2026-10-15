@@ -40,7 +40,27 @@ pub enum EnemyKind {
     /// Fires a pellet every `period` steps, straight ahead or `aim`ed at
     /// the ball.
     Shooter { period: u32, timer: u32, aim: bool },
+    /// Pops out of a hole in the ground, looks around, sinks back: a
+    /// [`MOLE_CYCLE`]-step loop (`timer`); `home_y` = its top when fully
+    /// out. Harmless while (mostly) underground.
+    Mole { timer: u32, home_y: f32 },
+    /// A hypno machine: stands still; bounce on its top to break it (a big
+    /// bounce). Its sides just push the ball away.
+    Machine { broken: bool },
 }
+
+/// Mole timing, steps: under, rising, out, sinking.
+pub const MOLE_UNDER: u32 = 70;
+pub const MOLE_RISE: u32 = 10;
+pub const MOLE_OUT: u32 = 80;
+pub const MOLE_SINK: u32 = 10;
+pub const MOLE_CYCLE: u32 = MOLE_UNDER + MOLE_RISE + MOLE_OUT + MOLE_SINK;
+/// Bounce off a machine's top, px/s (x1.25 with jump held).
+pub const MACHINE_BOUNCE: f32 = 330.0;
+/// Points for breaking a machine.
+pub const MACHINE_POINTS: u32 = 250;
+/// Sideways push off a machine's side, px/s.
+pub const MACHINE_PUSH: f32 = 120.0;
 
 /// A jumper's hop speed, px/s (~60 px high).
 pub const JUMPER_HOP: f32 = 330.0;
@@ -89,6 +109,8 @@ pub enum Touch {
     Crush,
     /// The ball is hurt.
     Hurt,
+    /// The ball bumped a harmless side (a machine): it is pushed away.
+    Bump,
 }
 
 impl Enemy {
@@ -139,9 +161,51 @@ impl Enemy {
         }
     }
 
-    /// Still a threat (not freed, not gone).
+    /// A mole popping out of the ground at top-left `pos` (where it is
+    /// fully out), `delay` steps into its cycle.
+    pub fn mole(pos: Vec2, delay: u32) -> Enemy {
+        Enemy {
+            kind: EnemyKind::Mole {
+                timer: delay % MOLE_CYCLE,
+                home_y: pos.y,
+            },
+            grounded: true,
+            ..Enemy::walker(pos, -1.0, 0.0)
+        }
+    }
+
+    pub fn machine(pos: Vec2) -> Enemy {
+        Enemy {
+            kind: EnemyKind::Machine { broken: false },
+            grounded: true,
+            ..Enemy::walker(pos, 1.0, 0.0)
+        }
+    }
+
+    /// Still a threat (not freed, not gone, not a broken machine).
     pub fn active(&self) -> bool {
-        self.freed.is_none() && !self.gone
+        self.freed.is_none()
+            && !self.gone
+            && !matches!(self.kind, EnemyKind::Machine { broken: true })
+    }
+
+    /// How far a mole is out of its hole, 0 (under) ..= 1 (out). Other
+    /// enemies are always out.
+    pub fn out(&self) -> f32 {
+        let EnemyKind::Mole { timer, .. } = self.kind else {
+            return 1.0;
+        };
+        let t = timer as f32;
+        let (under, rise, out) = (MOLE_UNDER as f32, MOLE_RISE as f32, MOLE_OUT as f32);
+        if t < under {
+            0.0
+        } else if t < under + rise {
+            (t - under) / rise
+        } else if t < under + rise + out {
+            1.0
+        } else {
+            1.0 - (t - under - rise - out) / MOLE_SINK as f32
+        }
     }
 
     /// One step of movement for the enemy at `pos` of `size`. Returns the
@@ -169,6 +233,17 @@ impl Enemy {
             return pos + self.vel * DT;
         }
         match &mut self.kind {
+            EnemyKind::Mole { timer, home_y } => {
+                *timer = (*timer + 1) % MOLE_CYCLE;
+                let home_y = *home_y;
+                self.dir = if ball.x < pos.x + size.x / 2.0 {
+                    -1.0
+                } else {
+                    1.0
+                };
+                return vec2(pos.x, home_y + size.y * (1.0 - self.out()));
+            }
+            EnemyKind::Machine { .. } => return pos,
             EnemyKind::Flyer {
                 origin,
                 axis,
@@ -259,7 +334,7 @@ impl Enemy {
 
     /// How the ball touches the enemy box (`pos`, `size`), if at all.
     pub fn touch(&self, ball: &Ball, pos: Vec2, size: Vec2) -> Option<Touch> {
-        if !self.active() {
+        if !self.active() || self.out() < 0.6 {
             return None;
         }
         let closest = ball.pos.clamp(pos, pos + size);
@@ -270,6 +345,8 @@ impl Enemy {
         let from_above = ball.vel.y > 0.0 && ball.pos.y < pos.y + 2.0;
         Some(if from_above {
             Touch::Stomp
+        } else if matches!(self.kind, EnemyKind::Machine { .. }) {
+            Touch::Bump
         } else if ball.form == Form::Stone {
             Touch::Crush
         } else {
@@ -279,6 +356,10 @@ impl Enemy {
 
     /// Frees the enemy: it hops up and fades away.
     pub fn free(&mut self) {
+        if let EnemyKind::Machine { broken } = &mut self.kind {
+            *broken = true;
+            return;
+        }
         self.freed = Some(FREED_TICKS);
         self.vel = vec2(-self.dir * 40.0, -200.0);
     }
@@ -444,6 +525,65 @@ mod tests {
             freed.touch(&side, pos, size),
             None,
             "freed enemies are harmless"
+        );
+    }
+
+    #[test]
+    fn mole_pops_out_and_back_and_is_safe_underground() {
+        let map = TileMap::from_ascii("o...\n####").unwrap();
+        let home = vec2(16.0, 0.0);
+        let mut m = Enemy::mole(home, 0);
+        let mut pos = home + vec2(0.0, 16.0);
+        let mut lowest = 0.0f32;
+        let mut highest = f32::MAX;
+        let mut touched_under = false;
+        for _ in 0..MOLE_CYCLE {
+            pos = m.advance(pos, S, &map, &[], Vec2::ZERO);
+            lowest = lowest.max(pos.y);
+            highest = highest.min(pos.y);
+            // A ball sitting right on the hole.
+            let mut b = ball_at(24.0, pos.y - 4.0);
+            b.vel.y = 50.0;
+            if m.out() == 0.0 && m.touch(&b, pos, S).is_some() {
+                touched_under = true;
+            }
+        }
+        assert_eq!(highest, home.y, "fully out");
+        assert_eq!(lowest, home.y + 16.0, "fully under");
+        assert!(!touched_under);
+        assert_eq!(m.out(), 0.0, "back under after a full cycle");
+    }
+
+    #[test]
+    fn moles_can_be_stomped_when_out() {
+        let mut m = Enemy::mole(vec2(0.0, 0.0), MOLE_UNDER + MOLE_RISE);
+        assert_eq!(m.out(), 1.0);
+        let mut b = ball_at(8.0, -6.0);
+        b.vel.y = 100.0;
+        assert_eq!(m.touch(&b, vec2(0.0, 0.0), S), Some(Touch::Stomp));
+        let side = ball_at(-6.0, 12.0);
+        assert_eq!(m.touch(&side, vec2(0.0, 0.0), S), Some(Touch::Hurt));
+        m.free();
+        assert!(!m.active());
+    }
+
+    #[test]
+    fn machines_break_from_above_and_bump_at_the_sides() {
+        let size = vec2(20.0, 28.0);
+        let mut m = Enemy::machine(vec2(0.0, 0.0));
+        let side = ball_at(-6.0, 20.0);
+        assert_eq!(m.touch(&side, Vec2::ZERO, size), Some(Touch::Bump));
+        let mut top = ball_at(10.0, -6.0);
+        top.vel.y = 100.0;
+        assert_eq!(m.touch(&top, Vec2::ZERO, size), Some(Touch::Stomp));
+        m.free();
+        assert!(!m.active());
+        assert!(!m.gone, "a broken machine stays");
+        assert_eq!(m.freed, None);
+        let map = TileMap::from_ascii("o.\n##").unwrap();
+        assert_eq!(
+            m.advance(vec2(3.0, 4.0), size, &map, &[], Vec2::ZERO),
+            vec2(3.0, 4.0)
         );
     }
 }

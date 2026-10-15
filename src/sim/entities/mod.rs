@@ -54,6 +54,8 @@ pub enum Event {
     Shot { pos: Vec2 },
     /// A pellet shattered on the stone ball at `pos`.
     ShotBlocked { pos: Vec2 },
+    /// A hypno machine was broken at `pos` (its centre).
+    MachineBroken { pos: Vec2 },
     /// An enemy was freed (stomped, or crushed by the stone) at `pos`.
     EnemyFreed { pos: Vec2 },
     /// A spring or catapult launched the ball from `pos`.
@@ -399,6 +401,15 @@ pub fn build(spec: &ObjectSpec) -> Result<Entity, String> {
                 ));
             }
             EntityKind::Enemy(Enemy::flyer(spec.pos, axis, range, speed))
+        }
+        "mole" => {
+            need_rect(spec)?;
+            let delay = num_prop(spec, "delay", 0.0)?;
+            EntityKind::Enemy(Enemy::mole(spec.pos, seconds_to_ticks(delay)))
+        }
+        "machine" => {
+            need_rect(spec)?;
+            EntityKind::Enemy(Enemy::machine(spec.pos))
         }
         "jumper" => {
             need_rect(spec)?;

@@ -96,6 +96,30 @@ impl Atlas {
         );
     }
 
+    /// Draws only the top `height` px of a sprite at `pos` (a mole half out
+    /// of its hole), mirrored if `flip`.
+    pub fn draw_top(&self, sprite: &str, pos: Vec2, height: f32, flip: bool) {
+        let mut src = self.rect(sprite);
+        let height = height.round().clamp(0.0, src.h);
+        if height <= 0.0 {
+            return;
+        }
+        src.h = height;
+        let pos = pos.round();
+        draw_texture_ex(
+            &self.texture,
+            pos.x,
+            pos.y,
+            WHITE,
+            DrawTextureParams {
+                source: Some(src),
+                dest_size: Some(vec2(src.w, height)),
+                flip_x: flip,
+                ..Default::default()
+            },
+        );
+    }
+
     /// Draws a sprite stretched to `size`, tinted (multiplied) by `color`.
     pub fn draw_tinted(&self, sprite: &str, pos: Vec2, size: Vec2, color: Color) {
         let pos = pos.round();

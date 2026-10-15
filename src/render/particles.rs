@@ -58,6 +58,11 @@ const STONE: [Color; 3] = [
     Color::new(0.35, 0.34, 0.31, 1.0),
 ];
 const WATER_DROP: Color = Color::new(0.62, 0.84, 1.0, 1.0);
+const MACHINE_BITS: [Color; 3] = [
+    Color::new(0.54, 0.35, 0.82, 1.0),
+    Color::new(0.75, 0.75, 0.8, 1.0),
+    Color::new(0.37, 0.23, 0.6, 1.0),
+];
 const FREED_PINK: Color = Color::new(1.0, 0.6, 0.8, 1.0);
 const GOLD_SPARK: Color = Color::new(1.0, 0.85, 0.25, 1.0);
 const GEM_SPARK: Color = Color::new(0.62, 0.89, 1.0, 1.0);
@@ -159,6 +164,16 @@ impl Particles {
                     self.confetti(pos);
                 }
                 Event::ShotBlocked { pos } => self.debris(pos, &STONE, 6, 60.0),
+                Event::MachineBroken { pos } => {
+                    self.debris(pos, &MACHINE_BITS, 14, 120.0);
+                    self.sparkle(pos, GOLD_SPARK);
+                    self.popups.push(Popup {
+                        text: "+250".to_owned(),
+                        pos: pos - vec2(0.0, 18.0),
+                        life: POPUP_LIFE,
+                        color: GOLD_SPARK,
+                    });
+                }
                 Event::EnemyFreed { pos } => {
                     self.sparkle(pos, FREED_PINK);
                     self.popups.push(Popup {

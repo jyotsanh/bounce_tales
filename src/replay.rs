@@ -38,6 +38,7 @@ pub const FIELDS: &[(&str, Probe)] = &[
     ("ball.water", |s| s.ball.water as f64),
     ("riding", |s| s.riding.is_some() as u8 as f64),
     ("held", |s| s.held.is_some() as u8 as f64),
+    ("machines", |s| s.machines_broken as f64),
     ("freed", |s| s.enemies_freed as f64),
     ("boss.hp", |s| boss_hp(s) as f64),
     // 0 normal, 1 stone, 2 balloon.

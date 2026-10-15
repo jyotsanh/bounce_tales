@@ -145,6 +145,8 @@ pub struct Sim {
     pub deaths: u32,
     /// Enemies freed this level.
     pub enemies_freed: u32,
+    /// Hypno machines broken this level.
+    pub machines_broken: u32,
     /// Shooters' pellets in flight.
     pub projectiles: Vec<enemies::Projectile>,
     /// Balls left, including the one in play. Losing the last one is game
@@ -234,6 +236,7 @@ impl Sim {
             on_seesaw: None,
             deaths: 0,
             enemies_freed: 0,
+            machines_broken: 0,
             projectiles: Vec::new(),
             lives: carry.lives,
             game_over: 0,
@@ -487,6 +490,7 @@ impl Sim {
     /// Returns true if the ball died.
     fn touch_enemies(&mut self) -> bool {
         let mut freed = Vec::new();
+        let mut broken = Vec::new();
         let mut hurt = false;
         for e in &mut self.entities {
             let (pos, size) = (e.pos, e.size);
@@ -530,12 +534,36 @@ impl Sim {
             };
             match en.touch(&self.ball, pos, size) {
                 Some(enemies::Touch::Stomp) => {
+                    let machine = matches!(en.kind, enemies::EnemyKind::Machine { .. });
                     en.free();
                     let boost = if self.input.jump { 1.25 } else { 1.0 };
-                    self.ball.vel.y = -enemies::STOMP_BOUNCE * boost;
+                    let bounce = if machine {
+                        enemies::MACHINE_BOUNCE
+                    } else {
+                        enemies::STOMP_BOUNCE
+                    };
+                    self.ball.vel.y = -bounce * boost;
                     self.ball.jumping = true;
                     self.ball.grounded = false;
-                    freed.push(pos + size / 2.0);
+                    if machine {
+                        broken.push(pos + size / 2.0);
+                    } else {
+                        freed.push(pos + size / 2.0);
+                    }
+                }
+                Some(enemies::Touch::Bump) => {
+                    // Pushed back out of the side it rolled into.
+                    let side = if self.ball.pos.x < pos.x + size.x / 2.0 {
+                        -1.0
+                    } else {
+                        1.0
+                    };
+                    self.ball.pos.x = if side < 0.0 {
+                        pos.x - self.ball.radius
+                    } else {
+                        pos.x + size.x + self.ball.radius
+                    };
+                    self.ball.vel.x = side * enemies::MACHINE_PUSH;
                 }
                 Some(enemies::Touch::Crush) => {
                     en.free();
@@ -544,6 +572,11 @@ impl Sim {
                 Some(enemies::Touch::Hurt) => hurt = true,
                 None => {}
             }
+        }
+        for pos in broken {
+            self.score += enemies::MACHINE_POINTS;
+            self.machines_broken += 1;
+            self.events.push(Event::MachineBroken { pos });
         }
         for pos in freed {
             self.score += enemies::FREE_POINTS;

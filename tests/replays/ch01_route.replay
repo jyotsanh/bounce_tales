@@ -1,0 +1,41 @@
+# Chapter 1, Misty Morning (recorded from a reactive controller): down
+# the tower ledges, drop to the floor, over the block and the dip, up the
+# stepping ledge to the switch, through the opened barrier, hop the mole
+# and the hypno machine, reach the exit.
+level ch01
+43 L
+67 R
+77 L
+1 R
+1 RJ
+80 R
+8 RJ
+142 R
+1 RJ
+30 R
+1 RJ
+13 R
+1 RJ
+15 R
+1 RJ
+3 R
+1 RJ
+2 R
+1 RJ
+2 R
+1 RJ
+1 R
+1 RJ
+1 R
+1 RJ
+16 L
+1 LJ
+46 L
+265 R
+1 RJ
+58 R
+1 RJ
+154 R
+expect exit == 1
+expect deaths == 0
+expect gems >= 18
