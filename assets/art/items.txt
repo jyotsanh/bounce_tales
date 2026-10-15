@@ -1,6 +1,6 @@
 ; Collectibles (16x16): gem shimmer frames, egg, extra-life ball; moving
 ; platform pieces (left end, middle, right end); switch off/on, door and
-; bridge pieces.
+; bridge pieces; spring relaxed/compressed; fan frames.
 ; Run `cargo run -p artgen` after editing.
 sheet items cell 16x16 columns 8
 palette
@@ -18,12 +18,12 @@ palette
   G #4cd23c   ; plus badge
   Y #f0c27a   ; plank top edge
   y #b8834a   ; plank line
-  b #c99558   ; plank
-  B #8e5f30   ; plank shade
+  p #c99558   ; plank
+  P #8e5f30   ; plank shade
   K #4a2e14   ; plank outline
   S #d8d8d8   ; bolt
   n #6a6a72   ; switch base
-  w #ff8a7a   ; switch top (off)
+  v #ff8a7a   ; switch top (off)
   W #a8ff9a   ; switch top (on)
   M #7a8088   ; door steel
   m #4a4f56   ; door frame
@@ -139,55 +139,55 @@ sprite life
 end
 sprite plat_l
 .YYYYYYYYYYYYYYY
-Kbbbbbbbbbbbbbbb
-KbbBbbbbbbbbbbbb
-KbbSbbbbbbbbbbbb
+Kppppppppppppppp
+KppPpppppppppppp
+KppSpppppppppppp
 Kyyyyyyyyyyyyyyy
-Kbbbbbbbbbbbbbbb
-KbbbbbbbbBbbbbbb
-Kbbbbbbbbbbbbbbb
+Kppppppppppppppp
+KppppppppPpppppp
+Kppppppppppppppp
 Kyyyyyyyyyyyyyyy
-KbbSbbbbbbbbbbbb
-KbbbbbBbbbbbbBbb
-Kbbbbbbbbbbbbbbb
-KBBBBBBBBBBBBBBB
-KBBBBBBBBBBBBBBB
+KppSpppppppppppp
+KpppppPppppppPpp
+Kppppppppppppppp
+KPPPPPPPPPPPPPPP
+KPPPPPPPPPPPPPPP
 KKKKKKKKKKKKKKKK
 .KKKKKKKKKKKKKKK
 end
 sprite plat_m
 YYYYYYYYYYYYYYYY
-bbbbbbbbbbbbbbbb
-bbbBbbbbbbbbbbbb
-bbbbbbbbbbbbbbbb
+pppppppppppppppp
+pppPpppppppppppp
+pppppppppppppppp
 yyyyyyyyyyyyyyyy
-bbbbbbbbbbbbbbbb
-bbbbbbbbbBbbbbbb
-bbbbbbbbbbbbbbbb
+pppppppppppppppp
+pppppppppPpppppp
+pppppppppppppppp
 yyyyyyyyyyyyyyyy
-bbbbbbbbbbbbbbbb
-bbbbbbBbbbbbbBbb
-bbbbbbbbbbbbbbbb
-BBBBBBBBBBBBBBBB
-BBBBBBBBBBBBBBBB
+pppppppppppppppp
+ppppppPppppppPpp
+pppppppppppppppp
+PPPPPPPPPPPPPPPP
+PPPPPPPPPPPPPPPP
 KKKKKKKKKKKKKKKK
 KKKKKKKKKKKKKKKK
 end
 sprite plat_r
 YYYYYYYYYYYYYYY.
-bbbbbbbbbbbbbbbK
-bbbBbbbbbbbbbbbK
-bbbbbbbbbbbbSbbK
+pppppppppppppppK
+pppPpppppppppppK
+ppppppppppppSppK
 yyyyyyyyyyyyyyyK
-bbbbbbbbbbbbbbbK
-bbbbbbbbbBbbbbbK
-bbbbbbbbbbbbbbbK
+pppppppppppppppK
+pppppppppPpppppK
+pppppppppppppppK
 yyyyyyyyyyyyyyyK
-bbbbbbbbbbbbSbbK
-bbbbbbBbbbbbbBbK
-bbbbbbbbbbbbbbbK
-BBBBBBBBBBBBBBBK
-BBBBBBBBBBBBBBBK
+ppppppppppppSppK
+ppppppPppppppPpK
+pppppppppppppppK
+PPPPPPPPPPPPPPPK
+PPPPPPPPPPPPPPPK
 KKKKKKKKKKKKKKKK
 KKKKKKKKKKKKKKK.
 end
@@ -202,7 +202,7 @@ sprite switch_off
 ................
 ................
 ................
-....wwwwwwww....
+....vvvvvvvv....
 ....rrrrrrrr....
 ....rrrrrrrr....
 ....rrrrrrrr....
@@ -248,18 +248,90 @@ end
 sprite bridge
 YYYYYYYYYYYYYYYY
 YYYYYYYYYYYYYYYY
-BbbbBbbbBbbbBbbb
-BbbbBbbbBbbbBbbb
-BbbbBbbbBbbbBbbb
-BbbbBbbbBbbbBbbb
+PpppPpppPpppPppp
+PpppPpppPpppPppp
+PpppPpppPpppPppp
+PpppPpppPpppPppp
 KKKKKKKKKKKKKKKK
 KKKKKKKKKKKKKKKK
-.B............B.
-.B............B.
-.B............B.
-.B............B.
-.B............B.
-.B............B.
+.P............P.
+.P............P.
+.P............P.
+.P............P.
+.P............P.
+.P............P.
 ................
 ................
+end
+sprite spring_0
+................
+................
+................
+................
+.rrrrrrrrrrrrrr.
+.RRRRRRRRRRRRRR.
+....nSnSnSnn....
+....n......n....
+....nSnSnSnn....
+....n......n....
+....nSnSnSnn....
+....n......n....
+....nSnSnSnn....
+....n......n....
+..nnnnnnnnnnnn..
+..KKKKKKKKKKKK..
+end
+sprite spring_1
+................
+................
+................
+................
+................
+................
+................
+................
+................
+.rrrrrrrrrrrrrr.
+.RRRRRRRRRRRRRR.
+....nSnSnSnn....
+....n......n....
+....nSnSnSnn....
+..nnnnnnnnnnnn..
+..KKKKKKKKKKKK..
+end
+sprite fan_0
+................
+................
+................
+................
+................
+................
+................
+................
+...SSSSSSSSSS...
+...nnnnKKnnnn...
+.mmmmmmmmmmmmmm.
+.MMMMMMMMMMMMMM.
+.MMMMMMMMMMMMMM.
+.MMMMMMMMMMMMMM.
+.MMMMMMMMMMMMMM.
+.mmmmmmmmmmmmmm.
+end
+sprite fan_1
+................
+................
+................
+................
+................
+................
+................
+................
+.....SSSSSS.....
+.....nnKKnn.....
+.mmmmmmmmmmmmmm.
+.MMMMMMMMMMMMMM.
+.MMMMMMMMMMMMMM.
+.MMMMMMMMMMMMMM.
+.MMMMMMMMMMMMMM.
+.mmmmmmmmmmmmmm.
 end

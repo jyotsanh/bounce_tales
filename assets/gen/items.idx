@@ -11,3 +11,7 @@ switch_off 16 16 16 16
 switch_on 32 16 16 16
 door 48 16 16 16
 bridge 64 16 16 16
+spring_0 80 16 16 16
+spring_1 96 16 16 16
+fan_0 112 16 16 16
+fan_1 0 32 16 16

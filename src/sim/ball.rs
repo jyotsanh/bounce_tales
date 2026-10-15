@@ -88,7 +88,13 @@ impl BallParams {
     /// sim's semi-implicit Euler integration (which loses about half a step
     /// of rise compared with the continuous formula).
     pub fn jump_speed(&self) -> f32 {
-        (2.0 * self.gravity * self.jump_height).sqrt() + 0.5 * self.gravity * DT
+        self.launch_speed(self.jump_height)
+    }
+
+    /// Take-off speed that lifts the ball's centre by `height` px (with the
+    /// same integration correction as a jump).
+    pub fn launch_speed(&self, height: f32) -> f32 {
+        (2.0 * self.gravity * height).sqrt() + 0.5 * self.gravity * DT
     }
 }
 
@@ -120,6 +126,8 @@ pub struct Ball {
     /// How much of the ball is under water (0..1), measured after the last
     /// move (`water::submersion`).
     pub water: f32,
+    /// Acceleration from fans this step, px/s² (set by the sim).
+    pub wind: Vec2,
     /// Visual squash (> 0 flattened, < 0 stretched tall), springs back to 0.
     /// Drawing only; never affects collision.
     pub squash: f32,
@@ -144,6 +152,7 @@ impl Ball {
             angle: 0.0,
             spin: 0.0,
             water: 0.0,
+            wind: Vec2::ZERO,
             squash: 0.0,
             squash_vel: 0.0,
         }
@@ -203,6 +212,16 @@ impl Ball {
 
         if !self.grounded {
             self.vel.y = (self.vel.y + p.gravity * DT).min(p.max_fall);
+        }
+        if self.wind != Vec2::ZERO {
+            // Fans push even a grounded ball (an up-draft lifts it off).
+            self.vel += self.wind * DT;
+            // Air resistance along the stream damps bobbing into a hover.
+            let along = self.wind.normalize();
+            self.vel -= along * self.vel.dot(along) * WIND_DRAG * DT;
+            if self.wind.y < 0.0 {
+                self.vel.y = self.vel.y.max(-MAX_WIND_RISE);
+            }
         }
         if wet > 0.0 {
             // Buoyancy lifts even a grounded ball (it then leaves the floor).
@@ -277,6 +296,11 @@ impl Ball {
 }
 
 const COS_45: f32 = std::f32::consts::FRAC_1_SQRT_2;
+
+/// Fastest an up-draft lifts the ball, px/s (so it hovers, not rockets).
+pub const MAX_WIND_RISE: f32 = 220.0;
+/// Drag along a fan's stream, per second (damps the hover bob).
+const WIND_DRAG: f32 = 4.0;
 
 /// Landings slower than this don't squash the ball, px/s.
 const SQUASH_MIN_IMPACT: f32 = 60.0;

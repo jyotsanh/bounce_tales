@@ -137,7 +137,11 @@ pub fn parse(text: &str) -> Result<Sheet, String> {
                 }
                 let rgba =
                     parse_color(color).ok_or_else(|| format!("line {n}: bad colour '{color}'"))?;
-                palette.insert(c, rgba);
+                if palette.insert(c, rgba).is_some() {
+                    return Err(format!(
+                        "line {n}: palette key '{c}' is defined twice (sprites using it would change colour)"
+                    ));
+                }
             },
             "sprite" => {
                 let s = sheet

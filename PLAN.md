@@ -80,7 +80,7 @@ Key rules:
 - [x] **15.** **Water**: buoyancy, drag, splash particles.
 - [x] **16.** **Moving platforms**: paths from Tiled polylines, ball rides and inherits velocity.
 - [x] **17.** **Breakables, switches, doors**: crumbling blocks, cracked walls, switch-linked doors/bridges.
-- [ ] **18.** **Springs, catapults, wind fans**.
+- [x] **18.** **Springs, catapults, wind fans**.
 
 ### Phase D — Physics props
 - [ ] **19.** **Pushable boxes** (gravity, ball pushes them, they stack on tiles).
@@ -291,3 +291,12 @@ Spare capacity: if a step overruns, the next prompt finishes it before moving on
 - **Switch / door / bridge** objects: `switch` (rect, string property `target`), `door` and `bridge` (rect, `name`). The first touch of a switch → every door/bridge with that name switches: doors stop being solid (drawn sliding up into their frame), bridges become solid (planks appear left to right), `GATE_ANIM_TICKS` 15. Events `Switched`, `GateMoved`. Closed doors are made solid at level start. ASCII `S`, `D`, `B` are all linked by the name `gate`. `ascii2tmx` now writes object string properties.
 - Art: forest +`crumble` (sandstone), +`cracked` (boulder with a crack) (ids 18, 19); items +`switch_off/on`, `door`, `bridge`.
 - New ASCII level `switches` (crumbling bridge, switch, roofed door, bridge, exit, roofed cracked wall with an egg behind for the stone ball). Replays `switches_route` (holding right clears it), `crumble_fall`. Tests: crumble fall + return, fast crossing, switch → door + bridge, closed door blocks, smashing only with `smashes`, game over restores blocks.
+
+### Step 18 — Springs, catapults, fans (done)
+- `spring` (rect; `height` in tiles, default 6; ASCII `j`): a ball coming down onto it (or resting) is launched straight up to exactly `height` (`BallParams::launch_speed(h)`, same correction as jumps); `jumping` set (no coyote); compression drawn for `LAUNCH_ANIM_TICKS`.
+- `catapult` (rect; `dir` left/right, `speed` default **420** (380 landed 3 px from the pit edge), `angle` default 50°; ASCII `>` / `<`, 32x16): ball centre in the rect → `Sim.held = (entity, CATAPULT_HOLD_TICKS 12)` (the ball sits in the cup, its own physics skipped) → fires along `launch`, `CATAPULT_COOLDOWN_TICKS` 40. Event `Launched`. Death clears `held` (replay field `held`).
+- `fan` (rect = air stream; `dir` up/down/left/right, `force` px/s² default 1500; ASCII `F` = 32x128 updraft standing on the cell): `Ball.wind` = sum of fan forces at the ball centre; applied after movement, with **drag along the stream** (`WIND_DRAG` 4/s) and rise capped at `MAX_WIND_RISE` 220 → the ball hovers within ±20 px of the stream's top (it swung ~70 px before the drag). **Ground snapping is skipped while an updraft lifts the ball** (snapping kept a grounded ball pinned in the fan).
+- `Sim::step` refactor: ball physics moved into `move_ball()`; `wind_at`, `hold_in_catapult`, `use_launchers`. ASCII markers are a table of `Marker { kind, name, size, props }`.
+- Art: items + `spring_0/1`, `fan_0/1`; objects + `catapult_r/l` and `_fired` (32x32, base in the bottom half). FX: launch puffs, wind streaks flowing through fan zones.
+- **Palette bug found via screenshot**: step 16's plank colours reused the gem palette keys `b`/`B` (and the switch reused the glint `w`), so gems had been drawn orange/brown since step 16. **artgen now rejects duplicate palette keys**; items use `p`/`P`/`v`.
+- New ASCII level `launchers` (spring → ledge, catapult over a pit, fan up to the exit ledge). Replay `launchers_route` (controller-recorded). Tests: property parsing, spring height ±2 px, catapult hold/fire, fan hover range, death releases a held ball.

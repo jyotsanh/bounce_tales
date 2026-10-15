@@ -46,6 +46,14 @@ pub const ENTITY_SPRITES: &[&str] = &[
     "switch_on",
     "door",
     "bridge",
+    "spring_0",
+    "spring_1",
+    "fan_0",
+    "fan_1",
+    "catapult_r",
+    "catapult_l",
+    "catapult_r_fired",
+    "catapult_l_fired",
 ];
 
 /// Roll frames in the ball atlas (`roll_0` … `roll_15`).
@@ -186,6 +194,28 @@ impl Renderer {
                 }
             }
             EntityKind::Pickup { taken: true, .. } => {}
+            EntityKind::Spring { squish, .. } => {
+                let name = if *squish > 0 { "spring_1" } else { "spring_0" };
+                self.sprites.items.draw(name, e.pos);
+            }
+            EntityKind::Catapult { launch, fired, .. } => {
+                let side = if launch.x < 0.0 { "l" } else { "r" };
+                let pose = if *fired > 0 { "_fired" } else { "" };
+                // 32x32 sprite whose base fills the bottom 16 px.
+                let pos = vec2(e.pos.x + e.size.x / 2.0 - 16.0, e.pos.y + e.size.y - 32.0);
+                self.sprites
+                    .objects
+                    .draw(&format!("catapult_{side}{pose}"), pos);
+            }
+            EntityKind::Fan { force } => {
+                // The fan sits on the upwind edge of its air stream.
+                let dir = force.normalize_or_zero();
+                let centre = e.pos + e.size / 2.0;
+                let base = centre - dir * (e.size * dir.abs()) / 2.0;
+                let frame = (tick / 3) % 2;
+                let pos = base - vec2(8.0, 8.0) + dir * -8.0;
+                self.sprites.items.draw(&format!("fan_{frame}"), pos);
+            }
             EntityKind::Switch { on, .. } => {
                 let name = if *on { "switch_on" } else { "switch_off" };
                 self.sprites.items.draw(name, e.pos);

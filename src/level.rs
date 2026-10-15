@@ -34,7 +34,9 @@
 //! `e` = egg, `+` = extra life (16x16, filling the cell), `H` / `V` =
 //! moving platform 3 tiles wide starting at that cell, travelling 8 tiles
 //! right / 4 tiles up and back, `S` = switch, `D` = door cell, `B` = bridge
-//! cell (ASCII ones are all linked by the name `gate`).
+//! cell (ASCII ones are all linked by the name `gate`), `j` = spring, `>` /
+//! `<` = catapult firing right / left (32x16), `F` = fan blowing up (air
+//! stream 32 wide, 128 tall, standing on the cell's floor).
 
 use std::io::Cursor;
 use std::path::Path;
@@ -150,6 +152,11 @@ pub const BACKGROUNDS: &[&str] = &["forest"];
 pub const EXIT_SIZE: Vec2 = Vec2::new(32.0, 32.0);
 /// Size of a collectible (gem, egg, extra life), px.
 pub const ITEM_SIZE: Vec2 = Vec2::new(16.0, 16.0);
+/// Size of an ASCII catapult (`>` / `<`), px.
+pub const CATAPULT_SIZE: Vec2 = Vec2::new(32.0, 16.0);
+/// Size of an ASCII fan's air stream (`F`: 2 tiles wide, 8 tall, rising from
+/// the marker's cell), px.
+pub const FAN_SIZE: Vec2 = Vec2::new(32.0, 128.0);
 /// Size of a checkpoint post, px.
 pub const CHECKPOINT_SIZE: Vec2 = Vec2::new(32.0, 32.0);
 
@@ -163,19 +170,48 @@ fn ascii_platform(c: char) -> Option<Vec2> {
     }
 }
 
-/// Object type and size for an ASCII marker letter.
-fn ascii_marker(c: char) -> Option<(&'static str, Vec2)> {
-    match c {
-        'E' => Some(("exit", EXIT_SIZE)),
-        'C' => Some(("checkpoint", CHECKPOINT_SIZE)),
-        '*' => Some(("gem", ITEM_SIZE)),
-        'e' => Some(("egg", ITEM_SIZE)),
-        '+' => Some(("life", ITEM_SIZE)),
-        'S' => Some(("switch", ITEM_SIZE)),
-        'D' => Some(("door", ITEM_SIZE)),
-        'B' => Some(("bridge", ITEM_SIZE)),
-        _ => None,
-    }
+/// An object an ASCII marker letter stands for.
+struct Marker {
+    kind: &'static str,
+    name: &'static str,
+    size: Vec2,
+    props: Vec<(String, Prop)>,
+}
+
+/// Object type, name, size and properties for an ASCII marker letter.
+/// Switches, doors and bridges are all linked by the name "gate".
+fn ascii_marker(c: char) -> Option<Marker> {
+    let m = |kind, name, size| Marker {
+        kind,
+        name,
+        size,
+        props: Vec::new(),
+    };
+    let dir = |d: &str| vec![("dir".to_owned(), Prop::Str(d.to_owned()))];
+    Some(match c {
+        'E' => m("exit", "exit", EXIT_SIZE),
+        'C' => m("checkpoint", "checkpoint", CHECKPOINT_SIZE),
+        '*' => m("gem", "gem", ITEM_SIZE),
+        'e' => m("egg", "egg", ITEM_SIZE),
+        '+' => m("life", "life", ITEM_SIZE),
+        'S' => Marker {
+            props: vec![("target".into(), Prop::Str("gate".into()))],
+            ..m("switch", "switch", ITEM_SIZE)
+        },
+        'D' => m("door", "gate", ITEM_SIZE),
+        'B' => m("bridge", "gate", ITEM_SIZE),
+        'j' => m("spring", "spring", ITEM_SIZE),
+        '>' => Marker {
+            props: dir("right"),
+            ..m("catapult", "catapult", CATAPULT_SIZE)
+        },
+        '<' => Marker {
+            props: dir("left"),
+            ..m("catapult", "catapult", CATAPULT_SIZE)
+        },
+        'F' => m("fan", "fan", FAN_SIZE),
+        _ => return None,
+    })
 }
 
 /// ASCII object markers, replaced by empty space before the map is parsed.
@@ -189,16 +225,15 @@ fn ascii_objects(text: &str) -> (String, Vec<ObjectSpec>) {
     let mut out = String::new();
     for (y, row) in rows.iter().enumerate() {
         for (x, c) in row.chars().enumerate() {
-            if let Some((kind, size)) = ascii_marker(c) {
+            if let Some(Marker {
+                kind,
+                name,
+                size,
+                props,
+            }) = ascii_marker(c)
+            {
                 let floor = (y as f32 + 1.0) * TILE;
                 let centre_x = (x as f32 + 0.5) * TILE;
-                // ASCII switches, doors and bridges are all linked by the
-                // name "gate".
-                let (name, props) = match kind {
-                    "switch" => ("switch", vec![("target".into(), Prop::Str("gate".into()))]),
-                    "door" | "bridge" => ("gate", Vec::new()),
-                    _ => (kind, Vec::new()),
-                };
                 objects.push(ObjectSpec {
                     kind: kind.into(),
                     name: name.into(),

@@ -6,7 +6,7 @@
 use macroquad::prelude::*;
 
 use bounce_tales::sim::hazards::Cause;
-use bounce_tales::sim::{DT, Event, Item, Rng, Sim};
+use bounce_tales::sim::{DT, EntityKind, Event, Item, Rng, Sim};
 
 use super::atlas::Atlas;
 use super::font;
@@ -113,6 +113,7 @@ impl Particles {
                 Event::Smashed { pos } => self.debris(pos, &STONE, 16, 160.0),
                 Event::Switched { pos } => self.sparkle(pos, LIFE_GREEN),
                 Event::GateMoved { pos } => self.puffs(pos, 8, 50.0),
+                Event::Launched { pos } => self.puffs(pos, 8, 70.0),
                 Event::Collected { item, pos } => {
                     let (color, text) = match item {
                         Item::Gem => (GEM_SPARK, format!("+{}", item.points())),
@@ -129,8 +130,16 @@ impl Particles {
                 }
             }
         }
+        // Streaks of air flowing through fan zones.
+        if sim.tick.is_multiple_of(3) {
+            for e in &sim.entities {
+                if let EntityKind::Fan { force } = e.kind {
+                    self.wind_streak(e.pos, e.size, force);
+                }
+            }
+        }
         let b = &sim.ball;
-        if sim.dying == 0
+        if sim.ball_visible()
             && b.grounded
             && b.vel.length() > ROLL_DUST_SPEED
             && sim.tick.is_multiple_of(6)
@@ -175,6 +184,27 @@ impl Particles {
                 gravity: 150.0,
             });
         }
+    }
+
+    /// One faint streak entering a fan zone from its upwind edge.
+    fn wind_streak(&mut self, pos: Vec2, size: Vec2, force: Vec2) {
+        let dir = force.normalize_or_zero();
+        let length = (size * dir.abs()).length();
+        let speed = 160.0;
+        // Start on the upwind edge, at a random spot across it.
+        let across = vec2(dir.y.abs(), dir.x.abs());
+        let start_edge = pos + size / 2.0 - dir * (length / 2.0);
+        let offset = across * size * self.rng.range(-0.45, 0.45);
+        let life = length / speed;
+        self.list.push(Particle {
+            pos: start_edge + offset,
+            vel: dir * speed,
+            life,
+            max_life: life,
+            color: Color::new(1.0, 1.0, 1.0, 0.45),
+            size: 1.0,
+            gravity: 0.0,
+        });
     }
 
     /// Chunks of a broken block tumbling out of `at` (its centre).

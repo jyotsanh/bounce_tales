@@ -1,3 +1,7 @@
 exit 0 0 32 32
 checkpoint_off 32 0 32 32
 checkpoint_on 64 0 32 32
+catapult_r 96 0 32 32
+catapult_l 0 32 32 32
+catapult_r_fired 32 32 32 32
+catapult_l_fired 64 32 32 32

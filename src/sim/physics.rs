@@ -52,7 +52,8 @@ pub struct Contacts {
 /// Moves the ball by its velocity for one step, colliding with the map, then
 /// applies ground-following and landing/bounce rules.
 pub fn move_and_collide(ball: &mut Ball, map: &TileMap) -> Contacts {
-    let rolling = ball.grounded && !ball.jumping;
+    // An up-draft lifting the ball must not be undone by ground snapping.
+    let rolling = ball.grounded && !ball.jumping && ball.wind.y >= 0.0;
     let old_normal = ball.ground_normal;
     // Speed along the old surface (ignores the small push into the floor
     // that keeps a rolling ball in contact).

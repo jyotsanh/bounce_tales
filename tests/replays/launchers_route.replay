@@ -1,0 +1,18 @@
+# Launchers level (recorded from a scripted controller): the spring throws the
+# ball over ledge A, the catapult flings it over the pit, then the fan lifts
+# it to the exit ledge while it holds position in the air stream.
+level launchers
+194 R
+expect deaths == 0
+1 -
+10 R
+4 -
+34 L
+4 -
+30 R
+4 -
+28 L
+4 -
+107 R
+expect exit == 1
+expect deaths == 0

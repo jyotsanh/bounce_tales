@@ -119,6 +119,8 @@ pub struct Sim {
     pub respawn_anim: u32,
     /// Index (into `entities`) of the moving platform the ball rides.
     pub riding: Option<usize>,
+    /// Catapult holding the ball (entity index, steps until it fires).
+    pub held: Option<(usize, u32)>,
     /// Total deaths this level.
     pub deaths: u32,
     /// Balls left, including the one in play. Losing the last one is game
@@ -201,6 +203,7 @@ impl Sim {
             dying: 0,
             respawn_anim: 0,
             riding: None,
+            held: None,
             deaths: 0,
             lives: carry.lives,
             game_over: 0,
@@ -263,6 +266,44 @@ impl Sim {
                 e.pos = p.top_left();
             }
         }
+        self.ball.wind = self.wind_at(self.ball.pos);
+        if !self.hold_in_catapult() {
+            self.move_ball(input);
+            self.use_launchers();
+        }
+
+        self.camera.update(&self.ball, &self.level.map);
+        if let Some(cause) = hazards::check(&self.ball, &self.level.map) {
+            self.die(cause);
+            return;
+        }
+
+        for e in &mut self.entities {
+            e.update(&self.ball, &mut self.events);
+        }
+        for e in &self.events {
+            match *e {
+                Event::ExitReached => {
+                    self.exit_reached = true;
+                    self.exit_tick = Some(self.tick);
+                }
+                Event::CheckpointReached { respawn } => self.respawn_point = respawn,
+                Event::Collected { item, .. } => {
+                    self.score += item.points();
+                    match item {
+                        Item::Gem => self.gems += 1,
+                        Item::Egg => self.eggs += 1,
+                        Item::Life => self.lives = (self.lives + 1).min(MAX_LIVES),
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
+    /// Ball physics for one step: platform carry, input, movement and
+    /// collision, landing/water events, breakable blocks and switches.
+    fn move_ball(&mut self, input: InputFrame) {
         let carried_from = self.ball.pos;
         if let Some(p) = self.riding.and_then(|i| self.platform(i)) {
             self.ball.pos += p.delta();
@@ -318,30 +359,82 @@ impl Sim {
 
         self.update_blocks(&contacts.hits);
         self.press_switches();
+    }
 
-        self.camera.update(&self.ball, &self.level.map);
-        if let Some(cause) = hazards::check(&self.ball, &self.level.map) {
-            self.die(cause);
-            return;
-        }
+    /// Sum of the fan forces whose air stream holds the ball's centre.
+    fn wind_at(&self, p: Vec2) -> Vec2 {
+        self.entities
+            .iter()
+            .filter_map(|e| match e.kind {
+                EntityKind::Fan { force } if inside(e, p) => Some(force),
+                _ => None,
+            })
+            .sum()
+    }
 
-        for e in &mut self.entities {
-            e.update(&self.ball, &mut self.events);
+    /// While a catapult holds the ball, keep it in the cup; fire when the
+    /// hold is over. Returns true if the ball is held this step (its own
+    /// physics is skipped).
+    fn hold_in_catapult(&mut self) -> bool {
+        let Some((i, ticks)) = self.held else {
+            return false;
+        };
+        let e = &mut self.entities[i];
+        let cup = cup_of(e, self.ball.radius);
+        let EntityKind::Catapult {
+            launch,
+            cooldown,
+            fired,
+        } = &mut e.kind
+        else {
+            self.held = None;
+            return false;
+        };
+        self.ball.prev_pos = self.ball.pos;
+        self.ball.pos = cup;
+        self.ball.vel = Vec2::ZERO;
+        if ticks > 1 {
+            self.held = Some((i, ticks - 1));
+            return true;
         }
-        for e in &self.events {
-            match *e {
-                Event::ExitReached => {
-                    self.exit_reached = true;
-                    self.exit_tick = Some(self.tick);
-                }
-                Event::CheckpointReached { respawn } => self.respawn_point = respawn,
-                Event::Collected { item, .. } => {
-                    self.score += item.points();
-                    match item {
-                        Item::Gem => self.gems += 1,
-                        Item::Egg => self.eggs += 1,
-                        Item::Life => self.lives = (self.lives + 1).min(MAX_LIVES),
+        // Fire.
+        self.ball.vel = *launch;
+        self.ball.grounded = false;
+        self.ball.jumping = true;
+        *cooldown = entities::CATAPULT_COOLDOWN_TICKS;
+        *fired = entities::LAUNCH_ANIM_TICKS;
+        self.held = None;
+        self.events.push(Event::Launched { pos: cup });
+        true
+    }
+
+    /// Springs launch a ball that comes down on them; catapults catch a
+    /// ball that rolls into their cup.
+    fn use_launchers(&mut self) {
+        let r = self.ball.radius;
+        for (i, e) in self.entities.iter_mut().enumerate() {
+            let ball_inside = inside(e, self.ball.pos);
+            match &mut e.kind {
+                EntityKind::Spring { height, squish } => {
+                    let over = self.ball.pos.x >= e.pos.x && self.ball.pos.x <= e.pos.x + e.size.x;
+                    let touching = self.ball.pos.y + r >= e.pos.y + 4.0
+                        && self.ball.pos.y < e.pos.y + e.size.y;
+                    if over && touching && self.ball.vel.y >= -10.0 {
+                        let top = e.pos.y + 4.0;
+                        self.ball.pos.y = self.ball.pos.y.min(top - r);
+                        self.ball.vel.y = -self.ball.params.launch_speed(*height);
+                        self.ball.grounded = false;
+                        self.ball.jumping = true;
+                        self.riding = None;
+                        *squish = entities::LAUNCH_ANIM_TICKS;
+                        self.events.push(Event::Launched {
+                            pos: macroquad::math::vec2(self.ball.pos.x, top),
+                        });
                     }
+                }
+                EntityKind::Catapult { cooldown: 0, .. } if self.held.is_none() && ball_inside => {
+                    self.held = Some((i, entities::CATAPULT_HOLD_TICKS));
+                    self.riding = None;
                 }
                 _ => {}
             }
@@ -528,6 +621,7 @@ impl Sim {
         self.dying = DEATH_TICKS;
         self.ball.vel = Vec2::ZERO;
         self.riding = None;
+        self.held = None;
     }
 
     fn respawn(&mut self) {
@@ -577,6 +671,16 @@ pub fn cells_of(e: &Entity) -> Vec<(i32, i32)> {
     (y0..=y1)
         .flat_map(|y| (x0..=x1).map(move |x| (x, y)))
         .collect()
+}
+
+/// Is `p` inside an entity's rectangle?
+fn inside(e: &Entity, p: Vec2) -> bool {
+    p.x >= e.pos.x && p.x <= e.pos.x + e.size.x && p.y >= e.pos.y && p.y <= e.pos.y + e.size.y
+}
+
+/// Where a catapult holds the ball: centred, resting in the cup on top.
+fn cup_of(e: &Entity, radius: f32) -> Vec2 {
+    macroquad::math::vec2(e.pos.x + e.size.x / 2.0, e.pos.y + 6.0 - radius)
 }
 
 fn ball_overlaps_cell(ball: &Ball, x: i32, y: i32) -> bool {
@@ -1152,6 +1256,80 @@ mod tests {
         assert_eq!(sim.restarts, 1);
         assert_eq!(sim.level.map.get(8, 14), map::Tile::Solid);
         assert!(sim.crumbles.is_empty());
+    }
+
+    fn launchers_level() -> Sim {
+        Sim::for_level("launchers").unwrap()
+    }
+
+    #[test]
+    fn spring_launches_to_its_height() {
+        let mut sim = launchers_level();
+        // Drop straight onto the spring (x 96..112, floor y 288).
+        sim.ball.pos = macroquad::math::vec2(104.0, 250.0);
+        let mut launched_from = None;
+        let mut highest = f32::MAX;
+        for _ in 0..90 {
+            sim.step(InputFrame::NONE);
+            if launched_from.is_none()
+                && let Some(Event::Launched { .. }) = sim.events.first()
+            {
+                launched_from = Some(sim.ball.pos.y);
+            }
+            highest = highest.min(sim.ball.pos.y);
+        }
+        let from = launched_from.expect("never launched");
+        let rise = from - highest;
+        assert!((rise - 96.0).abs() < 2.0, "rose {rise}");
+    }
+
+    #[test]
+    fn catapult_holds_then_flings() {
+        let mut sim = launchers_level();
+        sim.ball.pos = macroquad::math::vec2(240.0, 280.0);
+        let mut held_steps = 0;
+        let mut fired_vel = None;
+        for _ in 0..60 {
+            sim.step(press("R"));
+            if sim.held.is_some() {
+                held_steps += 1;
+            }
+            if sim
+                .events
+                .iter()
+                .any(|e| matches!(e, Event::Launched { .. }))
+            {
+                fired_vel = Some(sim.ball.vel);
+            }
+        }
+        // The catch step itself counts as held.
+        assert_eq!(held_steps, entities::CATAPULT_HOLD_TICKS);
+        let v = fired_vel.expect("never fired");
+        assert!(v.x > 200.0 && v.y < -250.0, "{v:?}");
+    }
+
+    #[test]
+    fn fan_lifts_and_holds_the_ball_at_the_top() {
+        let mut sim = launchers_level();
+        sim.ball.pos = macroquad::math::vec2(552.0, 280.0);
+        for _ in 0..180 {
+            sim.step(InputFrame::NONE);
+        }
+        // The air stream ends at y 160: the ball bobs around there.
+        assert!(
+            (sim.ball.pos.y - 160.0).abs() < 16.0,
+            "y {}",
+            sim.ball.pos.y
+        );
+        assert!(sim.ball.vel.y.abs() <= ball::MAX_WIND_RISE);
+    }
+
+    #[test]
+    fn dying_releases_a_held_ball() {
+        let mut sim = launchers_level();
+        sim.held = Some((0, 5));
+        sim.die(Cause::Spikes);
+        assert!(sim.held.is_none());
     }
 
     #[test]

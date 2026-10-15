@@ -39,6 +39,8 @@ pub enum Event {
     Switched { pos: Vec2 },
     /// A door opened or a bridge was built (`pos` = its centre).
     GateMoved { pos: Vec2 },
+    /// A spring or catapult launched the ball from `pos`.
+    Launched { pos: Vec2 },
     /// A collectible was picked up at `pos` (its centre).
     Collected { item: Item, pos: Vec2 },
     /// The last life was lost; the level restarts after a pause.
@@ -98,7 +100,32 @@ pub enum EntityKind {
         switched: bool,
         anim: u32,
     },
+    /// Launches a ball that lands on it straight up, high enough to lift
+    /// its centre `height` px. `squish` counts down the drawn compression.
+    Spring { height: f32, squish: u32 },
+    /// Holds a ball that rolls into its cup for a moment, then flings it
+    /// along `launch` (px/s). `cooldown` stops it re-catching at once;
+    /// `fired` counts down the drawn arm swing.
+    Catapult {
+        launch: Vec2,
+        cooldown: u32,
+        fired: u32,
+    },
+    /// Wind over its rectangle: accelerates the ball by `force` (px/s²).
+    Fan { force: Vec2 },
 }
+
+/// Steps a catapult holds the ball before firing.
+pub const CATAPULT_HOLD_TICKS: u32 = 12;
+/// Steps after firing before a catapult can catch again.
+pub const CATAPULT_COOLDOWN_TICKS: u32 = 40;
+/// Steps a spring/catapult shows its "fired" pose.
+pub const LAUNCH_ANIM_TICKS: u32 = 10;
+/// Defaults for launcher and fan properties.
+pub const DEFAULT_SPRING_TILES: f32 = 6.0;
+pub const DEFAULT_CATAPULT_SPEED: f32 = 420.0;
+pub const DEFAULT_CATAPULT_ANGLE: f32 = 50.0;
+pub const DEFAULT_FAN_FORCE: f32 = 1500.0;
 
 /// Steps of the door-opening / bridge-building animation.
 pub const GATE_ANIM_TICKS: u32 = 15;
@@ -122,7 +149,38 @@ pub const KNOWN_TYPES: &[&str] = &[
     "switch",
     "door",
     "bridge",
+    "spring",
+    "catapult",
+    "fan",
 ];
+
+/// Reads a string property with a default.
+fn str_prop<'a>(spec: &'a ObjectSpec, key: &str, default: &'a str) -> Result<&'a str, String> {
+    match spec.prop(key) {
+        None => Ok(default),
+        Some(Prop::Str(s)) => Ok(s),
+        Some(other) => Err(format!(
+            "{} '{}': property '{key}' must be a string, got {other:?}",
+            spec.kind, spec.name
+        )),
+    }
+}
+
+/// Unit vector for a direction name.
+fn direction(spec: &ObjectSpec, name: &str) -> Result<Vec2, String> {
+    Ok(match name {
+        "up" => vec2(0.0, -1.0),
+        "down" => vec2(0.0, 1.0),
+        "left" => vec2(-1.0, 0.0),
+        "right" => vec2(1.0, 0.0),
+        other => {
+            return Err(format!(
+                "{} '{}': dir must be up/down/left/right, got '{other}'",
+                spec.kind, spec.name
+            ));
+        }
+    })
+}
 
 /// Reads a number property (int or float) with a default.
 fn num_prop(spec: &ObjectSpec, key: &str, default: f32) -> Result<f32, String> {
@@ -135,6 +193,16 @@ fn num_prop(spec: &ObjectSpec, key: &str, default: f32) -> Result<f32, String> {
             spec.kind, spec.name
         )),
     }
+}
+
+fn need_rect(spec: &ObjectSpec) -> Result<(), String> {
+    if spec.size.x <= 0.0 || spec.size.y <= 0.0 {
+        return Err(format!(
+            "{} '{}' must be a rectangle object",
+            spec.kind, spec.name
+        ));
+    }
+    Ok(())
 }
 
 /// Turns a level object into an entity, or explains what is wrong with it.
@@ -186,6 +254,37 @@ pub fn build(spec: &ObjectSpec) -> Result<Entity, String> {
                 switched: false,
                 anim: 0,
             }
+        }
+        "spring" => {
+            need_rect(spec)?;
+            let tiles = num_prop(spec, "height", DEFAULT_SPRING_TILES)?;
+            EntityKind::Spring {
+                height: tiles * crate::sim::map::TILE,
+                squish: 0,
+            }
+        }
+        "catapult" => {
+            need_rect(spec)?;
+            let dir = direction(spec, str_prop(spec, "dir", "right")?)?;
+            if dir.y != 0.0 {
+                return Err(format!(
+                    "catapult '{}': dir must be left or right",
+                    spec.name
+                ));
+            }
+            let speed = num_prop(spec, "speed", DEFAULT_CATAPULT_SPEED)?;
+            let angle = num_prop(spec, "angle", DEFAULT_CATAPULT_ANGLE)?.to_radians();
+            EntityKind::Catapult {
+                launch: vec2(dir.x * angle.cos(), -angle.sin()) * speed,
+                cooldown: 0,
+                fired: 0,
+            }
+        }
+        "fan" => {
+            need_rect(spec)?;
+            let dir = direction(spec, str_prop(spec, "dir", "up")?)?;
+            let force = num_prop(spec, "force", DEFAULT_FAN_FORCE)?;
+            EntityKind::Fan { force: dir * force }
         }
         "platform" => {
             if spec.points.len() < 2 {
@@ -289,7 +388,14 @@ impl Entity {
                 }
             }
             // Moved / handled by `Sim::step`.
-            EntityKind::Platform(_) | EntityKind::Switch { .. } => {}
+            EntityKind::Platform(_) | EntityKind::Switch { .. } | EntityKind::Fan { .. } => {}
+            EntityKind::Spring { squish, .. } => *squish = squish.saturating_sub(1),
+            EntityKind::Catapult {
+                cooldown, fired, ..
+            } => {
+                *cooldown = cooldown.saturating_sub(1);
+                *fired = fired.saturating_sub(1);
+            }
             EntityKind::Door { anim, .. } => *anim = anim.saturating_sub(1),
             EntityKind::Pickup { item, taken } => {
                 if !*taken && ball.pos.distance(centre) < ball.radius + PICKUP_RADIUS {
@@ -414,6 +520,43 @@ mod tests {
                 ..
             }
         ));
+    }
+
+    #[test]
+    fn launchers_and_fans_from_properties() {
+        let mut c = spec("catapult", vec2(32.0, 16.0));
+        c.props = vec![
+            ("dir".into(), Prop::Str("left".into())),
+            ("angle".into(), Prop::Int(45)),
+            ("speed".into(), Prop::Int(100)),
+        ];
+        let EntityKind::Catapult { launch, .. } = build(&c).unwrap().kind else {
+            panic!()
+        };
+        assert!(
+            (launch - vec2(-70.71, -70.71)).length() < 0.05,
+            "{launch:?}"
+        );
+        c.props[0].1 = Prop::Str("up".into());
+        assert!(build(&c).is_err());
+
+        let mut f = spec("fan", vec2(32.0, 96.0));
+        f.props = vec![("dir".into(), Prop::Str("right".into()))];
+        assert_eq!(
+            build(&f).unwrap().kind,
+            EntityKind::Fan {
+                force: vec2(DEFAULT_FAN_FORCE, 0.0)
+            }
+        );
+        let s = build(&spec("spring", vec2(16.0, 16.0))).unwrap();
+        assert_eq!(
+            s.kind,
+            EntityKind::Spring {
+                height: 96.0,
+                squish: 0
+            }
+        );
+        assert!(build(&spec("spring", Vec2::ZERO)).is_err());
     }
 
     #[test]
