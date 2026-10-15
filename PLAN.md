@@ -16,7 +16,7 @@ Gameplay is copied as closely as possible. All art, audio and level files are **
 | Levels scope | Full story set + bonus levels. You share screenshots/notes before each level prompt |
 | Features | Transformations, enemies + Hypno Cube boss, cutscenes + menus, eggs/lives/checkpoints/save |
 | Audio | Chiptune SFX + music synthesized in code (no external files) |
-| Controls | Keyboard: arrows/WASD to roll, Up/W/Space to jump, Esc to pause; M mute, -/= music volume, [/] effects volume |
+| Controls | Keyboard: arrows/WASD to roll, Up/W/Space to jump, Esc/P to pause; M mute, -/= music volume, [/] effects volume |
 | Difficulty | Like the original: limited lives, game over restarts the level |
 | Testing | `cargo test` + headless replay sim + a screenshot from a real run |
 | Git | **You commit, not me.** At the end of each step I leave the changes uncommitted and give you a ready-to-paste commit message (`step NN: <title>` + short body). Branch rename `master` → `main` is your command to run too (`git branch -m master main`) |
@@ -102,7 +102,7 @@ Key rules:
 - [x] **29.** **Chiptune music**: small pattern sequencer. Title, forest, cave, castle and boss tracks. Volume control.
 
 ### Phase H — Menus & story
-- [ ] **30.** **Game state machine & menus**: title, main menu, pause, game over, screen transitions.
+- [x] **30.** **Game state machine & menus**: title, main menu, pause, game over, screen transitions.
 - [ ] **31.** **Level select / world map** with locks, egg counts, best times.
 - [ ] **32.** **Save & options**: progress, eggs, settings (volume, scale, fullscreen) saved to an XDG path.
 - [ ] **33.** **Cutscene engine**: comic panels + text boxes. Intro, between-level and ending scenes.
@@ -390,3 +390,13 @@ Spare capacity: if a step overruns, the next prompt finishes it before moving on
 - Binary: `Sounds::update_music` renders a track on first use (~0.1 s debug), plays it looped, stops/switches when the game state wants another; volume changes apply live.
 - `sfx2wav` renamed `audio2wav`: writes `sfx_*.wav` and `music_*.wav` to `shots/audio`.
 - Tests: note parsing round-trip, holds/rests timing, repeating parts + divide check, bad tokens, echo, every track builds/loops silently at the seam/has sane length and level, determinism, music follows the game, level `music` property, volume steps.
+
+### Step 30 — Game state machine & menus (done)
+- `src/app.rs` (lib, deterministic): `App { screen, game: Option<Game>, fade, quit, scripted }` above `Game`. Screens: `Title` → `Menu` (PLAY / HOW TO PLAY / QUIT, wrapping cursor) → `Help`; `Playing` ⇄ `Paused` (RESUME / RESTART LEVEL / MAIN MENU); `GameOver` (TRY AGAIN / MAIN MENU). `App::step(input, MenuKeys{up,down,confirm,back})`; menu keys are edge-triggered and buffered in the binary until the next step.
+- Fades: 18 steps out, the `Action` (NewGame, StartLevel, RestartLevel, ToMenu, Quit) at the dark midpoint, 18 in. The game keeps running under a fade while playing.
+- Game over: the sim's "GAME OVER" shows for 45 steps, then the menu waits (the countdown is frozen). TRY AGAIN = `Game::restart_level` (new; `Sim::restart_level` made pub): the level from its start with the lives and score it began with. After the last level's "WELL DONE", jump/confirm fades to the main menu.
+- **Esc no longer quits**: Esc/P pauses (and backs out of menus); QUIT is in the main menu; closing the window still quits.
+- Start: no `--level` → title screen; `--level` → straight into the level (Esc → menu works); replays are `scripted` (game over restarts by itself, Esc ignored), so every old replay still passes in the binary.
+- Music: `App::music` → `title` on title/menu/help, silent on the game-over menu, otherwise the level's (pause keeps it). UI sounds `MenuMove`, `MenuSelect`, `MenuBack` (`App.ui_events`). Recording saves only steps where the game advanced.
+- Render (`src/render/screens.rs`): scrolling parallax + grass strip with a bouncing, rolling ball; wobbling BOUNCE / TALES logo; blinking PRESS SPACE; menu panel with gold pointer; HOW TO PLAY panel (keys + tips); PAUSED overlay; game-over choices under the HUD's GAME OVER; black fade. Font gained `=`, `[`, `]`, `>`.
+- Tests (10): title → menu → play fades into the first level, cursor wrap, help/back, quit fades then quits, pause freezes and resumes, pause restart + main menu, game over waits then TRY AGAIN restores lives, game over → menu, scripted runs restart themselves and ignore Esc, finished → menu.

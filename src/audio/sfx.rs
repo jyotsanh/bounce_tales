@@ -38,10 +38,16 @@ pub enum Sfx {
     BossDefeated,
     Exit,
     GameOver,
+    /// Menu cursor moved.
+    MenuMove,
+    /// Menu item chosen.
+    MenuSelect,
+    /// Back out / pause.
+    MenuBack,
 }
 
 impl Sfx {
-    pub const ALL: [Sfx; 25] = [
+    pub const ALL: [Sfx; 28] = [
         Sfx::Bounce,
         Sfx::Jump,
         Sfx::Gem,
@@ -67,6 +73,9 @@ impl Sfx {
         Sfx::BossDefeated,
         Sfx::Exit,
         Sfx::GameOver,
+        Sfx::MenuMove,
+        Sfx::MenuSelect,
+        Sfx::MenuBack,
     ];
 
     /// Index into [`Sfx::ALL`] (for a sound table).
@@ -202,6 +211,12 @@ impl Sfx {
                 v.push(t(TRI, 0.3, 0.45, note(55), note(55)).volume(0.45));
                 v
             }
+            Sfx::MenuMove => vec![t(PULSE, 0.0, 0.04, note(84), note(84)).volume(0.18)],
+            Sfx::MenuSelect => vec![
+                t(PULSE, 0.0, 0.05, note(79), note(79)).volume(0.2),
+                t(PULSE, 0.05, 0.1, note(91), note(91)).volume(0.2),
+            ],
+            Sfx::MenuBack => vec![t(PULSE, 0.0, 0.08, note(79), note(72)).volume(0.18)],
             // Slow sad descent.
             Sfx::GameOver => {
                 let mut v = Vec::new();

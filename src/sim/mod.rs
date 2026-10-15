@@ -973,7 +973,8 @@ impl Sim {
 
     /// Starts the level over: fresh entities, full lives, back to the
     /// start. Keeps the step counter, input history and restart count.
-    fn restart_level(&mut self) {
+    /// Starts the level over as it began (lives and score included).
+    pub fn restart_level(&mut self) {
         let mut fresh = Sim::with_level_carry((*self.pristine).clone(), self.start_carry);
         fresh.tick = self.tick;
         fresh.started_tick = self.tick;

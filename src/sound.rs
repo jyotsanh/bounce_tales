@@ -5,7 +5,6 @@ use std::collections::HashMap;
 
 use bounce_tales::audio::sfx::{self, Sfx};
 use bounce_tales::audio::{Volume, music};
-use bounce_tales::game::Game;
 use bounce_tales::sim::Sim;
 use macroquad::audio::{
     PlaySoundParams, Sound, load_sound_from_bytes, play_sound, set_sound_volume, stop_sound,
@@ -82,13 +81,12 @@ impl Sounds {
         }
     }
 
-    /// Starts, stops or switches the music to suit the game. Call once per
-    /// frame.
-    pub async fn update_music(&mut self, game: &Game) {
+    /// Starts, stops or switches the music to `want` (a track name). Call
+    /// once per frame.
+    pub async fn update_music(&mut self, want: Option<&str>) {
         if self.silent_run() {
             return;
         }
-        let want = music::for_game(game);
         if want == self.playing.as_deref() {
             return;
         }

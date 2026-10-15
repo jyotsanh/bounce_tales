@@ -196,6 +196,14 @@ impl Game {
         }
     }
 
+    /// Plays the current level again from its start, with the lives and
+    /// score it began with (pause menu, game-over "try again").
+    pub fn restart_level(&mut self) {
+        self.sim.restart_level();
+        self.mode = Mode::Playing;
+        self.exit_ticks = 0;
+    }
+
     /// Total eggs found across finished levels.
     pub fn eggs_found(&self) -> (u32, u32) {
         self.results

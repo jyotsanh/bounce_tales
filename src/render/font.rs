@@ -32,6 +32,10 @@ pub fn glyph_name(c: char) -> Option<&'static str> {
         '+' => "plus",
         ',' => "comma",
         '\'' => "apos",
+        '=' => "equals",
+        '[' => "lbracket",
+        ']' => "rbracket",
+        '>' => "arrow",
         _ => "quest",
     })
 }

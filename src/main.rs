@@ -3,9 +3,10 @@ mod sound;
 
 use macroquad::prelude::*;
 
+use bounce_tales::app::{App, MenuKeys, UiEvent};
 use bounce_tales::audio::Volume;
+use bounce_tales::audio::sfx::Sfx;
 use bounce_tales::cli::{self, CliError, Options};
-use bounce_tales::game::Game;
 use bounce_tales::replay::Replay;
 use bounce_tales::sim::{DEFAULT_LEVEL, FixedStep, InputFrame};
 use render::{Renderer, SCREEN_H, SCREEN_W};
@@ -79,17 +80,23 @@ async fn main() {
         })
         .await
     };
-    // A replay's own `level` line wins over --level.
+    // A replay's own `level` line wins over --level. No level at all: the
+    // title screen.
     let level = replay
         .as_ref()
         .and_then(|r| r.level.clone())
         .or(opts.level.clone())
-        .unwrap_or_else(|| DEFAULT_LEVEL.to_owned());
-    let mut game = Game::new(&level).unwrap_or_else(|e| {
-        eprintln!("error: {e}");
-        std::process::exit(2);
-    });
-    // Game steps taken (the sim's own tick pauses on the finished screen).
+        .or_else(|| replay.as_ref().map(|_| DEFAULT_LEVEL.to_owned()));
+    let mut app = match &level {
+        Some(level) => App::playing(level, replay.is_some()).unwrap_or_else(|e| {
+            eprintln!("error: {e}");
+            std::process::exit(2);
+        }),
+        None => App::new(),
+    };
+    // Menu keys pressed since the last app step (a frame may run no step).
+    let mut pending = MenuKeys::NONE;
+    // App steps taken.
     let mut step_count: u64 = 0;
     let mut clock = FixedStep::default();
     let mut recorded = Replay::default();
@@ -97,14 +104,19 @@ async fn main() {
     let mut debug = opts.debug;
     // A short message (volume changes), frames left to show it.
     let mut toast: Option<(String, u32)> = None;
-    if let Some(r) = &replay {
-        failures.extend(r.failures_now(&game.sim));
+    if let (Some(r), Some(g)) = (&replay, &app.game) {
+        failures.extend(r.failures_now(&g.sim));
     }
 
     loop {
-        if is_quit_requested() || is_key_pressed(KeyCode::Escape) {
+        if is_quit_requested() || app.quit {
             break;
         }
+        let pressed = |keys: &[KeyCode]| keys.iter().any(|&k| is_key_pressed(k));
+        pending.up |= pressed(&[KeyCode::Up, KeyCode::W]);
+        pending.down |= pressed(&[KeyCode::Down, KeyCode::S]);
+        pending.confirm |= pressed(&[KeyCode::Enter, KeyCode::KpEnter, KeyCode::Space]);
+        pending.back |= pressed(&[KeyCode::Escape, KeyCode::P]);
         if is_key_pressed(KeyCode::F1) {
             debug = !debug;
         }
@@ -139,8 +151,21 @@ async fn main() {
                 Some(r) => r.input_at(step_count),
                 None => live,
             };
-            game.step(input);
+            app.step(input, std::mem::replace(&mut pending, MenuKeys::NONE));
             step_count += 1;
+            for e in &app.ui_events {
+                sounds.play(
+                    match e {
+                        UiEvent::Move => Sfx::MenuMove,
+                        UiEvent::Select => Sfx::MenuSelect,
+                        UiEvent::Back => Sfx::MenuBack,
+                    },
+                    1.0,
+                );
+            }
+            let Some(game) = app.game.as_ref().filter(|_| app.stepped) else {
+                continue;
+            };
             renderer.on_step(&game.sim);
             sounds.on_step(&game.sim);
             if opts.record.is_some() {
@@ -151,16 +176,22 @@ async fn main() {
             }
         }
 
-        sounds.update_music(&game).await;
+        sounds.update_music(app.music()).await;
 
         let alpha = if frame_limit.is_some() {
             1.0
         } else {
             clock.alpha()
         };
-        renderer.draw_game(&game.sim, alpha);
-        renderer.draw_hud(&game.sim);
-        renderer.draw_flow(&game);
+        match &app.game {
+            Some(game) if app.shows_game() => {
+                renderer.draw_game(&game.sim, alpha);
+                renderer.draw_hud(&game.sim);
+                renderer.draw_flow(game);
+            }
+            _ => {}
+        }
+        renderer.draw_screens(&app);
         if let Some((msg, frames)) = &mut toast {
             renderer.draw_toast(msg);
             *frames -= 1;
@@ -168,7 +199,7 @@ async fn main() {
                 toast = None;
             }
         }
-        if debug {
+        if let Some(game) = app.game.as_ref().filter(|_| debug) {
             renderer.draw_debug(&game.sim, get_fps());
         }
         renderer.present();
