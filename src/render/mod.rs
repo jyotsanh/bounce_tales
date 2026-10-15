@@ -4,7 +4,8 @@
 
 use macroquad::prelude::*;
 
-use bounce_tales::sim::{GROUND_Y, Sim};
+use bounce_tales::sim::Sim;
+use bounce_tales::sim::map::{TILE, TileMap};
 
 pub const SCREEN_W: u32 = 240;
 pub const SCREEN_H: u32 = 320;
@@ -12,6 +13,7 @@ pub const SCREEN_H: u32 = 320;
 const SKY: Color = Color::new(0.55, 0.80, 0.95, 1.0);
 const GRASS: Color = Color::new(0.30, 0.65, 0.20, 1.0);
 const DIRT: Color = Color::new(0.50, 0.33, 0.18, 1.0);
+const DIRT_EDGE: Color = Color::new(0.40, 0.25, 0.13, 1.0);
 const BALL_RED: Color = Color::new(0.85, 0.10, 0.10, 1.0);
 const BALL_DARK: Color = Color::new(0.55, 0.05, 0.05, 1.0);
 const LETTERBOX: Color = Color::new(0.05, 0.05, 0.07, 1.0);
@@ -53,8 +55,7 @@ impl Renderer {
         set_camera(&self.camera);
         clear_background(SKY);
 
-        draw_rectangle(0.0, GROUND_Y, SCREEN_W as f32, 6.0, GRASS);
-        draw_rectangle(0.0, GROUND_Y + 6.0, SCREEN_W as f32, SCREEN_H as f32, DIRT);
+        draw_tiles(&sim.map);
 
         // Placeholder ball; real sprite in step 7. The dark stripe turns with
         // the ball so rolling is visible; the highlight stays put (light from
@@ -66,8 +67,6 @@ impl Renderer {
         let d = vec2(b.angle.cos(), b.angle.sin()) * (r - 1.5);
         draw_line(p.x - d.x, p.y - d.y, p.x + d.x, p.y + d.y, 2.0, BALL_DARK);
         draw_circle(p.x - 3.0, p.y - 3.0, 2.0, WHITE);
-
-        draw_text("BOUNCE TALES", 60.0, 120.0, 24.0, BALL_RED);
     }
 
     /// F1 overlay: frame rate, tick, ball state and held input.
@@ -120,6 +119,24 @@ impl Renderer {
     /// Saves the current game target as a PNG (240x320).
     pub fn save_screenshot(&self, path: &str) {
         self.target.texture.get_texture_data().export_png(path);
+    }
+}
+
+/// Placeholder tile art (real tileset in step 7): dirt blocks with grass on
+/// any top face open to the sky.
+fn draw_tiles(map: &TileMap) {
+    for ty in 0..map.height as i32 {
+        for tx in 0..map.width as i32 {
+            if !map.is_solid(tx, ty) {
+                continue;
+            }
+            let (x, y) = (tx as f32 * TILE, ty as f32 * TILE);
+            draw_rectangle(x, y, TILE, TILE, DIRT_EDGE);
+            draw_rectangle(x + 1.0, y + 1.0, TILE - 2.0, TILE - 2.0, DIRT);
+            if !map.is_solid(tx, ty - 1) {
+                draw_rectangle(x, y, TILE, 4.0, GRASS);
+            }
+        }
     }
 }
 

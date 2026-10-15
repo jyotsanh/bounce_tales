@@ -1,0 +1,12 @@
+# Test map: a one-tile step block at x 96..128 stops rolling; jumping while
+# holding right clears it and lands on top (y = 272 - 8 = 264).
+level test
+60 R
+expect ball.x <= 88.01
+expect ball.vx < 30
+RJ
+8 R
+50 -
+expect ball.y == 264
+expect ball.x > 96
+expect ball.grounded == 1

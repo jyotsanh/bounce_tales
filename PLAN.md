@@ -62,7 +62,7 @@ Key rules:
 - [x] **01.** **Bootstrap**: (you run `git branch -m master main`). Add macroquad. Module skeleton, `PLAN.md`, `scripts/check.sh`. Fixed-timestep loop, 240×320 target integer-scaled to the window, CLI flags + screenshot capture.
 - [x] **02.** **Headless sim + replays**: `Sim`/`InputFrame`, deterministic stepping, replay file format, test harness in `tests/replays`, F1 debug overlay (FPS, ball pos/vel).
 - [x] **03.** **Ball on flat ground**: gravity, rolling acceleration, friction, max speed, jump, bounce restitution. Tests for jump height and speed cap.
-- [ ] **04.** **Tile collisions**: hardcoded test grid, circle-vs-AABB resolution (floor, walls, ceiling, corners), no tunneling at high speed (sub-stepping).
+- [x] **04.** **Tile collisions**: hardcoded test grid, circle-vs-AABB resolution (floor, walls, ceiling, corners), no tunneling at high speed (sub-stepping).
 - [ ] **05.** **Slopes**: 45° and 22.5° tiles, circle-vs-segment, rolling down/up slopes, smooth hand-off between slope and flat tiles.
 - [ ] **06.** **Camera**: follow with deadzone and look-ahead, clamped to level bounds.
 
@@ -159,3 +159,12 @@ Spare capacity: if a step overruns, the next prompt finishes it before moving on
 - `Ball.angle/spin`: spin = vx / r on the ground, kept in the air. The render draws a rotating stripe.
 - New replay fields: `ball.grounded`, `ball.angle`. Replays: `flat_roll`, `jump`, `hold_jump`, `wall_clamp`.
 - 15 movement unit tests in `physics.rs` use a 100000 px wide world and start at `MID`, so walls don't interfere.
+
+### Step 04 — Tile collisions (done)
+- `sim::map`: `TILE` = 16 px (ball = exactly one tile wide). `TileMap::from_ascii` (`#` solid, `.` empty, `o` spawn resting on that cell's floor). Out of bounds: left/right = solid, above/below = open (falling out the bottom → respawn at spawn for now; real deaths in step 11).
+- Built-in levels via `map::builtin(name)` / `BUILTIN_NAMES`: `test` (default: step block, low platform, staircase, tunnel) and `flat` (empty room for physics replays). `Sim::for_level(name)`, `Sim::with_map(map)`. `--level` works; a replay's `level` line wins over `--level`; `Replay::start_sim`.
+- `physics::move_and_collide`: sub-steps of at most r/2 (max 16) → no tunnelling even at 5000 px/s. Each sub-step pushes out of the deepest overlapping tile (up to 4 passes). Normal y < -0.6 = floor, > 0.6 = ceiling (bonk, no bounce), else wall (reflect × wall_restitution). Bounce is applied once per step in `land()` along the floor normal.
+- **Gravity now always applies** (the floor contact cancels it). This is ready for slopes in step 5. `Ball::update` only changes velocity; `update_spin()` runs after collision.
+- Ghost edges: `closest_point` extends a tile into solid neighbours (no seams on floors or walls). **Bug found and fixed:** extending both ways at an inside corner filled the empty diagonal cell and lifted the ball 8 px when it hit a step. Now returns `None` if the diagonal cell is empty. Covered by `inside_corner_cell_is_not_filled` and the y-check in `one_tile_step_blocks_rolling`.
+- Tests: 12 new collision unit tests (still resting, seams, ceiling, wall slide, step, corner roll-off, ledge + coyote, 1-tile tunnel, fast tunnelling x/y). Replays moved to `level flat` (rest y = 280, walls at x 16/224); new `ceiling_bonk`, `step_block` on `test`.
+- Debug trick: a throwaway `tests/zz_trace.rs` that prints per-step state is quick for tuning replay timings (delete afterwards).

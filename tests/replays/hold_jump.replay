@@ -1,4 +1,5 @@
 # Holding jump keeps bouncing; releasing lets the ball settle.
+level flat
 120 J
 expect ball.grounded == 0
 90 -

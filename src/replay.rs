@@ -186,6 +186,13 @@ impl Replay {
         Replay::parse(&text).map_err(|e| format!("{}: {e}", path.display()))
     }
 
+    /// A fresh sim for this replay's level (or `default_level` if the file
+    /// names none).
+    pub fn start_sim(&self, default_level: &str) -> Result<Sim, String> {
+        let name = self.level.as_deref().unwrap_or(default_level);
+        Sim::for_level(name).ok_or_else(|| format!("unknown level '{name}'"))
+    }
+
     /// Input for the step that starts at `tick` (nothing once the replay ends).
     pub fn input_at(&self, tick: u64) -> InputFrame {
         self.inputs
@@ -243,7 +250,7 @@ mod tests {
         RJ
         2 -
         expect tick == 6
-        expect ball.x > 120
+        expect ball.x > 72
         expect ball.vx != 0 +- 0.5
     ";
 

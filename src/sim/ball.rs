@@ -117,8 +117,9 @@ impl Ball {
         self.prev_pos.lerp(self.pos, alpha)
     }
 
-    /// Applies input, gravity and jumping for one step and moves the ball.
-    /// Collision is resolved afterwards by the physics module.
+    /// Applies input, gravity and jumping for one step (velocity only).
+    /// `physics::move_and_collide` then moves the ball, and
+    /// [`Ball::update_spin`] runs last.
     pub fn update(&mut self, input: InputFrame, jump_pressed: bool) {
         let p = self.params;
         self.prev_pos = self.pos;
@@ -162,13 +163,15 @@ impl Ball {
             self.jump_buffer = self.jump_buffer.saturating_sub(1);
         }
 
-        if !self.grounded {
-            self.vel.y = (self.vel.y + p.gravity * DT).min(p.max_fall);
-        }
-        self.pos += self.vel * DT;
+        // Gravity always pulls, even when resting: the floor contact cancels
+        // it each step. This keeps one rule for flat ground and (step 5)
+        // slopes, where the ball must roll downhill.
+        self.vel.y = (self.vel.y + p.gravity * DT).min(p.max_fall);
+    }
 
-        // Spin follows the ground speed while rolling; in the air it keeps
-        // whatever it had.
+    /// Updates rotation after collision. Spin follows ground speed while
+    /// rolling; in the air it keeps whatever it had.
+    pub fn update_spin(&mut self) {
         if self.grounded {
             self.spin = self.vel.x / self.radius;
         }

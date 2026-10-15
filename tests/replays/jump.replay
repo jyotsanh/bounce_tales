@@ -1,10 +1,11 @@
 # One tap of jump from rest: apex about 52 px above the resting height
-# (y 252 -> ~200) around step 21, then lands and settles.
+# (y 280 -> ~228) around step 21, then lands and settles.
+level flat
 J
 20 -
 expect ball.grounded == 0
-expect ball.y < 203
-expect ball.y > 198
+expect ball.y < 231
+expect ball.y > 226
 60 -
 expect ball.grounded == 1
-expect ball.y == 252
+expect ball.y == 280

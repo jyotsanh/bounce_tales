@@ -1,7 +1,9 @@
-# Holding left for 3 seconds rolls into the left screen edge and stays there.
+# Holding left for 3 seconds rolls into the left wall tile (x 0..16) and
+# stays against it.
+level flat
 180 L
-expect ball.x <= 8.5
-expect ball.x >= 8
+expect ball.x <= 24.5
+expect ball.x >= 24
 30 -
 expect ball.vx == 0
-expect ball.x < 20
+expect ball.x < 36

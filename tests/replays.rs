@@ -4,7 +4,7 @@
 use std::path::{Path, PathBuf};
 
 use bounce_tales::replay::Replay;
-use bounce_tales::sim::Sim;
+use bounce_tales::sim::DEFAULT_LEVEL;
 
 fn replay_files() -> Vec<PathBuf> {
     let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/replays");
@@ -30,8 +30,13 @@ fn all_replays_pass() {
                 if r.checks.is_empty() {
                     report.push(format!("{name}: has no expect lines"));
                 }
-                for f in r.run(&mut Sim::new()) {
-                    report.push(format!("{name}: {f}"));
+                match r.start_sim(DEFAULT_LEVEL) {
+                    Err(e) => report.push(format!("{name}: {e}")),
+                    Ok(mut sim) => {
+                        for f in r.run(&mut sim) {
+                            report.push(format!("{name}: {f}"));
+                        }
+                    }
                 }
             }
         }
@@ -43,8 +48,8 @@ fn all_replays_pass() {
 fn replays_are_deterministic() {
     for path in replay_files() {
         let r = Replay::load(&path).unwrap();
-        let mut a = Sim::new();
-        let mut b = Sim::new();
+        let mut a = r.start_sim(DEFAULT_LEVEL).unwrap();
+        let mut b = a.clone();
         r.run(&mut a);
         r.run(&mut b);
         assert_eq!(a, b, "{} diverged between runs", path.display());

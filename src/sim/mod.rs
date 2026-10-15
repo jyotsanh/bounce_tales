@@ -8,29 +8,32 @@
 
 pub mod ball;
 pub mod input;
+pub mod map;
 pub mod physics;
 pub mod rng;
 
-use macroquad::math::vec2;
-
 pub use ball::Ball;
 pub use input::InputFrame;
+pub use map::TileMap;
 pub use rng::Rng;
 
 /// Simulation rate. The sim always advances in steps of exactly `DT`.
 pub const TICKS_PER_SECOND: u32 = 60;
 pub const DT: f32 = 1.0 / TICKS_PER_SECOND as f32;
 
-/// Width of the playfield until levels exist (step 8).
-pub const WORLD_W: f32 = 240.0;
-/// Temporary flat floor (y of the ground surface) until tile maps (step 4).
-pub const GROUND_Y: f32 = 260.0;
+/// Level loaded when none is given.
+pub const DEFAULT_LEVEL: &str = "test";
+
+/// How far below the map the ball may fall before it is put back at the
+/// start. Temporary until deaths and lives exist (steps 11-12).
+const FALL_OUT_MARGIN: f32 = 4.0 * map::TILE;
 
 /// Whole game state.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Sim {
     /// Number of steps taken since start.
     pub tick: u64,
+    pub map: TileMap,
     pub ball: Ball,
     pub rng: Rng,
     /// Input used in the most recent step.
@@ -46,11 +49,21 @@ impl Default for Sim {
 }
 
 impl Sim {
+    /// The default level.
     pub fn new() -> Sim {
-        let r = ball::BALL_RADIUS;
+        Sim::for_level(DEFAULT_LEVEL).expect("default level exists")
+    }
+
+    /// Starts the named level, or `None` if there is no such level.
+    pub fn for_level(name: &str) -> Option<Sim> {
+        map::builtin(name).map(Sim::with_map)
+    }
+
+    pub fn with_map(map: TileMap) -> Sim {
         Sim {
             tick: 0,
-            ball: Ball::new(vec2(WORLD_W / 2.0, GROUND_Y - r)),
+            ball: Ball::new(map.spawn),
+            map,
             rng: Rng::new(1),
             input: InputFrame::NONE,
             prev_input: InputFrame::NONE,
@@ -65,7 +78,12 @@ impl Sim {
 
         let jump_pressed = self.jump_pressed();
         self.ball.update(input, jump_pressed);
-        physics::collide_flat(&mut self.ball, GROUND_Y, WORLD_W);
+        physics::move_and_collide(&mut self.ball, &self.map);
+        self.ball.update_spin();
+
+        if self.ball.pos.y > self.map.pixel_size().y + FALL_OUT_MARGIN {
+            self.ball = Ball::new(self.map.spawn);
+        }
     }
 
     /// True on the first step the jump button is held.

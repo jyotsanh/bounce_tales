@@ -1,0 +1,11 @@
+# Test map: the ball starts under a platform whose underside is at y=256.
+# A jump bonks it: the top of the ball (y - 8) never goes above 256.
+level test
+5 -
+J
+6 -
+expect ball.y >= 264
+expect ball.vy >= 0
+60 -
+expect ball.grounded == 1
+expect ball.y == 280

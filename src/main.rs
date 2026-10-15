@@ -4,7 +4,7 @@ use macroquad::prelude::*;
 
 use bounce_tales::cli::{self, CliError, Options};
 use bounce_tales::replay::Replay;
-use bounce_tales::sim::{FixedStep, InputFrame, Sim};
+use bounce_tales::sim::{DEFAULT_LEVEL, FixedStep, InputFrame, Sim, map};
 use render::{Renderer, SCREEN_H, SCREEN_W};
 
 fn options() -> Options {
@@ -45,9 +45,6 @@ fn keyboard_input() -> InputFrame {
 #[macroquad::main(window_conf)]
 async fn main() {
     let opts = options();
-    if opts.level.is_some() {
-        eprintln!("note: --level is ignored until levels exist (step 8)");
-    }
     let replay = opts.replay.as_ref().map(|p| {
         Replay::load(p).unwrap_or_else(|e| {
             eprintln!("error: {e}");
@@ -66,7 +63,19 @@ async fn main() {
 
     prevent_quit();
     let renderer = Renderer::new();
-    let mut sim = Sim::new();
+    // A replay's own `level` line wins over --level.
+    let level = replay
+        .as_ref()
+        .and_then(|r| r.level.clone())
+        .or(opts.level.clone())
+        .unwrap_or_else(|| DEFAULT_LEVEL.to_owned());
+    let mut sim = Sim::for_level(&level).unwrap_or_else(|| {
+        eprintln!(
+            "error: unknown level '{level}' (known: {})",
+            map::BUILTIN_NAMES.join(", ")
+        );
+        std::process::exit(2);
+    });
     let mut clock = FixedStep::default();
     let mut recorded = Replay::default();
     let mut failures = Vec::new();
