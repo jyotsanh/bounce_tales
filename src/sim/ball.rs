@@ -57,6 +57,11 @@ pub struct BallParams {
     pub smashes: bool,
     /// Weight on seesaws (1 = the red ball).
     pub mass: f32,
+    /// Upward acceleration while jump is held in the air, px/s² (only the
+    /// balloon has any: holding jump makes it float up).
+    pub lift: f32,
+    /// Fastest that lift raises the ball, px/s.
+    pub max_rise: f32,
 }
 
 impl BallParams {
@@ -85,6 +90,8 @@ impl BallParams {
         water_jump: 0.9,
         smashes: false,
         mass: 1.0,
+        lift: 0.0,
+        max_rise: 0.0,
     };
 
     /// Heavy stone ball (first draft; tuned in step 23): slow, low jump,
@@ -104,8 +111,9 @@ impl BallParams {
         ..BallParams::NORMAL
     };
 
-    /// Light balloon ball (first draft; tuned in step 24): floaty, falls
-    /// slowly, jumps high, bobs high in water.
+    /// Light balloon ball: falls slowly, floats up while jump is held,
+    /// bouncy, rides high in water, fans fling it (mass 0.3), pops on
+    /// spikes like any ball.
     pub const BALLOON: BallParams = BallParams {
         gravity: 300.0,
         max_fall: 120.0,
@@ -115,6 +123,8 @@ impl BallParams {
         restitution: 0.5,
         buoyancy: 4.0,
         mass: 0.3,
+        lift: 700.0,
+        max_rise: 100.0,
         ..BallParams::NORMAL
     };
 
@@ -136,6 +146,11 @@ impl BallParams {
 const _: () = assert!(BallParams::STONE.mass > BallParams::NORMAL.mass);
 const _: () = assert!(BallParams::STONE.buoyancy < 1.0, "stone sinks");
 const _: () = assert!(BallParams::BALLOON.max_fall < BallParams::NORMAL.max_fall);
+const _: () = assert!(
+    BallParams::BALLOON.lift > BallParams::BALLOON.gravity,
+    "balloon floats up"
+);
+const _: () = assert!(BallParams::NORMAL.lift == 0.0 && BallParams::STONE.lift == 0.0);
 const _: () = assert!(
     BallParams::STONE.jump_height < 2.0 * super::map::TILE,
     "stone can't jump 2 tiles"
@@ -306,6 +321,11 @@ impl Ball {
 
         if !self.grounded {
             self.vel.y = (self.vel.y + p.gravity * DT).min(p.max_fall);
+            // Holding jump inflates a balloon: it floats up (never faster
+            // than max_rise, and never slowing a faster jump).
+            if input.jump && p.lift > 0.0 && self.vel.y > -p.max_rise {
+                self.vel.y = (self.vel.y - p.lift * DT).max(-p.max_rise);
+            }
         }
         if self.wind != Vec2::ZERO {
             // Fans push even a grounded ball (an up-draft lifts it off).

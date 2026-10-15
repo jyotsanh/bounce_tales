@@ -90,7 +90,7 @@ Key rules:
 ### Phase E — Transformations
 - [x] **22.** **Transformation framework**: pickup objects, form state machine, swap visuals and physics parameters, revert pickups.
 - [x] **23.** **Stone ball**: heavy, sinks in water, smashes cracked blocks, tips seesaws, low bounce.
-- [ ] **24.** **Balloon/light ball** (+ any other form from your references): floats up, slow fall, pops on spikes.
+- [x] **24.** **Balloon/light ball** (+ any other form from your references): floats up, slow fall, pops on spikes.
 
 ### Phase F — Enemies & boss
 - [ ] **25.** **Enemy framework + walkers** (hypnotized creatures): patrol, damage vs stomp rules.
@@ -342,3 +342,9 @@ Spare capacity: if a step overruns, the next prompt finishes it before moving on
 - **Ground snapping skipped when lifted** (`physics::move_and_collide`: wind up **or** water × buoyancy > 1) — a red ball turned back from stone on a pool bed stayed pinned to it.
 - FX: hard stone landing (> 200 px/s) → 10-step screen shake (`Renderer.shake`, vertical, fading) and double dust.
 - New ASCII level `stone` (smash into a tunnel for an egg, sink for a pool-bed egg, transform back to float up, fan to the exit — only the red ball rides it). The first layout's 2-deep cavity left a 4 px jump margin; made 1-deep. Replay `stone_route` (controller-recorded, re-recorded after the water speed fix). Tests: sinks + slower on the bed, red ball floats up from a bed, fans barely move a stone, rolling vs landing on cracked floor, low bounce.
+
+### Step 24 — Balloon (done)
+- `BallParams.lift` / `max_rise` (0 for normal and stone). `BALLOON`: lift 700 > gravity 300 → **holding jump in the air floats it up** at up to 100 px/s; released it sinks at ≤ 120 px/s. Jumps off the ground are still normal jumps (start faster than `max_rise`; only the lift is capped). Rides high in water (buoyancy 4, ~1/4 under); fans fling it (mass 0.3 → wind/mass hits `MAX_WIND_RISE`); bouncy (0.5). Compile-time asserts for "balloon floats up" and "no lift for the others".
+- Spikes pop it like any ball; a balloon death has its own FX (light-blue shreds + "POP!" popup). `Particles::burst` takes the colours.
+- No other forms were given by the user; the framework (`Form`, per-form params/sprites, transformers) takes more if the reference levels need them.
+- New ASCII level `balloon` (32 tall — vertical scrolling): balloon transformer, a shaft the red ball can't climb, a spiked ledge (float up the right side) and a spiked shelf (swing left), the exit on the top room's floor. Replay `balloon_route` (recorded from a height-based steering controller). Tests: floats up / sinks slowly, red ball can't climb the shaft, pops on spikes, rides high in water, fans fling it.

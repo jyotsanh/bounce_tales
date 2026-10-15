@@ -67,6 +67,12 @@ const BALL_BITS: [Color; 3] = [
     Color::new(0.66, 0.08, 0.06, 1.0),
     Color::new(1.0, 0.85, 0.82, 1.0),
 ];
+/// Shreds of a popped balloon.
+const BALLOON_BITS: [Color; 3] = [
+    Color::new(0.56, 0.82, 1.0, 1.0),
+    Color::new(0.35, 0.66, 0.91, 1.0),
+    Color::new(1.0, 1.0, 1.0, 1.0),
+];
 /// Ground speed above which a rolling ball kicks up dust, px/s.
 const ROLL_DUST_SPEED: f32 = 110.0;
 /// Safety cap so effects can never pile up.
@@ -107,7 +113,16 @@ impl Particles {
                 Event::Died {
                     cause: Cause::Pit, ..
                 } => {}
-                Event::Died { pos, .. } => self.burst(pos),
+                Event::Died { pos, .. } if sim.ball.form == Form::Balloon => {
+                    self.burst(pos, &BALLOON_BITS);
+                    self.popups.push(Popup {
+                        text: "POP!".to_owned(),
+                        pos: pos - vec2(0.0, 12.0),
+                        life: POPUP_LIFE,
+                        color: WHITE,
+                    });
+                }
+                Event::Died { pos, .. } => self.burst(pos, &BALL_BITS),
                 Event::Respawned { pos } => self.sparkle(pos, WHITE),
                 Event::LevelRestarted => self.sparkle(sim.ball.pos, WHITE),
                 // Gold sparkles around the raised flag.
@@ -263,7 +278,7 @@ impl Particles {
     }
 
     /// The ball pops: rubber fragments fly out in every direction.
-    fn burst(&mut self, at: Vec2) {
+    fn burst(&mut self, at: Vec2, colors: &[Color]) {
         for i in 0..16 {
             let angle = i as f32 / 16.0 * std::f32::consts::TAU + self.rng.range(-0.2, 0.2);
             let speed = self.rng.range(70.0, 170.0);
@@ -273,7 +288,7 @@ impl Particles {
                 vel: vec2(angle.cos(), angle.sin()) * speed - vec2(0.0, 60.0),
                 life,
                 max_life: life,
-                color: BALL_BITS[i % BALL_BITS.len()],
+                color: colors[i % colors.len()],
                 size: self.rng.range(2.0, 3.5),
                 gravity: 500.0,
             });

@@ -1960,6 +1960,82 @@ mod tests {
         assert!(bounce(ball::Form::Stone) < bounce(ball::Form::Normal) / 3.0);
     }
 
+    fn balloon_at(sim: &mut Sim, x: f32, y: f32) {
+        sim.ball = Ball::with_form(macroquad::math::vec2(x, y), ball::Form::Balloon);
+    }
+
+    #[test]
+    fn balloon_floats_up_while_jump_is_held_and_sinks_slowly() {
+        let mut sim = Sim::for_level("balloon").unwrap();
+        balloon_at(&mut sim, 272.0, 400.0); // mid-shaft, right side
+        let y0 = sim.ball.pos.y;
+        // (A jump off the floor starts faster than max_rise; only the
+        // floating lift itself is capped.)
+        for _ in 0..60 {
+            sim.step(press("J"));
+        }
+        assert!(
+            y0 - sim.ball.pos.y > 60.0,
+            "rose only {}",
+            y0 - sim.ball.pos.y
+        );
+        for _ in 0..90 {
+            sim.step(InputFrame::NONE);
+            assert!(sim.ball.vel.y <= ball::BallParams::BALLOON.max_fall + 1e-3);
+        }
+        assert!(sim.ball.vel.y > 0.0, "sinks again");
+    }
+
+    #[test]
+    fn the_red_ball_cannot_climb_the_balloon_shaft() {
+        let mut sim = Sim::for_level("balloon").unwrap();
+        sim.ball.pos = macroquad::math::vec2(272.0, 472.0);
+        let mut highest = f32::MAX;
+        for _ in 0..300 {
+            sim.step(press("RJ"));
+            highest = highest.min(sim.ball.pos.y);
+        }
+        assert!(highest > 400.0, "reached {highest}");
+    }
+
+    #[test]
+    fn balloon_pops_on_spikes() {
+        let mut sim = Sim::for_level("balloon").unwrap();
+        balloon_at(&mut sim, 200.0, 420.0); // under the spiked ledge
+        let mut cause = None;
+        for _ in 0..120 {
+            sim.step(press("J"));
+            if let Some(Event::Died { cause: c, .. }) = sim.events.first() {
+                cause = Some(*c);
+                break;
+            }
+        }
+        assert_eq!(cause, Some(Cause::Spikes));
+    }
+
+    #[test]
+    fn balloon_rides_high_in_water_and_fans_fling_it() {
+        let mut sim = Sim::for_level("water").unwrap();
+        balloon_at(&mut sim, 192.0, 200.0);
+        for _ in 0..240 {
+            sim.step(InputFrame::NONE);
+        }
+        assert!(
+            sim.ball.water > 0.0 && sim.ball.water < 0.35,
+            "w {}",
+            sim.ball.water
+        );
+
+        let mut sim = Sim::for_level("launchers").unwrap();
+        balloon_at(&mut sim, 552.0, 280.0); // in the fan's stream
+        let mut fastest: f32 = 0.0;
+        for _ in 0..30 {
+            sim.step(InputFrame::NONE);
+            fastest = fastest.max(-sim.ball.vel.y);
+        }
+        assert!(fastest >= ball::MAX_WIND_RISE - 1.0, "rose at {fastest}");
+    }
+
     #[test]
     fn lives_are_capped() {
         let mut sim = Sim::with_level(Level::from_ascii("o+++++++++.\n###########").unwrap());

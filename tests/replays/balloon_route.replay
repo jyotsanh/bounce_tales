@@ -1,0 +1,27 @@
+# Balloon level (recorded from a steering controller): turn into a balloon,
+# float up the shaft hugging the right wall past the spiked ledge, swing
+# left past the spiked shelf, rise above the top room's floor, drift left
+# and sink onto it at the exit.
+level balloon
+76 R
+43 RJ
+7 J
+22 LJ
+8 J
+12 RJ
+34 LJ
+7 J
+22 RJ
+7 J
+17 LJ
+11 J
+10 RJ
+10 J
+38 LJ
+42 L
+6 -
+21 R
+2 -
+expect exit == 1
+expect deaths == 0
+expect form == 2
