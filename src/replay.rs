@@ -38,6 +38,8 @@ pub const FIELDS: &[(&str, Probe)] = &[
     ("ball.water", |s| s.ball.water as f64),
     ("riding", |s| s.riding.is_some() as u8 as f64),
     ("held", |s| s.held.is_some() as u8 as f64),
+    // 0 normal, 1 stone, 2 balloon.
+    ("form", |s| s.ball.form as u8 as f64),
     ("seesaw.angle", |s| first_seesaw_angle(s) as f64),
     ("on_seesaw", |s| s.on_seesaw.is_some() as u8 as f64),
     ("crate.x", |s| first_crate(s).0 as f64),

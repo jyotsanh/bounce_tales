@@ -1,0 +1,17 @@
+# Forms level (inputs from a scripted controller): turn to stone and smash
+# the cracked wall, turn back to normal before the pool (stone would sink),
+# float across and hop out, turn into a balloon and jump the 4-tile wall to
+# the exit.
+level forms
+30 R
+expect form == 1
+120 R
+expect form == 0
+76 R
+RJ
+72 R
+expect form == 2
+RJ
+60 R
+expect exit == 1
+expect deaths == 0

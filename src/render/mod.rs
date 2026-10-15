@@ -16,11 +16,15 @@ use particles::Particles;
 use bounce_tales::game::{self, Game, Mode, REVEAL_STEP};
 use bounce_tales::level::{Decoration, TileLayer};
 use bounce_tales::sim::Sim;
+use bounce_tales::sim::ball::Form;
 use bounce_tales::sim::camera::{VIEW_H, VIEW_W};
 use bounce_tales::sim::entities::GATE_ANIM_TICKS;
 use bounce_tales::sim::map::{TILE, TileMap, flags};
 use bounce_tales::sim::seesaw;
-use bounce_tales::sim::{Entity, EntityKind, Item, RESPAWN_ANIM_TICKS, cells_of};
+use bounce_tales::sim::{
+    Entity, EntityKind, FORM_WARNING_TICKS, Item, RESPAWN_ANIM_TICKS, TRANSFORM_ANIM_TICKS,
+    cells_of,
+};
 
 pub const SCREEN_W: u32 = VIEW_W as u32;
 pub const SCREEN_H: u32 = VIEW_H as u32;
@@ -60,6 +64,9 @@ pub const ENTITY_SPRITES: &[&str] = &[
     "seesaw_post",
     "hub",
     "cannon_base",
+    "transformer_stone",
+    "transformer_balloon",
+    "transformer_normal",
 ];
 
 /// Roll frames in the ball atlas (`roll_0` … `roll_15`).
@@ -158,9 +165,29 @@ impl Renderer {
         let top_left = vec2(p.x - size.x / 2.0, p.y + b.radius - size.y);
         let frame = ball_frame(b.angle);
         if sim.ball_visible() {
+            // A timed form about to run out blinks back to the red ball.
+            let warning = sim
+                .form_ticks
+                .is_some_and(|t| t < FORM_WARNING_TICKS && (t / 6) % 2 == 0);
+            let form = if warning { Form::Normal } else { b.form };
+            let prefix = match form {
+                Form::Normal => "roll",
+                Form::Stone => "stone",
+                Form::Balloon => "balloon",
+            };
             self.sprites
                 .ball
-                .draw_scaled(&format!("roll_{frame}"), top_left, size);
+                .draw_scaled(&format!("{prefix}_{frame}"), top_left, size);
+            // Transformation flash: a white glow fading out.
+            if sim.transform_anim > 0 {
+                let t = sim.transform_anim as f32 / TRANSFORM_ANIM_TICKS as f32;
+                draw_circle(
+                    p.x,
+                    p.y,
+                    b.radius + 4.0 * t,
+                    Color::new(1.0, 1.0, 1.0, 0.7 * t),
+                );
+            }
         }
 
         // Water goes over the ball so it looks submerged (the tiles are
@@ -248,6 +275,10 @@ impl Renderer {
                     draw_line(centre.x, centre.y, end.x, end.y, 2.0, spoke);
                 }
                 self.sprites.items.draw("hub", *centre - vec2(8.0, 8.0));
+            }
+            EntityKind::Transformer { form, .. } => {
+                let name = format!("transformer_{}", form.name());
+                self.sprites.objects.draw(&name, e.pos);
             }
             EntityKind::Cannon { aim, fired, .. } => {
                 let pivot = e.pos + e.size / 2.0;

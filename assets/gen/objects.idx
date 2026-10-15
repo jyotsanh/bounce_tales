@@ -7,3 +7,6 @@ catapult_r_fired 32 32 32 32
 catapult_l_fired 64 32 32 32
 crate_big 96 32 32 32
 cannon_base 0 64 32 32
+transformer_stone 32 64 32 32
+transformer_balloon 64 64 32 32
+transformer_normal 96 64 32 32

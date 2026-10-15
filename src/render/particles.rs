@@ -5,6 +5,7 @@
 
 use macroquad::prelude::*;
 
+use bounce_tales::sim::ball::Form;
 use bounce_tales::sim::hazards::Cause;
 use bounce_tales::sim::{DT, EntityKind, Event, Item, Rng, Sim};
 
@@ -114,6 +115,14 @@ impl Particles {
                 Event::Switched { pos } => self.sparkle(pos, LIFE_GREEN),
                 Event::GateMoved { pos } => self.puffs(pos, 8, 50.0),
                 Event::Launched { pos } => self.puffs(pos, 8, 70.0),
+                Event::Transformed { form, pos } => {
+                    let color = match form {
+                        Form::Normal => Color::new(1.0, 0.45, 0.4, 1.0),
+                        Form::Stone => Color::new(0.75, 0.74, 0.7, 1.0),
+                        Form::Balloon => Color::new(0.66, 0.86, 1.0, 1.0),
+                    };
+                    self.sparkle(pos, color);
+                }
                 Event::Collected { item, pos } => {
                     let (color, text) = match item {
                         Item::Gem => (GEM_SPARK, format!("+{}", item.points())),

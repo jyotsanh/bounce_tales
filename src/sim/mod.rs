@@ -80,12 +80,16 @@ pub const CRUMBLE_SHAKE_TICKS: u32 = 30;
 pub const CRUMBLE_RETURN_TICKS: u32 = 300;
 /// Hitting a cracked block at least this fast breaks it (if the ball
 /// `smashes`), px/s.
-pub const SMASH_SPEED: f32 = 150.0;
+pub const SMASH_SPEED: f32 = 60.0;
 
 /// Most balls you can hold.
 pub const MAX_LIVES: u32 = 9;
 /// Steps the "game over" pause lasts before the level restarts.
 pub const GAME_OVER_TICKS: u32 = 150;
+/// Steps of the transformation flash (drawing only).
+pub const TRANSFORM_ANIM_TICKS: u32 = 20;
+/// A timed form blinks for this many steps before it runs out.
+pub const FORM_WARNING_TICKS: u32 = 120;
 /// Steps of the grow-in effect after respawning (drawing only).
 pub const RESPAWN_ANIM_TICKS: u32 = 12;
 
@@ -121,6 +125,13 @@ pub struct Sim {
     pub respawn_anim: u32,
     /// Index (into `entities`) of the moving platform the ball rides.
     pub riding: Option<usize>,
+    /// Steps left of a timed form (`None` = the form lasts).
+    pub form_ticks: Option<u32>,
+    /// Counts down the transformation flash (drawing only).
+    pub transform_anim: u32,
+    /// Form the ball comes back in after dying (its form at the last
+    /// checkpoint, if that form was not timed).
+    pub respawn_form: ball::Form,
     /// Seesaw the ball rests on (entity index, position along the plank).
     pub on_seesaw: Option<(usize, f32)>,
     /// Catapult holding the ball (entity index, steps until it fires).
@@ -208,6 +219,9 @@ impl Sim {
             respawn_anim: 0,
             riding: None,
             held: None,
+            form_ticks: None,
+            transform_anim: 0,
+            respawn_form: ball::Form::Normal,
             on_seesaw: None,
             deaths: 0,
             lives: carry.lives,
@@ -277,7 +291,9 @@ impl Sim {
         if !self.hold_in_catapult() {
             self.move_ball(input);
             self.use_launchers();
+            self.use_transformers();
         }
+        self.tick_form();
 
         self.camera.update(&self.ball, &self.level.map);
         if let Some(cause) = hazards::check(&self.ball, &self.level.map) {
@@ -294,7 +310,15 @@ impl Sim {
                     self.exit_reached = true;
                     self.exit_tick = Some(self.tick);
                 }
-                Event::CheckpointReached { respawn } => self.respawn_point = respawn,
+                Event::CheckpointReached { respawn } => {
+                    self.respawn_point = respawn;
+                    // Timed forms don't survive a respawn.
+                    self.respawn_form = if self.form_ticks.is_some() {
+                        ball::Form::Normal
+                    } else {
+                        self.ball.form
+                    };
+                }
                 Event::Collected { item, .. } => {
                     self.score += item.points();
                     match item {
@@ -401,6 +425,49 @@ impl Sim {
             let (pos, size) = (e.pos, e.size);
             if let EntityKind::Crate(c) = &mut e.kind {
                 e.pos = c.advance(pos, size, &self.level.map, &others);
+            }
+        }
+    }
+
+    /// Touching a transformer turns the ball into its form (or refreshes a
+    /// timed form).
+    fn use_transformers(&mut self) {
+        let mut change = None;
+        for e in &self.entities {
+            if let EntityKind::Transformer { form, duration } = e.kind
+                && inside(e, self.ball.pos)
+            {
+                let refresh = form == self.ball.form && duration > 0;
+                if form != self.ball.form || refresh {
+                    change = Some((form, duration, e.centre(), !refresh));
+                }
+            }
+        }
+        if let Some((form, duration, pos, announce)) = change {
+            self.ball.set_form(form);
+            self.form_ticks = (duration > 0 && form != ball::Form::Normal).then_some(duration);
+            if announce {
+                self.transform_anim = TRANSFORM_ANIM_TICKS;
+                self.events.push(Event::Transformed { form, pos });
+            }
+        }
+    }
+
+    /// Counts down a timed form and the flash; a timed form running out
+    /// turns the ball back to normal.
+    fn tick_form(&mut self) {
+        self.transform_anim = self.transform_anim.saturating_sub(1);
+        if let Some(t) = self.form_ticks {
+            if t > 1 {
+                self.form_ticks = Some(t - 1);
+            } else {
+                self.form_ticks = None;
+                self.ball.set_form(ball::Form::Normal);
+                self.transform_anim = TRANSFORM_ANIM_TICKS;
+                self.events.push(Event::Transformed {
+                    form: ball::Form::Normal,
+                    pos: self.ball.pos,
+                });
             }
         }
     }
@@ -748,7 +815,8 @@ impl Sim {
     }
 
     fn respawn(&mut self) {
-        self.ball = Ball::new(self.respawn_point);
+        self.ball = Ball::with_form(self.respawn_point, self.respawn_form);
+        self.form_ticks = None;
         self.camera = Camera::snapped_to(&self.ball, &self.level.map);
         self.respawn_anim = RESPAWN_ANIM_TICKS;
         self.events.push(Event::Respawned {
@@ -1700,6 +1768,110 @@ mod tests {
             fell |= sim.deaths > 0;
         }
         assert!(was_on && fell, "on {was_on}, fell {fell}");
+    }
+
+    fn forms_level() -> Sim {
+        Sim::for_level("forms").unwrap()
+    }
+
+    #[test]
+    fn transformer_changes_form_once_with_an_event() {
+        let mut sim = forms_level();
+        let mut transformed = 0;
+        for _ in 0..40 {
+            sim.step(press("R"));
+            transformed += sim
+                .events
+                .iter()
+                .filter(|e| {
+                    matches!(
+                        e,
+                        Event::Transformed {
+                            form: ball::Form::Stone,
+                            ..
+                        }
+                    )
+                })
+                .count();
+        }
+        assert_eq!(sim.ball.form, ball::Form::Stone);
+        assert_eq!(sim.ball.params, ball::BallParams::STONE);
+        assert_eq!(transformed, 1, "touching it longer doesn't re-trigger");
+    }
+
+    #[test]
+    fn timed_form_runs_out_back_to_normal() {
+        let level = Level::from_ascii("o2...\n#####").unwrap();
+        let mut sim = Sim::with_level(level);
+        for e in &mut sim.entities {
+            if let EntityKind::Transformer { duration, .. } = &mut e.kind {
+                *duration = 90;
+            }
+        }
+        let mut became = None;
+        for t in 0..200 {
+            sim.step(press("R"));
+            if became.is_none() && sim.ball.form == ball::Form::Balloon {
+                became = Some(t);
+            }
+            if let Some(start) = became
+                && sim.ball.form == ball::Form::Normal
+            {
+                // Touching the transformer keeps refreshing the timer, so it
+                // runs 90 steps after the ball has rolled through it (32 px
+                // at ~120 px/s ≈ 16-20 steps).
+                let lasted = t - start;
+                assert!((90..=115).contains(&lasted), "lasted {lasted}");
+                return;
+            }
+        }
+        panic!("never ran out");
+    }
+
+    #[test]
+    fn respawn_keeps_the_checkpoint_form() {
+        let mut sim = forms_level();
+        for _ in 0..70 {
+            sim.step(press("R"));
+        }
+        assert_eq!(sim.ball.form, ball::Form::Stone);
+        assert_eq!(
+            sim.respawn_form,
+            ball::Form::Stone,
+            "checkpoint touched as stone"
+        );
+        sim.die(Cause::Spikes);
+        wait(&mut sim, DEATH_TICKS);
+        assert_eq!(sim.ball.form, ball::Form::Stone);
+        assert_eq!(sim.ball.params, ball::BallParams::STONE);
+    }
+
+    #[test]
+    fn the_red_ball_cannot_break_the_cracked_wall() {
+        let mut sim = forms_level();
+        sim.ball.pos = macroquad::math::vec2(160.0, 232.0); // past the transformer
+        for _ in 0..120 {
+            sim.step(press("R"));
+        }
+        assert!(sim.ball.pos.x < 192.0, "x {}", sim.ball.pos.x);
+        assert!(sim.level.map.is_solid(12, 14));
+    }
+
+    #[test]
+    fn only_the_balloon_clears_the_high_wall() {
+        for (form, clears) in [(ball::Form::Normal, false), (ball::Form::Balloon, true)] {
+            let mut sim = forms_level();
+            sim.ball = Ball::with_form(macroquad::math::vec2(504.0, 232.0), form);
+            for _ in 0..240 {
+                sim.step(press("RJ"));
+            }
+            assert_eq!(
+                sim.ball.pos.x > 528.0,
+                clears,
+                "{form:?} at {:?}",
+                sim.ball.pos
+            );
+        }
     }
 
     #[test]

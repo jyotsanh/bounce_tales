@@ -10,6 +10,14 @@ palette
   l #ffffff59 ; soft light
   s #00000038 ; shade
   S #00000070 ; deep shade
+  g #8c8a84   ; stone
+  G #6a6862   ; stone speckle
+  q #3e3c38   ; stone crack
+  O #26241f   ; stone outline
+  b #8fd0ff   ; balloon
+  B #5aa8e8   ; balloon band
+  w #ffffff   ; balloon knot
+  u #1d4f7a   ; balloon outline
 end
 sprite body
 .....rrrrrr.....
@@ -49,3 +57,79 @@ o......ssssSSSSo
 end
 ; 16 roll frames, 22.5 degrees apart, clockwise (= rolling right).
 spin roll from body frames 16 fill r over shade
+; Stone form: grey rock with a crack (turns with rolling).
+sprite stone_body
+.....gggggg.....
+...gggGgggggg...
+..ggggggggggGg..
+.ggggggGggggggg.
+.gGggggggggggGg.
+ggggqgggGggggggg
+gggGgqqgggggggGg
+gggggggqgGgggggg
+ggggGgggqggggggG
+ggggggggqgGggggg
+gggggGgggqqggggg
+.ggggggggggqggg.
+.gggggGgggggggg.
+..ggggggggggGg..
+...ggggGggggg...
+.....gggggg.....
+end
+sprite stone_shade
+.....OOOOOO.....
+...OOhll...OO...
+..Ohhhll....sO..
+.Ohhhlll....ssO.
+.Ohhlll.....ssO.
+Olllll......ssSO
+Ollll......sssSO
+O.........sssSSO
+O........ssssSSO
+O.......ssssSSSO
+O......ssssSSSSO
+.O..ssssssSSSSO.
+.OssssssSSSSSSO.
+..OsssSSSSSSSO..
+...OOSSSSSSOO...
+.....OOOOOO.....
+end
+spin stone from stone_body frames 16 fill g over stone_shade
+; Balloon form: light blue with a band and a knot mark.
+sprite balloon_body
+.....BBbbbb.....
+...bbBBbbbbbb...
+..bbbBBbbbbbbb..
+.bbbbbBBbbbbbbb.
+.bbbbbBBbbbwbbb.
+bbbbbbBBbbbbwbbb
+bbbbbbbBBbbbbbbb
+bbbbbbbBBbbbbbbb
+bbbbbbbBBbbbbbbb
+bbbbbbbBBbbbbbbb
+bbbbbbbbBBbbbbbb
+.bbbbbbbBBbbbbb.
+.bbbbbbbBBbbbbb.
+..bbbbbbbBBbbb..
+...bbbbbbBBbb...
+.....bbbbBB.....
+end
+sprite balloon_shade
+.....uuuuuu.....
+...uuhll...uu...
+..uhhhll....su..
+.uhhhlll....ssu.
+.uhhlll.....ssu.
+ulllll......ssSu
+ullll......sssSu
+u.........sssSSu
+u........ssssSSu
+u.......ssssSSSu
+u......ssssSSSSu
+.u..ssssssSSSSu.
+.ussssssSSSSSSu.
+..usssSSSSSSSu..
+...uuSSSSSSuu...
+.....uuuuuu.....
+end
+spin balloon from balloon_body frames 16 fill b over balloon_shade

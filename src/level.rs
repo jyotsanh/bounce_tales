@@ -40,7 +40,8 @@
 //! crate (32x32), `W` = seesaw (6-tile plank on a 1-tile post), `O` =
 //! wheel (4 cars, radius 48, centred on the cell), `Z` = spinner (4-tile
 //! plank turning about the cell's centre), `K` = cannon firing up-right by
-//! itself, `Q` = swinging cannon that fires on jump.
+//! itself, `Q` = swinging cannon that fires on jump, `1` / `2` / `0` =
+//! transformer to stone / balloon / normal.
 
 use std::io::Cursor;
 use std::path::Path;
@@ -162,6 +163,9 @@ pub const CRATE_SIZE: Vec2 = Vec2::new(32.0, 32.0);
 /// Size of an ASCII seesaw (`W`: a 6-tile plank on a 1-tile post standing
 /// on the cell's floor, centred on it), px.
 pub const SEESAW_SIZE: Vec2 = Vec2::new(96.0, 16.0);
+/// Size of an ASCII transformer (`1` stone, `2` balloon, `0` back to
+/// normal; standing on the cell's floor), px.
+pub const TRANSFORMER_SIZE: Vec2 = Vec2::new(32.0, 32.0);
 /// Size of an ASCII wheel (`O`: radius 48 around the cell's centre), px.
 pub const WHEEL_SIZE: Vec2 = Vec2::new(96.0, 96.0);
 /// Size of an ASCII spinner (`Z`: a 4-tile plank turning about the cell's
@@ -242,6 +246,18 @@ fn ascii_marker(c: char) -> Option<Marker> {
         'Z' => Marker {
             props: vec![("speed".into(), Prop::Int(-45))],
             ..centred("spinner", SPINNER_SIZE)
+        },
+        '1' => Marker {
+            props: vec![("form".into(), Prop::Str("stone".into()))],
+            ..m("transformer", "transformer", TRANSFORMER_SIZE)
+        },
+        '2' => Marker {
+            props: vec![("form".into(), Prop::Str("balloon".into()))],
+            ..m("transformer", "transformer", TRANSFORMER_SIZE)
+        },
+        '0' => Marker {
+            props: vec![("form".into(), Prop::Str("normal".into()))],
+            ..m("transformer", "transformer", TRANSFORMER_SIZE)
         },
         'K' => Marker {
             props: vec![

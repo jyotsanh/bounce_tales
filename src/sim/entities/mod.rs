@@ -8,7 +8,7 @@
 use macroquad::math::{Vec2, vec2};
 
 use crate::level::{ObjectSpec, Prop};
-use crate::sim::ball::Ball;
+use crate::sim::ball::{Ball, Form};
 use crate::sim::crates::Crate;
 use crate::sim::hazards::Cause;
 use crate::sim::platforms::{self, Platform};
@@ -41,6 +41,9 @@ pub enum Event {
     Switched { pos: Vec2 },
     /// A door opened or a bridge was built (`pos` = its centre).
     GateMoved { pos: Vec2 },
+    /// The ball changed form at `pos` (by a transformer, or a timed form
+    /// running out).
+    Transformed { form: Form, pos: Vec2 },
     /// A spring or catapult launched the ball from `pos`.
     Launched { pos: Vec2 },
     /// A collectible was picked up at `pos` (its centre).
@@ -120,6 +123,9 @@ pub enum EntityKind {
     /// Plank on a pivot (turned by `Sim::step`); also motor-driven
     /// spinners.
     Seesaw(Seesaw),
+    /// Touching it turns the ball into `form`; `duration` steps (0 = until
+    /// changed again).
+    Transformer { form: Form, duration: u32 },
     /// Hub and spokes of a wheel whose cars are separate `Platform`
     /// entities (drawing only). `angle` follows the cars.
     Wheel {
@@ -201,6 +207,7 @@ pub const KNOWN_TYPES: &[&str] = &[
     "spinner",
     "wheel",
     "cannon",
+    "transformer",
 ];
 
 /// Reads a string property with a default.
@@ -322,6 +329,27 @@ pub fn build(spec: &ObjectSpec) -> Result<Entity, String> {
                 max.to_radians(),
                 spec.pos.y + spec.size.y,
             ))
+        }
+        "transformer" => {
+            need_rect(spec)?;
+            let name = str_prop(spec, "form", "")?;
+            let form = Form::from_name(name).ok_or_else(|| {
+                format!(
+                    "transformer '{}': form must be normal, stone or balloon, got '{name}'",
+                    spec.name
+                )
+            })?;
+            let seconds = num_prop(spec, "duration", 0.0)?;
+            if seconds < 0.0 {
+                return Err(format!(
+                    "transformer '{}': duration must be >= 0",
+                    spec.name
+                ));
+            }
+            EntityKind::Transformer {
+                form,
+                duration: (seconds * crate::sim::TICKS_PER_SECOND as f32).round() as u32,
+            }
         }
         "spinner" => {
             // The rect's width is the plank; it turns about the rect's
@@ -564,7 +592,8 @@ impl Entity {
             | EntityKind::Switch { .. }
             | EntityKind::Fan { .. }
             | EntityKind::Crate(_)
-            | EntityKind::Seesaw(_) => {}
+            | EntityKind::Seesaw(_)
+            | EntityKind::Transformer { .. } => {}
             EntityKind::Wheel { angle, speed, .. } => *angle += *speed * crate::sim::DT,
             EntityKind::Cannon {
                 aim,

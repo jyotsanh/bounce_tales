@@ -87,6 +87,37 @@ impl BallParams {
         mass: 1.0,
     };
 
+    /// Heavy stone ball (first draft; tuned in step 23): slow, low jump,
+    /// barely bounces, sinks in water, smashes cracked blocks, weighs 3.
+    pub const STONE: BallParams = BallParams {
+        gravity: 1100.0,
+        max_fall: 480.0,
+        ground_accel: 420.0,
+        air_accel: 260.0,
+        max_speed: 95.0,
+        jump_height: 30.0,
+        restitution: 0.08,
+        wall_restitution: 0.05,
+        buoyancy: 0.4,
+        smashes: true,
+        mass: 3.0,
+        ..BallParams::NORMAL
+    };
+
+    /// Light balloon ball (first draft; tuned in step 24): floaty, falls
+    /// slowly, jumps high, bobs high in water.
+    pub const BALLOON: BallParams = BallParams {
+        gravity: 300.0,
+        max_fall: 120.0,
+        air_accel: 500.0,
+        air_drag: 120.0,
+        jump_height: 72.0,
+        restitution: 0.5,
+        buoyancy: 4.0,
+        mass: 0.3,
+        ..BallParams::NORMAL
+    };
+
     /// Take-off speed that reaches `jump_height` under `gravity` with the
     /// sim's semi-implicit Euler integration (which loses about half a step
     /// of rise compared with the continuous formula).
@@ -101,6 +132,46 @@ impl BallParams {
     }
 }
 
+// The forms' defining traits, checked at compile time.
+const _: () = assert!(BallParams::STONE.mass > BallParams::NORMAL.mass);
+const _: () = assert!(BallParams::STONE.buoyancy < 1.0, "stone sinks");
+const _: () = assert!(BallParams::BALLOON.max_fall < BallParams::NORMAL.max_fall);
+
+/// What the ball currently is. Each form has its own [`BallParams`] and
+/// look; transformers switch between them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Form {
+    #[default]
+    Normal,
+    Stone,
+    Balloon,
+}
+
+impl Form {
+    pub const ALL: [Form; 3] = [Form::Normal, Form::Stone, Form::Balloon];
+
+    pub fn params(self) -> BallParams {
+        match self {
+            Form::Normal => BallParams::NORMAL,
+            Form::Stone => BallParams::STONE,
+            Form::Balloon => BallParams::BALLOON,
+        }
+    }
+
+    /// Name used by Tiled `form` properties and sprite prefixes.
+    pub fn name(self) -> &'static str {
+        match self {
+            Form::Normal => "normal",
+            Form::Stone => "stone",
+            Form::Balloon => "balloon",
+        }
+    }
+
+    pub fn from_name(name: &str) -> Option<Form> {
+        Form::ALL.into_iter().find(|f| f.name() == name)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Ball {
     pub pos: Vec2,
@@ -110,6 +181,7 @@ pub struct Ball {
     pub vel: Vec2,
     pub radius: f32,
     pub params: BallParams,
+    pub form: Form,
     /// Resting on the ground (set by collision each step).
     pub grounded: bool,
     /// Normal of the floor last touched (points away from it). (0, -1) on
@@ -147,6 +219,7 @@ impl Ball {
             vel: Vec2::ZERO,
             radius: params.radius,
             params,
+            form: Form::Normal,
             grounded: false,
             ground_normal: vec2(0.0, -1.0),
             air_ticks: 0,
@@ -159,6 +232,20 @@ impl Ball {
             squash: 0.0,
             squash_vel: 0.0,
         }
+    }
+
+    /// A ball of the given form at `pos`.
+    pub fn with_form(pos: Vec2, form: Form) -> Ball {
+        let mut b = Ball::new(pos);
+        b.set_form(form);
+        b
+    }
+
+    /// Switches form, keeping position and velocity.
+    pub fn set_form(&mut self, form: Form) {
+        self.form = form;
+        self.params = form.params();
+        self.radius = self.params.radius;
     }
 
     /// Position blended between the last two steps (`alpha` in 0..1).
@@ -360,6 +447,19 @@ mod tests {
         assert_eq!(approach(5.0, 0.0, 2.0), 3.0);
         assert_eq!(approach(1.0, 0.0, 2.0), 0.0);
         assert_eq!(approach(-1.0, 0.0, 2.0), 0.0);
+    }
+
+    #[test]
+    fn forms_have_their_own_params_and_names() {
+        for f in Form::ALL {
+            assert_eq!(Form::from_name(f.name()), Some(f));
+            let mut b = ball_at(0.0, 0.0);
+            b.vel = vec2(10.0, 20.0);
+            b.set_form(f);
+            assert_eq!(b.params, f.params());
+            assert_eq!(b.vel, vec2(10.0, 20.0), "velocity kept");
+        }
+        assert_eq!(Form::from_name("rubber duck"), None);
     }
 
     #[test]

@@ -88,7 +88,7 @@ Key rules:
 - [x] **21.** **Rotating platforms / wheels & cannons** (ball launched from cannons).
 
 ### Phase E — Transformations
-- [ ] **22.** **Transformation framework**: pickup objects, form state machine, swap visuals and physics parameters, revert pickups.
+- [x] **22.** **Transformation framework**: pickup objects, form state machine, swap visuals and physics parameters, revert pickups.
 - [ ] **23.** **Stone ball**: heavy, sinks in water, smashes cracked blocks, tips seesaws, low bounce.
 - [ ] **24.** **Balloon/light ball** (+ any other form from your references): floats up, slow fall, pops on spikes.
 
@@ -326,3 +326,10 @@ Spare capacity: if a step overruns, the next prompt finishes it before moving on
 - ASCII markers can be `centred` on the cell (wheel, spinner). Art: `cannon.txt` barrel sheet (rotated about its breech), objects `cannon_base`, items `hub`; `Atlas::draw_rotated_about`.
 - New ASCII level `wheels` (wheel over a pit, spinner over a pit, steep cannon up to the exit ledge, jump cannon behind the start). Replay `wheels_route` (controller-recorded; the controller steers mid-air onto the nearest car). Tests: wheel expansion + even spacing, cannon props, spinner keeps an upward top, auto cannon hides/fires after ~0.5 s at −60°, jump cannon waits for a press, a rider goes round on a wheel car, a spinner tips a passive ball off.
 - Workflow: edits now go through `shots/rep.py` (gitignored), which aborts and writes nothing if any anchor text is missing; it caught 2 stale anchors this step.
+
+### Step 22 — Transformation framework (done)
+- `sim::ball::Form { Normal, Stone, Balloon }` with `params()`, `name()`/`from_name()`; `Ball.form`, `Ball::set_form` (keeps position and velocity), `Ball::with_form`. **First-draft** `BallParams::STONE` (heavy: gravity 1100, max speed 95, jump 30, restitution 0.08, buoyancy 0.4 (sinks), `smashes`, mass 3) and `BALLOON` (gravity 300, max fall 120, jump 72, buoyancy 4, mass 0.3) — tuned in steps 23/24. Defining traits are `const` asserts.
+- `transformer` objects (rect; `form` normal|stone|balloon; `duration` s, 0 = until changed; ASCII `1` stone, `2` balloon, `0` normal, 32x32). Touching it switches form → `Event::Transformed { form, pos }` (once; touching longer only refreshes a timed form). `Sim.form_ticks` (timed form; reverts to Normal with an event), `transform_anim` (white flash), `respawn_form` (form at the last checkpoint unless timed) — a respawn restores it.
+- `SMASH_SPEED` lowered 150 → 60: the stone ball rolls at ≤95, so at 150 it could never break anything by rolling into it (only `smashes` forms break blocks anyway).
+- Rendering: roll frames per form (`roll_`, `stone_`, `balloon_`); a timed form blinks back to red in its last 2 s (`FORM_WARNING_TICKS`); coloured sparkle ring on transforming. Art: ball.txt + stone/balloon bodies and shades (own outline palette keys), 16 spin frames each; objects `transformer_stone/balloon/normal`. Replay field `form` (0/1/2).
+- New ASCII level `forms`: stone → smash cracked wall → back to normal → float across a pool (stone would sink and stick) → balloon → jump a 4-tile wall → exit. Replay `forms_route`. Tests: form params/names, transform once with an event, timed form reverts, respawn keeps the checkpoint form, red ball can't break cracked walls, only the balloon clears the high wall.
