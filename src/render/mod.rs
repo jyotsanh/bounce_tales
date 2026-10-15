@@ -345,6 +345,40 @@ impl Renderer {
                 self.sprites.items.draw_flipped(&name, pos, flip);
             }
             EntityKind::Enemy(_) => {}
+            EntityKind::Boss(b) => {
+                use bounce_tales::sim::boss::{BOSS_SIZE, BossState, DYING_TICKS};
+                let mut pos = b.prev_pos.lerp(e.pos, alpha);
+                let mut size = Vec2::splat(BOSS_SIZE);
+                let name = match b.state {
+                    BossState::Dead => return,
+                    BossState::Dazed { .. } => "dizzy".to_owned(),
+                    _ => format!("spiral_{}", (tick / 5) % 4),
+                };
+                match b.state {
+                    // Warning shake before a slam (once it has locked on).
+                    BossState::Warn { timer }
+                        if timer <= bounce_tales::sim::boss::WARN_TICKS / 2 =>
+                    {
+                        pos.x += if tick.is_multiple_of(2) { 2.0 } else { -2.0 };
+                    }
+                    // Shattering: flicker and shrink away.
+                    BossState::Dying { timer } => {
+                        if (timer / 3) % 2 == 0 {
+                            return;
+                        }
+                        let k = timer as f32 / DYING_TICKS as f32;
+                        let shrink = size * (1.0 - (0.4 + 0.6 * k));
+                        size -= shrink;
+                        pos += shrink / 2.0;
+                    }
+                    _ => {}
+                }
+                self.sprites.boss.draw_scaled(&name, pos, size);
+                if b.flash > 0 {
+                    let a = b.flash as f32 / 20.0 * 0.8;
+                    draw_rectangle(pos.x, pos.y, size.x, size.y, Color::new(1.0, 1.0, 1.0, a));
+                }
+            }
             EntityKind::Transformer { form, .. } => {
                 let name = format!("transformer_{}", form.name());
                 self.sprites.objects.draw(&name, e.pos);
@@ -490,6 +524,33 @@ impl Renderer {
         item("icon_gem", sim.gems.to_string());
         if sim.eggs_total > 0 {
             item("icon_egg", format!("{}/{}", sim.eggs, sim.eggs_total));
+        }
+
+        // Boss health bar.
+        if let Some(b) = sim.entities.iter().find_map(|e| match &e.kind {
+            EntityKind::Boss(b) if b.alive() => Some(b),
+            _ => None,
+        }) {
+            use bounce_tales::sim::boss::BOSS_HP;
+            let label = "HYPNO CUBE";
+            let w = font::width(label, 1.0);
+            let x = (VIEW_W - w - 4.0 - BOSS_HP as f32 * 10.0) / 2.0;
+            font::draw(
+                font_atlas,
+                label,
+                vec2(x, 18.0),
+                1.0,
+                Color::new(0.85, 0.6, 1.0, 1.0),
+                true,
+            );
+            for i in 0..BOSS_HP {
+                let px = x + w + 6.0 + i as f32 * 10.0;
+                let full = i < b.hp;
+                draw_rectangle(px, 18.0, 8.0, 7.0, Color::new(0.1, 0.05, 0.2, 1.0));
+                if full {
+                    draw_rectangle(px + 1.0, 19.0, 6.0, 5.0, Color::new(0.75, 0.25, 1.0, 1.0));
+                }
+            }
         }
 
         let score = format!("{:06}", sim.score);

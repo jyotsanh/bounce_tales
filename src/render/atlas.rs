@@ -189,6 +189,7 @@ pub struct Sprites {
     pub font: Atlas,
     pub seesaw: Atlas,
     pub cannon: Atlas,
+    pub boss: Atlas,
 }
 
 macro_rules! embedded_atlas {
@@ -213,6 +214,7 @@ impl Sprites {
             font: embedded_atlas!("font"),
             seesaw: embedded_atlas!("seesaw"),
             cannon: embedded_atlas!("cannon"),
+            boss: embedded_atlas!("boss"),
         }
     }
 
@@ -229,6 +231,7 @@ impl Sprites {
             "font" => &self.font,
             "seesaw" => &self.seesaw,
             "cannon" => &self.cannon,
+            "boss" => &self.boss,
             _ => panic!("no atlas named '{name}'"),
         }
     }

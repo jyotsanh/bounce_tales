@@ -9,6 +9,7 @@ use macroquad::math::{Vec2, vec2};
 
 use crate::level::{ObjectSpec, Prop};
 use crate::sim::ball::{Ball, Form};
+use crate::sim::boss::Boss;
 use crate::sim::crates::Crate;
 use crate::sim::enemies::{self, Enemy};
 use crate::sim::hazards::Cause;
@@ -45,6 +46,10 @@ pub enum Event {
     /// The ball changed form at `pos` (by a transformer, or a timed form
     /// running out).
     Transformed { form: Form, pos: Vec2 },
+    /// The boss was stomped while dazed (`pos` = top of the cube).
+    BossHit { pos: Vec2 },
+    /// The boss's last hit: it shatters (`pos` = its centre).
+    BossDefeated { pos: Vec2 },
     /// A shooter fired a pellet from `pos`.
     Shot { pos: Vec2 },
     /// A pellet shattered on the stone ball at `pos`.
@@ -132,6 +137,8 @@ pub enum EntityKind {
     Seesaw(Seesaw),
     /// A hypnotized creature (moved by `Sim::step`).
     Enemy(Enemy),
+    /// The Hypno Cube (moved by `Sim::step`); beating it wins the level.
+    Boss(Boss),
     /// Touching it turns the ball into `form`; `duration` steps (0 = until
     /// changed again).
     Transformer { form: Form, duration: u32 },
@@ -221,6 +228,7 @@ pub const KNOWN_TYPES: &[&str] = &[
     "flyer",
     "jumper",
     "shooter",
+    "boss",
 ];
 
 /// Reads a string property with a default.
@@ -361,6 +369,14 @@ pub fn build(spec: &ObjectSpec) -> Result<Entity, String> {
             };
             let speed = num_prop(spec, "speed", enemies::WALKER_SPEED)?;
             EntityKind::Enemy(Enemy::walker(spec.pos, dir, speed))
+        }
+        "boss" => {
+            // Top-left of the cube where it hovers; its size is fixed.
+            return Ok(Entity {
+                pos: spec.pos,
+                size: Vec2::splat(crate::sim::boss::BOSS_SIZE),
+                kind: EntityKind::Boss(Boss::new(spec.pos)),
+            });
         }
         "flyer" => {
             need_rect(spec)?;
@@ -683,7 +699,8 @@ impl Entity {
             | EntityKind::Crate(_)
             | EntityKind::Seesaw(_)
             | EntityKind::Transformer { .. }
-            | EntityKind::Enemy(_) => {}
+            | EntityKind::Enemy(_)
+            | EntityKind::Boss(_) => {}
             EntityKind::Wheel { angle, speed, .. } => *angle += *speed * crate::sim::DT,
             EntityKind::Cannon {
                 aim,

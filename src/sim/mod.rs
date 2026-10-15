@@ -7,6 +7,7 @@
 //! iteration order. Replays rely on this.
 
 pub mod ball;
+pub mod boss;
 pub mod camera;
 pub mod crates;
 pub mod enemies;
@@ -82,6 +83,9 @@ pub const CRUMBLE_RETURN_TICKS: u32 = 300;
 /// Hitting a cracked block at least this fast breaks it (if the ball
 /// `smashes`), px/s.
 pub const SMASH_SPEED: f32 = 60.0;
+
+/// Points for each hit on the boss.
+pub const BOSS_HIT_POINTS: u32 = 1000;
 
 /// Most balls you can hold.
 pub const MAX_LIVES: u32 = 9;
@@ -436,6 +440,18 @@ impl Sim {
                     self.events.push(Event::Shot { pos: shot.pos });
                     self.projectiles.push(shot);
                 }
+            } else if let EntityKind::Boss(b) = &mut e.kind {
+                e.pos = b.advance(pos, &self.level.map, ball);
+                for shot in b.fired.drain(..) {
+                    self.events.push(Event::Shot { pos: shot.pos });
+                    self.projectiles.push(shot);
+                }
+                // Beaten and shattered: the level is won.
+                if b.state == boss::BossState::Dead && !self.exit_reached {
+                    self.exit_reached = true;
+                    self.exit_tick = Some(self.tick);
+                    self.events.push(Event::ExitReached);
+                }
             }
         }
         let map = &self.level.map;
@@ -474,6 +490,41 @@ impl Sim {
         let mut hurt = false;
         for e in &mut self.entities {
             let (pos, size) = (e.pos, e.size);
+            if let EntityKind::Boss(b) = &mut e.kind {
+                match b.touch(&self.ball, pos) {
+                    Some(boss::BossTouch::Hit) => {
+                        b.hit();
+                        self.ball.vel.y = -boss::BOUNCE_OFF;
+                        self.ball.jumping = true;
+                        self.ball.grounded = false;
+                        self.score += BOSS_HIT_POINTS;
+                        self.events.push(Event::BossHit {
+                            pos: pos + macroquad::math::vec2(size.x / 2.0, 0.0),
+                        });
+                        if !b.alive() {
+                            self.events.push(Event::BossDefeated {
+                                pos: pos + size / 2.0,
+                            });
+                        }
+                    }
+                    Some(boss::BossTouch::Bounce) => {
+                        // Knocked off sideways, so the ball can't ride the
+                        // cube up into the ceiling.
+                        let side = if self.ball.pos.x < pos.x + size.x / 2.0 {
+                            -1.0
+                        } else {
+                            1.0
+                        };
+                        self.ball.vel.x = side * boss::KNOCK_OFF;
+                        self.ball.vel.y = -boss::BOUNCE_OFF;
+                        self.ball.jumping = true;
+                        self.ball.grounded = false;
+                    }
+                    Some(boss::BossTouch::Hurt) => hurt = true,
+                    None => {}
+                }
+                continue;
+            }
             let EntityKind::Enemy(en) = &mut e.kind else {
                 continue;
             };
@@ -2293,6 +2344,48 @@ mod tests {
             assert!(freed, "enemy {pick} not freed");
             assert_eq!(sim.deaths, 0);
         }
+    }
+
+    #[test]
+    fn beating_the_boss_wins_the_level() {
+        let mut sim = Sim::for_level("hypno").unwrap();
+        let i = sim
+            .entities
+            .iter()
+            .position(|e| matches!(e.kind, EntityKind::Boss(_)))
+            .unwrap();
+        for hit in 0..boss::BOSS_HP {
+            // Wait until it is dazed on the floor, then drop onto its top.
+            for _ in 0..2000 {
+                sim.step(InputFrame::NONE);
+                sim.ball.pos = macroquad::math::vec2(20.0, 280.0); // out of harm's way
+                sim.projectiles.clear();
+                if matches!(&sim.entities[i].kind, EntityKind::Boss(b) if b.dazed()) {
+                    break;
+                }
+            }
+            // Just touching its top, coming down.
+            let top = sim.entities[i].pos + macroquad::math::vec2(20.0, -6.0);
+            sim.ball.pos = top;
+            sim.ball.vel = macroquad::math::vec2(0.0, 60.0);
+            sim.step(InputFrame::NONE);
+            assert!(
+                sim.events
+                    .iter()
+                    .any(|e| matches!(e, Event::BossHit { .. })),
+                "hit {hit} didn't land"
+            );
+        }
+        assert!(
+            sim.events
+                .iter()
+                .any(|e| matches!(e, Event::BossDefeated { .. }))
+        );
+        assert_eq!(sim.score, 3 * BOSS_HIT_POINTS);
+        for _ in 0..boss::DYING_TICKS + 5 {
+            sim.step(InputFrame::NONE);
+        }
+        assert!(sim.exit_reached, "level won once it has shattered");
     }
 
     #[test]

@@ -95,7 +95,7 @@ Key rules:
 ### Phase F — Enemies & boss
 - [x] **25.** **Enemy framework + walkers** (hypnotized creatures): patrol, damage vs stomp rules.
 - [x] **26.** **Flyers, jumpers, shooters**, projectiles.
-- [ ] **27.** **Hypno Cube boss**: arena, attack patterns, phases, win condition.
+- [x] **27.** **Hypno Cube boss**: arena, attack patterns, phases, win condition.
 
 ### Phase G — Audio
 - [ ] **28.** **SFX synth**: square/triangle/noise + envelopes → WAV bytes. Bounce, jump, pickup, splash, death, transform sounds.
@@ -363,3 +363,11 @@ Spare capacity: if a step overruns, the next prompt finishes it before moving on
 - Objects: `flyer` (`axis` x|y, `range` tiles 4, `speed` 40), `jumper` (`period` s 1.25), `shooter` (`dir` left|right, `period` s 2, `aim` bool). ASCII `y` / `Y` flyer horizontal/vertical, `J` jumper, `G` / `g` shooter left/right.
 - Art (items): `flyer_0/1` (bat wings), `jumper_0/1` (crouched/stretched), `shooter_0/1` (mouth closed/open around a shot), `shot`. Freed enemies of every kind use `walker_freed`. FX: puffs on firing, stone chips when a pellet shatters.
 - New ASCII level `beasts` (flyer over a pit, jumper, floor shooter, exit). Replay `beasts_route` (reactive controller: jumps gaps, grounded enemies ahead and incoming pellets). Tests: flyer range/no gravity, jumper hop rate and height, shooter rate + range + pellets stop at walls, pellets kill / shatter on stone, flyer and shooter can be stomped.
+
+### Step 27 — Hypno Cube boss (done)
+- Own design (no reference given). `src/sim/boss.rs`: `Boss { hp 3, state, hover_y, dir, fire_timer, flash, fired }`, cube **40x40** (48 left a 4 px stomp margin for a 52 px jump). Loop: `Hover` (drifts, fires aimed spreads of 3/5/5 pellets; **silent for its last 70 steps**) → `Warn` (50 steps: tracks the ball for the first half, then **locks and shakes** for the second) → `Slam` (520 px/s onto the floor) → `Dazed` (130/105/85 steps; only now its top can be stomped) → `Rise` (**harmless**) → `Hover`. Each hit: faster hover, faster fire, shorter daze (compile-time asserts). 3 hits → `Dying` (120 steps, flicker + shrink) → `Dead` → the sim sets `exit_reached` (normal results flow).
+- `Boss::touch`: dazed top = `Hit` (+1000, ball bounces), top when not dazed = `Bounce` (knocked off **sideways** at 160 px/s so it can't ride the cube into the ceiling), anything else = `Hurt`. Events `BossHit`, `BossDefeated` (+ `ExitReached` when it's gone). Replay field `boss.hp`.
+- **Fairness fixes found by playing it with a controller**: side ledges let the cube land out of reach (arena made flat); tracking during the whole warning made slams inescapable; pellets landing during the warning; the rising cube catching a ball that had just stomped it; riding the bounce up into the ceiling.
+- Object `boss` (rect: top-left where it hovers), ASCII `M` (centred). New ASCII level `hypno` (one-screen flat arena), added as the **last campaign level** (`game::CAMPAIGN` = big, hazards, hypno until steps 34-38).
+- Art: `assets/art/boss.txt` (40x40: 4 spinning-spiral frames, dizzy face). HUD: "HYPNO CUBE" + HP pips. FX: hit sparkles + "+1000", shatter burst + confetti, white hit flash.
+- Replay `boss_fight` (controller-recorded win in ~20 s, no deaths, 3000 points). Tests: state cycle (fires, warns, slams over the ball, lands dazed, rises back), 3 hits → dead, touch rules incl. harmless while rising, full win in the sim → exit.

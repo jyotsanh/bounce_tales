@@ -43,7 +43,8 @@
 //! itself, `Q` = swinging cannon that fires on jump, `1` / `2` / `0` =
 //! transformer to stone / balloon / normal, `w` = walker (heading left),
 //! `y` / `Y` = flyer gliding 4 tiles right / down and back, `J` = jumper,
-//! `G` / `g` = shooter facing left / right.
+//! `G` / `g` = shooter facing left / right, `M` = the Hypno Cube (centred
+//! on the cell where it hovers).
 
 use std::io::Cursor;
 use std::path::Path;
@@ -168,6 +169,9 @@ pub const SEESAW_SIZE: Vec2 = Vec2::new(96.0, 16.0);
 /// Size of an ASCII transformer (`1` stone, `2` balloon, `0` back to
 /// normal; standing on the cell's floor), px.
 pub const TRANSFORMER_SIZE: Vec2 = Vec2::new(32.0, 32.0);
+/// Size of the boss cube (`M`: centred on the cell, where it hovers), px.
+/// Must match `sim::boss::BOSS_SIZE`.
+pub const BOSS_BOX: Vec2 = Vec2::new(40.0, 40.0);
 /// Size of an ASCII wheel (`O`: radius 48 around the cell's centre), px.
 pub const WHEEL_SIZE: Vec2 = Vec2::new(96.0, 96.0);
 /// Size of an ASCII spinner (`Z`: a 4-tile plank turning about the cell's
@@ -268,6 +272,7 @@ fn ascii_marker(c: char) -> Option<Marker> {
             ..m("flyer", "flyer", ITEM_SIZE)
         },
         'J' => m("jumper", "jumper", ITEM_SIZE),
+        'M' => centred("boss", BOSS_BOX),
         'G' => m("shooter", "shooter", ITEM_SIZE),
         'g' => Marker {
             props: vec![("dir".into(), Prop::Str("right".into()))],

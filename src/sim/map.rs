@@ -183,7 +183,7 @@ pub struct TileMap {
 /// in the collision map. See `level::ascii_marker`.
 pub const OBJECT_MARKERS: &[char] = &[
     'E', 'C', '*', 'e', '+', 'H', 'V', 'S', 'D', 'B', 'j', '>', '<', 'F', 'X', 'W', 'O', 'Z', 'K',
-    'Q', '0', '1', '2', 'w', 'y', 'Y', 'J', 'G', 'g',
+    'Q', '0', '1', '2', 'w', 'y', 'Y', 'J', 'G', 'g', 'M',
 ];
 
 /// Per-cell flag bits from tile properties (used from steps 11 and 15).
@@ -377,6 +377,7 @@ pub fn builtin_text(name: &str) -> Option<&'static str> {
         "balloon" => BALLOON_MAP,
         "enemies" => ENEMIES_MAP,
         "beasts" => BEASTS_MAP,
+        "hypno" => HYPNO_MAP,
         _ => return None,
     })
 }
@@ -403,6 +404,7 @@ pub const BUILTIN_NAMES: &[&str] = &[
     "balloon",
     "enemies",
     "beasts",
+    "hypno",
 ];
 
 /// Test map: one screen with a step block, a low ceiling, a tunnel, a
@@ -844,6 +846,31 @@ const BEASTS_MAP: &str = r"
     #########....###############################
     #########....###############################
     #########....###############################
+";
+
+/// Boss arena (one screen, flat so the cube always lands where it can be
+/// stomped): the Hypno Cube hovers in the middle, floor top y 288.
+const HYPNO_MAP: &str = r"
+    ###############
+    #.............#
+    #.............#
+    #.............#
+    #......M......#
+    #.............#
+    #.............#
+    #.............#
+    #.............#
+    #.............#
+    #.............#
+    #.............#
+    #.............#
+    #.............#
+    #.............#
+    #.............#
+    #.............#
+    #.o...........#
+    ###############
+    ###############
 ";
 
 #[cfg(test)]

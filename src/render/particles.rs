@@ -68,6 +68,12 @@ const BALL_BITS: [Color; 3] = [
     Color::new(0.66, 0.08, 0.06, 1.0),
     Color::new(1.0, 0.85, 0.82, 1.0),
 ];
+/// Shards of the Hypno Cube.
+const BOSS_BITS: [Color; 3] = [
+    Color::new(0.48, 0.24, 0.78, 1.0),
+    Color::new(0.75, 0.25, 1.0, 1.0),
+    Color::new(0.96, 0.93, 1.0, 1.0),
+];
 /// Shreds of a popped balloon.
 const BALLOON_BITS: [Color; 3] = [
     Color::new(0.56, 0.82, 1.0, 1.0),
@@ -138,6 +144,20 @@ impl Particles {
                 Event::GateMoved { pos } => self.puffs(pos, 8, 50.0),
                 Event::Launched { pos } => self.puffs(pos, 8, 70.0),
                 Event::Shot { pos } => self.puffs(pos, 3, 25.0),
+                Event::BossHit { pos } => {
+                    self.sparkle(pos, Color::new(0.85, 0.6, 1.0, 1.0));
+                    self.popups.push(Popup {
+                        text: "+1000".to_owned(),
+                        pos: pos - vec2(0.0, 14.0),
+                        life: POPUP_LIFE,
+                        color: Color::new(0.85, 0.6, 1.0, 1.0),
+                    });
+                }
+                Event::BossDefeated { pos } => {
+                    self.burst(pos, &BOSS_BITS);
+                    self.burst(pos, &BOSS_BITS);
+                    self.confetti(pos);
+                }
                 Event::ShotBlocked { pos } => self.debris(pos, &STONE, 6, 60.0),
                 Event::EnemyFreed { pos } => {
                     self.sparkle(pos, FREED_PINK);

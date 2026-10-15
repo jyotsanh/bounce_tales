@@ -39,6 +39,7 @@ pub const FIELDS: &[(&str, Probe)] = &[
     ("riding", |s| s.riding.is_some() as u8 as f64),
     ("held", |s| s.held.is_some() as u8 as f64),
     ("freed", |s| s.enemies_freed as f64),
+    ("boss.hp", |s| boss_hp(s) as f64),
     // 0 normal, 1 stone, 2 balloon.
     ("form", |s| s.ball.form as u8 as f64),
     ("seesaw.angle", |s| first_seesaw_angle(s) as f64),
@@ -77,6 +78,17 @@ fn first_seesaw_angle(s: &Sim) -> f32 {
             _ => None,
         })
         .unwrap_or(0.0)
+}
+
+/// Hit points left on the level's boss (0 if none).
+fn boss_hp(s: &Sim) -> u32 {
+    s.entities
+        .iter()
+        .find_map(|e| match &e.kind {
+            crate::sim::EntityKind::Boss(b) => Some(b.hp),
+            _ => None,
+        })
+        .unwrap_or(0)
 }
 
 pub fn probe(sim: &Sim, field: &str) -> Option<f64> {
