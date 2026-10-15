@@ -41,20 +41,35 @@ pub struct Platform {
 
 impl Platform {
     pub fn new(path: Vec<Vec2>, looped: bool, speed: f32, wait: u32, width: f32) -> Platform {
-        let start = path[0];
-        Platform {
+        Platform::starting_at(path, looped, speed, wait, width, 0.0)
+    }
+
+    /// A platform that starts `along` px into its path (wheel cars are
+    /// spread out this way).
+    pub fn starting_at(
+        path: Vec<Vec2>,
+        looped: bool,
+        speed: f32,
+        wait: u32,
+        width: f32,
+        along: f32,
+    ) -> Platform {
+        let mut p = Platform {
             path,
             looped,
             speed,
             wait,
             width,
-            along: 0.0,
+            along,
             forward: true,
             waiting: 0,
-            top_centre: start,
-            prev_top_centre: start,
+            top_centre: Vec2::ZERO,
+            prev_top_centre: Vec2::ZERO,
             vel: Vec2::ZERO,
-        }
+        };
+        p.top_centre = p.point_at(along);
+        p.prev_top_centre = p.top_centre;
+        p
     }
 
     fn segments(&self) -> impl Iterator<Item = (Vec2, Vec2)> + '_ {

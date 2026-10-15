@@ -117,9 +117,47 @@ pub enum EntityKind {
     Fan { force: Vec2 },
     /// Pushable box (moved by `Sim::step`; solid to the ball).
     Crate(Crate),
-    /// Plank on a pivot (turned by `Sim::step`).
+    /// Plank on a pivot (turned by `Sim::step`); also motor-driven
+    /// spinners.
     Seesaw(Seesaw),
+    /// Hub and spokes of a wheel whose cars are separate `Platform`
+    /// entities (drawing only). `angle` follows the cars.
+    Wheel {
+        centre: Vec2,
+        radius: f32,
+        count: u32,
+        angle: f32,
+        speed: f32,
+    },
+    /// Sucks in a ball that enters its base and fires it from the muzzle
+    /// along `aim` (rad, clockwise from right). `auto` fires after `delay`
+    /// steps, otherwise on a jump press; the barrel swings `swing` rad
+    /// either side of `base_aim` while loaded or idle.
+    Cannon {
+        aim: f32,
+        base_aim: f32,
+        swing: f32,
+        swing_speed: f32,
+        phase: f32,
+        power: f32,
+        auto: bool,
+        delay: u32,
+        cooldown: u32,
+        fired: u32,
+    },
 }
+
+/// Barrel length of a cannon (pivot to muzzle), px.
+pub const CANNON_BARREL: f32 = 20.0;
+/// Defaults for wheel, spinner and cannon properties.
+pub const DEFAULT_WHEEL_RADIUS: f32 = 48.0;
+pub const DEFAULT_WHEEL_CARS: i32 = 4;
+pub const DEFAULT_WHEEL_SPEED_DEG: f32 = 40.0;
+pub const DEFAULT_SPINNER_SPEED_DEG: f32 = 45.0;
+pub const DEFAULT_CANNON_ANGLE_DEG: f32 = -45.0;
+pub const DEFAULT_CANNON_POWER: f32 = 420.0;
+pub const DEFAULT_CANNON_DELAY: f32 = 0.5;
+pub const DEFAULT_CANNON_SWING_SPEED_DEG: f32 = 90.0;
 
 /// Steps a catapult holds the ball before firing.
 pub const CATAPULT_HOLD_TICKS: u32 = 12;
@@ -160,6 +198,9 @@ pub const KNOWN_TYPES: &[&str] = &[
     "fan",
     "crate",
     "seesaw",
+    "spinner",
+    "wheel",
+    "cannon",
 ];
 
 /// Reads a string property with a default.
@@ -282,6 +323,44 @@ pub fn build(spec: &ObjectSpec) -> Result<Entity, String> {
                 spec.pos.y + spec.size.y,
             ))
         }
+        "spinner" => {
+            // The rect's width is the plank; it turns about the rect's
+            // centre.
+            need_rect(spec)?;
+            let speed = num_prop(spec, "speed", DEFAULT_SPINNER_SPEED_DEG)?.to_radians();
+            EntityKind::Seesaw(Seesaw::spinner(
+                spec.pos + spec.size / 2.0,
+                spec.size.x / 2.0,
+                speed,
+            ))
+        }
+        "cannon" => {
+            need_rect(spec)?;
+            let fire = str_prop(spec, "fire", "auto")?;
+            if fire != "auto" && fire != "jump" {
+                return Err(format!("cannon '{}': fire must be auto or jump", spec.name));
+            }
+            let aim = num_prop(spec, "angle", DEFAULT_CANNON_ANGLE_DEG)?.to_radians();
+            EntityKind::Cannon {
+                aim,
+                base_aim: aim,
+                swing: num_prop(spec, "swing", 0.0)?.to_radians(),
+                swing_speed: num_prop(spec, "swing_speed", DEFAULT_CANNON_SWING_SPEED_DEG)?
+                    .to_radians(),
+                phase: 0.0,
+                power: num_prop(spec, "power", DEFAULT_CANNON_POWER)?,
+                auto: fire == "auto",
+                delay: (num_prop(spec, "delay", DEFAULT_CANNON_DELAY)?
+                    * crate::sim::TICKS_PER_SECOND as f32)
+                    .round()
+                    .max(1.0) as u32,
+                cooldown: 0,
+                fired: 0,
+            }
+        }
+        "wheel" => {
+            return Err("wheels are built by build_all (several entities)".into());
+        }
         "crate" => {
             need_rect(spec)?;
             EntityKind::Crate(Crate::new(spec.pos))
@@ -379,7 +458,69 @@ pub fn build(spec: &ObjectSpec) -> Result<Entity, String> {
 
 /// Builds every object, failing on the first bad one.
 pub fn build_all(specs: &[ObjectSpec]) -> Result<Vec<Entity>, String> {
-    specs.iter().map(build).collect()
+    let mut out = Vec::new();
+    for spec in specs {
+        if spec.kind == "wheel" {
+            out.extend(build_wheel(spec)?);
+        } else {
+            out.push(build(spec)?);
+        }
+    }
+    Ok(out)
+}
+
+/// A wheel: a hub entity plus `count` level platforms ("cars") spaced
+/// evenly on a circle, looping clockwise for positive `speed` (deg/s).
+/// Centre = the rect's centre (or the point); radius = half the rect's
+/// width, or the `radius` property.
+fn build_wheel(spec: &ObjectSpec) -> Result<Vec<Entity>, String> {
+    let centre = spec.pos + spec.size / 2.0;
+    let radius = if spec.size.x > 0.0 {
+        spec.size.x / 2.0
+    } else {
+        num_prop(spec, "radius", DEFAULT_WHEEL_RADIUS)?
+    };
+    let count = num_prop(spec, "count", DEFAULT_WHEEL_CARS as f32)?.round() as i32;
+    let speed = num_prop(spec, "speed", DEFAULT_WHEEL_SPEED_DEG)?.to_radians();
+    let width = num_prop(spec, "width", 2.0)?.round().max(1.0) * crate::sim::map::TILE;
+    if !(1..=12).contains(&count) || radius < 16.0 || speed == 0.0 {
+        return Err(format!(
+            "wheel '{}': count 1..12, radius >= 16, speed not 0",
+            spec.name
+        ));
+    }
+    // Circle as a fine polygon, ordered in the direction of travel.
+    const SIDES: usize = 48;
+    let dir = speed.signum();
+    let path: Vec<Vec2> = (0..SIDES)
+        .map(|i| {
+            let a = dir * i as f32 / SIDES as f32 * std::f32::consts::TAU;
+            centre + vec2(a.cos(), a.sin()) * radius
+        })
+        .collect();
+    let probe = Platform::new(path.clone(), true, 1.0, 0, width);
+    let length = probe.length();
+    let mut out = vec![Entity {
+        pos: centre - Vec2::splat(radius),
+        size: Vec2::splat(radius * 2.0),
+        kind: EntityKind::Wheel {
+            centre,
+            radius,
+            count: count as u32,
+            angle: 0.0,
+            speed,
+        },
+    }];
+    for k in 0..count {
+        let along = length * k as f32 / count as f32;
+        let p = Platform::starting_at(path.clone(), true, speed.abs() * radius, 0, width, along);
+        out.push(Entity {
+            pos: p.top_left(),
+            size: vec2(p.width, platforms::PLATFORM_H),
+            kind: EntityKind::Platform(p),
+        });
+    }
+    Ok(out)
 }
 
 impl Entity {
@@ -424,6 +565,24 @@ impl Entity {
             | EntityKind::Fan { .. }
             | EntityKind::Crate(_)
             | EntityKind::Seesaw(_) => {}
+            EntityKind::Wheel { angle, speed, .. } => *angle += *speed * crate::sim::DT,
+            EntityKind::Cannon {
+                aim,
+                base_aim,
+                swing,
+                swing_speed,
+                phase,
+                cooldown,
+                fired,
+                ..
+            } => {
+                if *swing > 0.0 {
+                    *phase += *swing_speed * crate::sim::DT;
+                    *aim = *base_aim + *swing * phase.sin();
+                }
+                *cooldown = cooldown.saturating_sub(1);
+                *fired = fired.saturating_sub(1);
+            }
             EntityKind::Spring { squish, .. } => *squish = squish.saturating_sub(1),
             EntityKind::Catapult {
                 cooldown, fired, ..
@@ -592,6 +751,38 @@ mod tests {
             }
         );
         assert!(build(&spec("spring", Vec2::ZERO)).is_err());
+    }
+
+    #[test]
+    fn wheel_expands_into_hub_and_evenly_spaced_cars() {
+        let mut w = spec("wheel", vec2(96.0, 96.0));
+        w.props = vec![("count".into(), Prop::Int(3))];
+        let es = build_all(&[w]).unwrap();
+        assert_eq!(es.len(), 4);
+        assert!(matches!(es[0].kind, EntityKind::Wheel { count: 3, .. }));
+        let centre = vec2(148.0, 148.0);
+        for e in &es[1..] {
+            let EntityKind::Platform(p) = &e.kind else {
+                panic!("car is not a platform")
+            };
+            assert!((p.top_centre.distance(centre) - 48.0).abs() < 0.5);
+        }
+    }
+
+    #[test]
+    fn cannon_properties() {
+        let mut c = spec("cannon", vec2(32.0, 32.0));
+        c.props = vec![
+            ("fire".into(), Prop::Str("jump".into())),
+            ("swing".into(), Prop::Int(30)),
+        ];
+        let EntityKind::Cannon { auto, swing, .. } = build(&c).unwrap().kind else {
+            panic!()
+        };
+        assert!(!auto);
+        assert!((swing - 30f32.to_radians()).abs() < 1e-6);
+        c.props[0].1 = Prop::Str("never".into());
+        assert!(build(&c).is_err());
     }
 
     #[test]

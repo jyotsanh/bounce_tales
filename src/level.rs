@@ -37,7 +37,10 @@
 //! cell (ASCII ones are all linked by the name `gate`), `j` = spring, `>` /
 //! `<` = catapult firing right / left (32x16), `F` = fan blowing up (air
 //! stream 32 wide, 128 tall, standing on the cell's floor), `X` = big
-//! crate (32x32), `W` = seesaw (6-tile plank on a 1-tile post).
+//! crate (32x32), `W` = seesaw (6-tile plank on a 1-tile post), `O` =
+//! wheel (4 cars, radius 48, centred on the cell), `Z` = spinner (4-tile
+//! plank turning about the cell's centre), `K` = cannon firing up-right by
+//! itself, `Q` = swinging cannon that fires on jump.
 
 use std::io::Cursor;
 use std::path::Path;
@@ -159,6 +162,14 @@ pub const CRATE_SIZE: Vec2 = Vec2::new(32.0, 32.0);
 /// Size of an ASCII seesaw (`W`: a 6-tile plank on a 1-tile post standing
 /// on the cell's floor, centred on it), px.
 pub const SEESAW_SIZE: Vec2 = Vec2::new(96.0, 16.0);
+/// Size of an ASCII wheel (`O`: radius 48 around the cell's centre), px.
+pub const WHEEL_SIZE: Vec2 = Vec2::new(96.0, 96.0);
+/// Size of an ASCII spinner (`Z`: a 4-tile plank turning about the cell's
+/// centre), px.
+pub const SPINNER_SIZE: Vec2 = Vec2::new(64.0, 16.0);
+/// Size of an ASCII cannon (`K` fires by itself up-right; `Q` swings and
+/// fires on jump), px. `K` shoots steeply (-60°, 500 px/s).
+pub const CANNON_SIZE: Vec2 = Vec2::new(32.0, 32.0);
 /// Size of an ASCII catapult (`>` / `<`), px.
 pub const CATAPULT_SIZE: Vec2 = Vec2::new(32.0, 16.0);
 /// Size of an ASCII fan's air stream (`F`: 2 tiles wide, 8 tall, rising from
@@ -183,6 +194,8 @@ struct Marker {
     name: &'static str,
     size: Vec2,
     props: Vec<(String, Prop)>,
+    /// Centred on the cell's centre instead of standing on its floor.
+    centred: bool,
 }
 
 /// Object type, name, size and properties for an ASCII marker letter.
@@ -193,6 +206,11 @@ fn ascii_marker(c: char) -> Option<Marker> {
         name,
         size,
         props: Vec::new(),
+        centred: false,
+    };
+    let centred = |kind, size| Marker {
+        centred: true,
+        ..m(kind, kind, size)
     };
     let dir = |d: &str| vec![("dir".to_owned(), Prop::Str(d.to_owned()))];
     Some(match c {
@@ -219,6 +237,27 @@ fn ascii_marker(c: char) -> Option<Marker> {
         'F' => m("fan", "fan", FAN_SIZE),
         'X' => m("crate", "crate", CRATE_SIZE),
         'W' => m("seesaw", "seesaw", SEESAW_SIZE),
+        'O' => centred("wheel", WHEEL_SIZE),
+        // Counter-clockwise, so crossing left to right its far end rises.
+        'Z' => Marker {
+            props: vec![("speed".into(), Prop::Int(-45))],
+            ..centred("spinner", SPINNER_SIZE)
+        },
+        'K' => Marker {
+            props: vec![
+                ("angle".into(), Prop::Int(-60)),
+                ("power".into(), Prop::Int(500)),
+            ],
+            ..m("cannon", "cannon", CANNON_SIZE)
+        },
+        'Q' => Marker {
+            props: vec![
+                ("fire".into(), Prop::Str("jump".into())),
+                ("swing".into(), Prop::Int(35)),
+                ("angle".into(), Prop::Int(-60)),
+            ],
+            ..m("cannon", "cannon", CANNON_SIZE)
+        },
         _ => return None,
     })
 }
@@ -239,14 +278,20 @@ fn ascii_objects(text: &str) -> (String, Vec<ObjectSpec>) {
                 name,
                 size,
                 props,
+                centred,
             }) = ascii_marker(c)
             {
                 let floor = (y as f32 + 1.0) * TILE;
-                let centre_x = (x as f32 + 0.5) * TILE;
+                let centre = vec2(x as f32 + 0.5, y as f32 + 0.5) * TILE;
+                let top = if centred {
+                    centre.y - size.y / 2.0
+                } else {
+                    floor - size.y
+                };
                 objects.push(ObjectSpec {
                     kind: kind.into(),
                     name: name.into(),
-                    pos: vec2(centre_x - size.x / 2.0, floor - size.y),
+                    pos: vec2(centre.x - size.x / 2.0, top),
                     size,
                     points: Vec::new(),
                     closed: false,

@@ -85,7 +85,7 @@ Key rules:
 ### Phase D — Physics props
 - [x] **19.** **Pushable boxes** (gravity, ball pushes them, they stack on tiles).
 - [x] **20.** **Seesaws** (pivot plank, torque from ball weight, ball rolls on the rotated segment).
-- [ ] **21.** **Rotating platforms / wheels & cannons** (ball launched from cannons).
+- [x] **21.** **Rotating platforms / wheels & cannons** (ball launched from cannons).
 
 ### Phase E — Transformations
 - [ ] **22.** **Transformation framework**: pickup objects, form state machine, swap visuals and physics parameters, revert pickups.
@@ -318,3 +318,11 @@ Spare capacity: if a step overruns, the next prompt finishes it before moving on
 - Art: `assets/art/seesaw.txt` (96x8 plank with a red pivot mark), items `seesaw_post`; `Atlas::draw_rotated`; plank angle interpolated.
 - New ASCII level `seesaws` (seesaw on a pillar over a bottomless pit). Holding right crosses it. Replay `seesaw_cross`. Tests: geometry, tipping and stops, timing, heavier tips faster, unloaded stays put, surface speed sign, step-on, tips toward the landing side, rolls downhill on a tilted plank.
 - Note for future edits: **check that every text replacement applied** — several edits this session silently missed after `cargo fmt` reflowed code.
+
+### Step 21 — Wheels, spinners, cannons (done)
+- **Wheel** (`wheel`: rect → centre + radius = width/2, or a point + `radius`; props `count` 4, `speed` deg/s 40 (negative = counter-clockwise), `width` tiles 2; ASCII `O`, radius 48 centred on the cell). `entities::build_all` expands it into an `EntityKind::Wheel` hub (spokes, drawing only) + `count` ordinary looping `Platform`s on a 48-gon circle, spread with `Platform::starting_at(…, along)`. Riding, momentum and landing come from step 16 unchanged.
+- **Spinner** (`spinner`: rect, width = plank, turns about the rect centre; `speed` deg/s 45; ASCII `Z` = 4-tile plank, **counter-clockwise** so crossing left→right its far end rises — clockwise left the ball under the far bank). `Seesaw::spinner` = `motor: Some(speed)`: constant spin, angle wrapped to −π..π, weight/kicks ignored; **whichever face points up is the top** (`normal()`/`surface_speed` flip past vertical).
+- **Cannon** (`cannon`: rect = base, barrel pivot at its centre; props `angle` deg (0 = right, −90 = up, default −45), `power` 420, `fire` auto|jump, `delay` s 0.5, `swing` deg amplitude 0, `swing_speed` deg/s 90; ASCII `K` = auto −60° 500, `Q` = jump-fire swinging ±35° around −60°). Shares `Sim.held` with catapults: the ball is hidden at the pivot (`ball_visible` false) and fired from the muzzle (`CANNON_BARREL` 20 px) along the aim; cooldown 40; recoil drawn.
+- ASCII markers can be `centred` on the cell (wheel, spinner). Art: `cannon.txt` barrel sheet (rotated about its breech), objects `cannon_base`, items `hub`; `Atlas::draw_rotated_about`.
+- New ASCII level `wheels` (wheel over a pit, spinner over a pit, steep cannon up to the exit ledge, jump cannon behind the start). Replay `wheels_route` (controller-recorded; the controller steers mid-air onto the nearest car). Tests: wheel expansion + even spacing, cannon props, spinner keeps an upward top, auto cannon hides/fires after ~0.5 s at −60°, jump cannon waits for a press, a rider goes round on a wheel car, a spinner tips a passive ball off.
+- Workflow: edits now go through `shots/rep.py` (gitignored), which aborts and writes nothing if any anchor text is missing; it caught 2 stale anchors this step.

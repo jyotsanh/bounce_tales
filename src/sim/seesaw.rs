@@ -34,6 +34,9 @@ pub struct Seesaw {
     pub max_angle: f32,
     /// Where the post meets the ground (drawing only).
     pub base_y: f32,
+    /// Constant spin (rad/s) for a motor-driven spinner; `None` for a
+    /// seesaw moved by weight.
+    pub motor: Option<f32>,
 }
 
 impl Seesaw {
@@ -46,7 +49,24 @@ impl Seesaw {
             omega: 0.0,
             max_angle,
             base_y,
+            motor: None,
         }
+    }
+
+    /// A plank turning steadily at `speed` rad/s (clockwise positive)
+    /// around its centre. Whichever face points up is its top.
+    pub fn spinner(centre: Vec2, half: f32, speed: f32) -> Seesaw {
+        Seesaw {
+            motor: Some(speed),
+            omega: speed,
+            ..Seesaw::new(centre, half, std::f32::consts::PI, centre.y)
+        }
+    }
+
+    /// True when the plank's original top face points down (a spinner
+    /// past vertical): the other face is the top then.
+    fn flipped(&self) -> bool {
+        self.angle.cos() < 0.0
     }
 
     /// Unit vector along the plank (toward its right end).
@@ -56,7 +76,8 @@ impl Seesaw {
 
     /// Unit normal of the plank's top surface.
     pub fn normal(&self) -> Vec2 {
-        vec2(self.angle.sin(), -self.angle.cos())
+        let n = vec2(self.angle.sin(), -self.angle.cos());
+        if self.flipped() { -n } else { n }
     }
 
     fn inertia(&self) -> f32 {
@@ -75,13 +96,27 @@ impl Seesaw {
 
     /// Speed of the top surface at `s` along its normal (px/s, up positive).
     pub fn surface_speed(&self, s: f32) -> f32 {
-        -s * self.omega
+        let v = -s * self.omega;
+        if self.flipped() { -v } else { v }
     }
 
     /// Turns the plank one step. `load` = (position along the plank, mass)
     /// of a ball resting on it.
     pub fn advance(&mut self, load: Option<(f32, f32)>) {
         self.prev_angle = self.angle;
+        if let Some(speed) = self.motor {
+            self.omega = speed;
+            self.angle += speed * DT;
+            // Keep it in -π..π; drawing interpolates across the wrap.
+            if self.angle > std::f32::consts::PI {
+                self.angle -= std::f32::consts::TAU;
+                self.prev_angle -= std::f32::consts::TAU;
+            } else if self.angle < -std::f32::consts::PI {
+                self.angle += std::f32::consts::TAU;
+                self.prev_angle += std::f32::consts::TAU;
+            }
+            return;
+        }
         if let Some((s, mass)) = load {
             let torque = mass * GRAVITY * s * self.angle.cos();
             self.omega += torque / self.inertia() * DT;
@@ -97,6 +132,9 @@ impl Seesaw {
     /// Spin from a ball of `mass` hitting the top at `s` with speed `speed`
     /// into the surface.
     pub fn kick(&mut self, s: f32, speed: f32, mass: f32) {
+        if self.motor.is_some() {
+            return;
+        }
         self.omega += IMPACT_GAIN * mass * speed * s / self.inertia();
     }
 
@@ -247,6 +285,21 @@ mod tests {
         assert!(landed.is_some());
         assert!(b.grounded);
         assert!((p.locate(b.pos).1 - 8.0).abs() < 1e-3, "on top");
+    }
+
+    #[test]
+    fn spinner_turns_steadily_and_keeps_an_upward_top() {
+        let mut p = Seesaw::spinner(vec2(100.0, 100.0), 32.0, std::f32::consts::FRAC_PI_2);
+        for _ in 0..120 {
+            p.advance(Some((30.0, 5.0))); // weight is ignored
+        }
+        // Half a turn in two seconds: upside down, but the top still faces up.
+        assert!(
+            (p.angle.abs() - std::f32::consts::PI).abs() < 0.05,
+            "{}",
+            p.angle
+        );
+        assert!(p.normal().y < 0.0);
     }
 
     #[test]

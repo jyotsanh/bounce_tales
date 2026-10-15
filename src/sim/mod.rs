@@ -423,7 +423,39 @@ impl Sim {
         let Some((i, ticks)) = self.held else {
             return false;
         };
+        let jump = self.jump_pressed();
         let e = &mut self.entities[i];
+        if let EntityKind::Cannon {
+            aim,
+            power,
+            auto,
+            cooldown,
+            fired,
+            ..
+        } = &mut e.kind
+        {
+            let pivot = e.pos + e.size / 2.0;
+            self.ball.prev_pos = pivot;
+            self.ball.pos = pivot;
+            self.ball.vel = Vec2::ZERO;
+            let ready = if *auto { ticks <= 1 } else { jump };
+            if !ready {
+                self.held = Some((i, ticks.saturating_sub(1)));
+                return true;
+            }
+            let dir = macroquad::math::vec2(aim.cos(), aim.sin());
+            let muzzle = pivot + dir * entities::CANNON_BARREL;
+            self.ball.pos = muzzle;
+            self.ball.prev_pos = muzzle;
+            self.ball.vel = dir * *power;
+            self.ball.grounded = false;
+            self.ball.jumping = true;
+            *cooldown = entities::CATAPULT_COOLDOWN_TICKS;
+            *fired = entities::LAUNCH_ANIM_TICKS;
+            self.held = None;
+            self.events.push(Event::Launched { pos: muzzle });
+            return true;
+        }
         let cup = cup_of(e, self.ball.radius);
         let EntityKind::Catapult {
             launch,
@@ -476,8 +508,15 @@ impl Sim {
                         });
                     }
                 }
-                EntityKind::Catapult { cooldown: 0, .. } if self.held.is_none() && ball_inside => {
-                    self.held = Some((i, entities::CATAPULT_HOLD_TICKS));
+                EntityKind::Catapult { cooldown: 0, .. }
+                | EntityKind::Cannon { cooldown: 0, .. }
+                    if self.held.is_none() && ball_inside =>
+                {
+                    let ticks = match e.kind {
+                        EntityKind::Cannon { delay, .. } => delay,
+                        _ => entities::CATAPULT_HOLD_TICKS,
+                    };
+                    self.held = Some((i, ticks));
                     self.riding = None;
                 }
                 _ => {}
@@ -739,7 +778,10 @@ impl Sim {
 
     /// True while the ball should be drawn (not popped, not game over).
     pub fn ball_visible(&self) -> bool {
-        self.dying == 0 && self.game_over == 0
+        let in_cannon = self
+            .held
+            .is_some_and(|(i, _)| matches!(self.entities[i].kind, EntityKind::Cannon { .. }));
+        self.dying == 0 && self.game_over == 0 && !in_cannon
     }
 
     /// True on the first step the jump button is held.
@@ -1552,6 +1594,112 @@ mod tests {
             seesaw(&sim).angle
         };
         assert!(angle_after(3.0) > angle_after(1.0));
+    }
+
+    fn wheels_level() -> Sim {
+        Sim::for_level("wheels").unwrap()
+    }
+
+    fn cannon_index(sim: &Sim, auto: bool) -> usize {
+        sim.entities
+            .iter()
+            .position(|e| matches!(e.kind, EntityKind::Cannon { auto: a, .. } if a == auto))
+            .unwrap()
+    }
+
+    #[test]
+    fn auto_cannon_hides_then_fires_after_its_delay() {
+        let mut sim = wheels_level();
+        let i = cannon_index(&sim, true);
+        let pivot = sim.entities[i].centre();
+        sim.ball.pos = pivot - macroquad::math::vec2(10.0, 0.0);
+        sim.step(press("R"));
+        assert_eq!(sim.held.map(|h| h.0), Some(i));
+        assert!(!sim.ball_visible(), "hidden inside the cannon");
+        let mut fired_at = None;
+        for t in 0..120 {
+            sim.step(InputFrame::NONE);
+            if sim
+                .events
+                .iter()
+                .any(|e| matches!(e, Event::Launched { .. }))
+            {
+                fired_at = Some(t);
+                break;
+            }
+        }
+        let t = fired_at.expect("never fired");
+        assert!((25..=35).contains(&t), "fired after {t} steps");
+        assert!(sim.ball_visible());
+        // -60°, 500 px/s.
+        assert!(
+            sim.ball.vel.y < -400.0 && sim.ball.vel.x > 200.0,
+            "{:?}",
+            sim.ball.vel
+        );
+    }
+
+    #[test]
+    fn jump_cannon_waits_for_a_press() {
+        let mut sim = wheels_level();
+        let i = cannon_index(&sim, false);
+        sim.ball.pos = sim.entities[i].centre();
+        for _ in 0..120 {
+            sim.step(InputFrame::NONE);
+        }
+        assert_eq!(sim.held.map(|h| h.0), Some(i), "still waiting");
+        sim.step(press("J"));
+        assert!(sim.held.is_none());
+        assert!(sim.ball.vel.length() > 400.0);
+    }
+
+    #[test]
+    fn wheel_cars_carry_a_rider_round() {
+        let mut sim = wheels_level();
+        let car = sim
+            .entities
+            .iter()
+            .position(|e| matches!(e.kind, EntityKind::Platform(_)))
+            .unwrap();
+        sim.ball.pos = sim.entities[car].pos + macroquad::math::vec2(16.0, -12.0);
+        let mut rode = 0;
+        let mut lowest_y = f32::MIN;
+        let mut highest_y = f32::MAX;
+        for _ in 0..240 {
+            sim.step(InputFrame::NONE);
+            if sim.riding == Some(car) {
+                rode += 1;
+                lowest_y = lowest_y.max(sim.ball.pos.y);
+                highest_y = highest_y.min(sim.ball.pos.y);
+            }
+        }
+        assert!(rode > 150, "rode {rode} steps");
+        assert!(
+            lowest_y - highest_y > 40.0,
+            "went round: {highest_y}..{lowest_y}"
+        );
+    }
+
+    #[test]
+    fn a_spinner_tips_a_passive_ball_off() {
+        let mut sim = wheels_level();
+        let centre = sim
+            .entities
+            .iter()
+            .find_map(|e| match &e.kind {
+                EntityKind::Seesaw(w) if w.motor.is_some() => Some(w.pivot),
+                _ => None,
+            })
+            .unwrap();
+        sim.ball.pos = centre - macroquad::math::vec2(0.0, 14.0);
+        let mut was_on = false;
+        let mut fell = false;
+        for _ in 0..360 {
+            sim.step(InputFrame::NONE);
+            was_on |= sim.on_seesaw.is_some();
+            fell |= sim.deaths > 0;
+        }
+        assert!(was_on && fell, "on {was_on}, fell {fell}");
     }
 
     #[test]

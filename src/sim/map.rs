@@ -178,11 +178,12 @@ pub struct TileMap {
 
 /// ASCII letters that mark objects (exit, checkpoint, gem, egg, extra
 /// life, moving platforms, switch, door, bridge, spring, catapults, fan,
-/// crate, seesaw);
+/// crate, seesaw, wheel, spinner, cannons);
 /// they are empty space
 /// in the collision map. See `level::ascii_marker`.
 pub const OBJECT_MARKERS: &[char] = &[
-    'E', 'C', '*', 'e', '+', 'H', 'V', 'S', 'D', 'B', 'j', '>', '<', 'F', 'X', 'W',
+    'E', 'C', '*', 'e', '+', 'H', 'V', 'S', 'D', 'B', 'j', '>', '<', 'F', 'X', 'W', 'O', 'Z', 'K',
+    'Q',
 ];
 
 /// Per-cell flag bits from tile properties (used from steps 11 and 15).
@@ -370,6 +371,7 @@ pub fn builtin_text(name: &str) -> Option<&'static str> {
         "launchers" => LAUNCHERS_MAP,
         "crates" => CRATES_MAP,
         "seesaws" => SEESAWS_MAP,
+        "wheels" => WHEELS_MAP,
         _ => return None,
     })
 }
@@ -390,6 +392,7 @@ pub const BUILTIN_NAMES: &[&str] = &[
     "launchers",
     "crates",
     "seesaws",
+    "wheels",
 ];
 
 /// Test map: one screen with a step block, a low ceiling, a tunnel, a
@@ -653,6 +656,34 @@ const SEESAWS_MAP: &str = r"
     ##########...#...#############
     ##########...#...#############
     ##########...#...#############
+";
+
+/// Wheels and cannons (48 wide): a 4-car wheel (centre 216,200, radius 48)
+/// over a pit (x 144..288), a spinner (centre 424,232) over a pit (x
+/// 384..464), and a steep cannon (x 520..552) that shoots up to a high
+/// ledge (top y 128 from x 608) with the exit. A swinging jump-fire cannon
+/// sits behind the start.
+const WHEELS_MAP: &str = r"
+    #..............................................#
+    #..............................................#
+    #..............................................#
+    #..............................................#
+    #..............................................#
+    #..............................................#
+    #..............................................#
+    #...........................................E..#
+    #.....................................##########
+    #.....................................##########
+    #.....................................##########
+    #.....................................##########
+    #............O........................##########
+    #Q.o.............................K....##########
+    #########.........######..Z..###################
+    #########.........######.....###################
+    #########.........######.....###################
+    #########.........######.....###################
+    #########.........######.....###################
+    #########.........######.....###################
 ";
 
 #[cfg(test)]

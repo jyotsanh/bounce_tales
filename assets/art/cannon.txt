@@ -1,0 +1,24 @@
+; Cannon barrel (pivot at its left-middle; drawn rotated to its aim).
+; Run `cargo run -p artgen`.
+sheet cannon cell 24x12 columns 1
+palette
+  k #202428   ; outline
+  G #8a96a2   ; barrel light
+  m #5c6670   ; barrel
+  M #3e464e   ; barrel dark
+  g #c9a24a   ; brass muzzle ring
+end
+sprite barrel
+kkkkkkkkkkkkkkkkkkkkkkkk
+kGGGGGGGGGGGGGGGGGGGGggg
+kGGGGGGGGGGGGGGGGGGGGggg
+kGGGGGGGGGGGGGGGGGGGGggg
+kmmmmmmmmmmmmmmmmmmmmggg
+kmmmmmmmmmmmmmmmmmmmmggg
+kmmmmmmmmmmmmmmmmmmmmggg
+kmmmmmmmmmmmmmmmmmmmmggg
+kMMMMMMMMMMMMMMMMMMMMggg
+kMMMMMMMMMMMMMMMMMMMMggg
+kMMMMMMMMMMMMMMMMMMMMggg
+kkkkkkkkkkkkkkkkkkkkkkkk
+end

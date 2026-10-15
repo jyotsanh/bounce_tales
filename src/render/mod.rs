@@ -58,6 +58,8 @@ pub const ENTITY_SPRITES: &[&str] = &[
     "crate",
     "crate_big",
     "seesaw_post",
+    "hub",
+    "cannon_base",
 ];
 
 /// Roll frames in the ball atlas (`roll_0` … `roll_15`).
@@ -215,17 +217,52 @@ impl Renderer {
             }
             EntityKind::Crate(_) => {}
             EntityKind::Seesaw(w) => {
-                let post_top = vec2(w.pivot.x - 8.0, w.pivot.y);
-                let post_len = (w.base_y - w.pivot.y).max(16.0);
-                self.sprites
-                    .items
-                    .draw_scaled("seesaw_post", post_top, vec2(16.0, post_len));
+                if w.motor.is_none() {
+                    let post_top = vec2(w.pivot.x - 8.0, w.pivot.y);
+                    let post_len = (w.base_y - w.pivot.y).max(16.0);
+                    self.sprites
+                        .items
+                        .draw_scaled("seesaw_post", post_top, vec2(16.0, post_len));
+                }
                 let angle = w.prev_angle + (w.angle - w.prev_angle) * alpha;
                 let size = vec2(w.half * 2.0, seesaw::THICKNESS);
                 let top_left = w.pivot - size / 2.0;
                 self.sprites
                     .seesaw
                     .draw_rotated("plank", top_left, size, angle);
+                if w.motor.is_some() {
+                    self.sprites.items.draw("hub", w.pivot - vec2(8.0, 8.0));
+                }
+            }
+            EntityKind::Wheel {
+                centre,
+                radius,
+                count,
+                angle,
+                ..
+            } => {
+                let spoke = Color::new(0.35, 0.26, 0.15, 1.0);
+                for k in 0..*count {
+                    let a = angle + k as f32 / *count as f32 * std::f32::consts::TAU;
+                    let end = *centre + vec2(a.cos(), a.sin()) * *radius + vec2(0.0, 8.0);
+                    draw_line(centre.x, centre.y, end.x, end.y, 2.0, spoke);
+                }
+                self.sprites.items.draw("hub", *centre - vec2(8.0, 8.0));
+            }
+            EntityKind::Cannon { aim, fired, .. } => {
+                let pivot = e.pos + e.size / 2.0;
+                // Recoil: the barrel kicks back a little when it fires.
+                let back = if *fired > 0 { 3.0 } else { 0.0 };
+                let dir = vec2(aim.cos(), aim.sin());
+                let start = pivot - dir * back - vec2(0.0, 6.0);
+                self.sprites.cannon.draw_rotated_about(
+                    "barrel",
+                    start,
+                    vec2(24.0, 12.0),
+                    *aim,
+                    vec2(0.0, 6.0),
+                );
+                self.sprites.objects.draw("cannon_base", e.pos);
             }
             EntityKind::Spring { squish, .. } => {
                 let name = if *squish > 0 { "spring_1" } else { "spring_0" };

@@ -1,0 +1,21 @@
+# Wheels level (recorded from a scripted controller): wait for a wheel car,
+# hop on and ride it over, roll off onto the far bank, time the spinner
+# crossing (its far end rises), roll into the cannon and get shot up to the
+# exit ledge.
+level wheels
+42 R
+52 -
+1 RJ
+31 R
+9 L
+5 R
+4 -
+18 L
+306 -
+47 R
+1 -
+7 R
+175 -
+146 R
+expect exit == 1
+expect deaths == 0

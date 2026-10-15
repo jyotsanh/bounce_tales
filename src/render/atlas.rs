@@ -96,6 +96,24 @@ impl Atlas {
         );
     }
 
+    /// Draws a sprite rotated by `angle` (radians, clockwise) about `pivot`
+    /// (relative to its top-left).
+    pub fn draw_rotated_about(&self, sprite: &str, pos: Vec2, size: Vec2, angle: f32, pivot: Vec2) {
+        draw_texture_ex(
+            &self.texture,
+            pos.x.round(),
+            pos.y.round(),
+            WHITE,
+            DrawTextureParams {
+                source: Some(self.rect(sprite)),
+                dest_size: Some(size),
+                rotation: angle,
+                pivot: Some(pos.round() + pivot),
+                ..Default::default()
+            },
+        );
+    }
+
     /// Draws a sprite stretched to `size`, rotated by `angle` (radians,
     /// clockwise) about its centre.
     pub fn draw_rotated(&self, sprite: &str, pos: Vec2, size: Vec2, angle: f32) {
@@ -154,6 +172,7 @@ pub struct Sprites {
     pub icons: Atlas,
     pub font: Atlas,
     pub seesaw: Atlas,
+    pub cannon: Atlas,
 }
 
 macro_rules! embedded_atlas {
@@ -177,6 +196,7 @@ impl Sprites {
             icons: embedded_atlas!("icons"),
             font: embedded_atlas!("font"),
             seesaw: embedded_atlas!("seesaw"),
+            cannon: embedded_atlas!("cannon"),
         }
     }
 
@@ -192,6 +212,7 @@ impl Sprites {
             "icons" => &self.icons,
             "font" => &self.font,
             "seesaw" => &self.seesaw,
+            "cannon" => &self.cannon,
             _ => panic!("no atlas named '{name}'"),
         }
     }
