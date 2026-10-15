@@ -38,6 +38,8 @@ pub const FIELDS: &[(&str, Probe)] = &[
     ("ball.water", |s| s.ball.water as f64),
     ("riding", |s| s.riding.is_some() as u8 as f64),
     ("held", |s| s.held.is_some() as u8 as f64),
+    ("seesaw.angle", |s| first_seesaw_angle(s) as f64),
+    ("on_seesaw", |s| s.on_seesaw.is_some() as u8 as f64),
     ("crate.x", |s| first_crate(s).0 as f64),
     ("crate.y", |s| first_crate(s).1 as f64),
     ("cam.x", |s| s.camera.pos.x as f64),
@@ -61,6 +63,17 @@ fn first_crate(s: &Sim) -> (f32, f32) {
         .iter()
         .find(|e| matches!(e.kind, crate::sim::EntityKind::Crate(_)))
         .map_or((0.0, 0.0), |e| (e.pos.x, e.pos.y))
+}
+
+/// Angle (degrees, clockwise) of the level's first seesaw (0 if none).
+fn first_seesaw_angle(s: &Sim) -> f32 {
+    s.entities
+        .iter()
+        .find_map(|e| match &e.kind {
+            crate::sim::EntityKind::Seesaw(w) => Some(w.angle.to_degrees()),
+            _ => None,
+        })
+        .unwrap_or(0.0)
 }
 
 pub fn probe(sim: &Sim, field: &str) -> Option<f64> {

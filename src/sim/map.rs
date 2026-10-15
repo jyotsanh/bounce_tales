@@ -178,11 +178,11 @@ pub struct TileMap {
 
 /// ASCII letters that mark objects (exit, checkpoint, gem, egg, extra
 /// life, moving platforms, switch, door, bridge, spring, catapults, fan,
-/// crate);
+/// crate, seesaw);
 /// they are empty space
 /// in the collision map. See `level::ascii_marker`.
 pub const OBJECT_MARKERS: &[char] = &[
-    'E', 'C', '*', 'e', '+', 'H', 'V', 'S', 'D', 'B', 'j', '>', '<', 'F', 'X',
+    'E', 'C', '*', 'e', '+', 'H', 'V', 'S', 'D', 'B', 'j', '>', '<', 'F', 'X', 'W',
 ];
 
 /// Per-cell flag bits from tile properties (used from steps 11 and 15).
@@ -369,6 +369,7 @@ pub fn builtin_text(name: &str) -> Option<&'static str> {
         "switches" => SWITCHES_MAP,
         "launchers" => LAUNCHERS_MAP,
         "crates" => CRATES_MAP,
+        "seesaws" => SEESAWS_MAP,
         _ => return None,
     })
 }
@@ -388,6 +389,7 @@ pub const BUILTIN_NAMES: &[&str] = &[
     "switches",
     "launchers",
     "crates",
+    "seesaws",
 ];
 
 /// Test map: one screen with a step block, a low ceiling, a tunnel, a
@@ -624,6 +626,33 @@ const CRATES_MAP: &str = r"
     ########################################
     ########################################
     ########################################
+";
+
+/// Seesaw (30 wide): banks at y 224, a bottomless pit (x 160..272) with a
+/// pillar holding a 6-tile seesaw (x 168..264, pivot at y 224). Crossing
+/// tips it one way then the other; the far bank needs a hop from the low
+/// end. Exit on the far bank.
+const SEESAWS_MAP: &str = r"
+    #............................#
+    #............................#
+    #............................#
+    #............................#
+    #............................#
+    #............................#
+    #............................#
+    #............................#
+    #............................#
+    #............................#
+    #............*...............#
+    #............................#
+    #............................#
+    #.o......................E...#
+    ##########...W...#############
+    ##########...#...#############
+    ##########...#...#############
+    ##########...#...#############
+    ##########...#...#############
+    ##########...#...#############
 ";
 
 #[cfg(test)]

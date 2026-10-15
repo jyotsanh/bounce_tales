@@ -84,7 +84,7 @@ Key rules:
 
 ### Phase D — Physics props
 - [x] **19.** **Pushable boxes** (gravity, ball pushes them, they stack on tiles).
-- [ ] **20.** **Seesaws** (pivot plank, torque from ball weight, ball rolls on the rotated segment).
+- [x] **20.** **Seesaws** (pivot plank, torque from ball weight, ball rolls on the rotated segment).
 - [ ] **21.** **Rotating platforms / wheels & cannons** (ball launched from cannons).
 
 ### Phase E — Transformations
@@ -308,3 +308,13 @@ Spare capacity: if a step overruns, the next prompt finishes it before moving on
 - Replay fields `crate.x`, `crate.y` (first crate). Art: items `crate` (16), objects `crate_big` (32); drawn interpolated; other sizes drawn as a grid of small crates.
 - New ASCII level `crates`: push the big crate to a 4-tile wall (64 px > 52 px jump), climb it, jump up, hop the spikes, exit. Replay `crates_route` (controller-recorded; re-recorded after the push fix: 643 → 408 ticks).
 - Tests: crate falls/rests, pushed and stopped flush at a wall, friction, stacking, floating, falls out; ball pushes at crate speed and keeps pace; the wall needs the crate; standing on a crate over spikes is safe; game over puts crates back.
+
+### Step 20 — Seesaws (done)
+- `seesaw` objects (rect: width = plank length, top edge = plank centre line, bottom = where the post stands; property `max_angle` degrees, default 25; ASCII `W` = 6-tile plank on a 1-tile post, `level::SEESAW_SIZE`). `sim::seesaw::Seesaw`: angle (clockwise = right end down), omega, stops at ±max (omega zeroed), damping 1.5/s, inertia = 10·L²/3.
+- Torque from a resting ball = mass·g·s·cos θ (s = signed position along the plank). Landing gives an angular kick (mass·speed·s/I). An unloaded plank keeps its tilt (and finishes any swing).
+- Ball on a seesaw = one-way surface like a platform (`Sim.on_seesaw: (entity, s)`, replay fields `on_seesaw`, `seesaw.angle` in degrees): `keep_rider` / `try_land`; `ground_normal` = plank normal, so the ball rolls downhill along the tilt; a plank swinging up pushes the ball (surface speed −s·ω along the normal) and can fling it off the end.
+- **Stepping on from a bank** whose top is a little below the plank: allowed while the ball's centre is above the top line and it isn't moving away (the first version only caught balls coming down, so a rolling ball fell through).
+- `BallParams.mass` (1.0) added for the stone ball. `Sim` passes: `update_seesaws` (before the ball), `collide_seesaws` (after tiles/platforms).
+- Art: `assets/art/seesaw.txt` (96x8 plank with a red pivot mark), items `seesaw_post`; `Atlas::draw_rotated`; plank angle interpolated.
+- New ASCII level `seesaws` (seesaw on a pillar over a bottomless pit). Holding right crosses it. Replay `seesaw_cross`. Tests: geometry, tipping and stops, timing, heavier tips faster, unloaded stays put, surface speed sign, step-on, tips toward the landing side, rolls downhill on a tilted plank.
+- Note for future edits: **check that every text replacement applied** — several edits this session silently missed after `cargo fmt` reflowed code.

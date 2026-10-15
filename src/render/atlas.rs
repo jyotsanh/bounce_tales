@@ -96,6 +96,23 @@ impl Atlas {
         );
     }
 
+    /// Draws a sprite stretched to `size`, rotated by `angle` (radians,
+    /// clockwise) about its centre.
+    pub fn draw_rotated(&self, sprite: &str, pos: Vec2, size: Vec2, angle: f32) {
+        draw_texture_ex(
+            &self.texture,
+            pos.x.round(),
+            pos.y.round(),
+            WHITE,
+            DrawTextureParams {
+                source: Some(self.rect(sprite)),
+                dest_size: Some(size),
+                rotation: angle,
+                ..Default::default()
+            },
+        );
+    }
+
     /// Draws a sprite stretched to `size` (whole pixels).
     pub fn draw_scaled(&self, sprite: &str, pos: Vec2, size: Vec2) {
         let pos = pos.round();
@@ -136,6 +153,7 @@ pub struct Sprites {
     pub items: Atlas,
     pub icons: Atlas,
     pub font: Atlas,
+    pub seesaw: Atlas,
 }
 
 macro_rules! embedded_atlas {
@@ -158,6 +176,7 @@ impl Sprites {
             items: embedded_atlas!("items"),
             icons: embedded_atlas!("icons"),
             font: embedded_atlas!("font"),
+            seesaw: embedded_atlas!("seesaw"),
         }
     }
 
@@ -172,6 +191,7 @@ impl Sprites {
             "items" => &self.items,
             "icons" => &self.icons,
             "font" => &self.font,
+            "seesaw" => &self.seesaw,
             _ => panic!("no atlas named '{name}'"),
         }
     }

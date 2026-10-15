@@ -12,6 +12,7 @@ use crate::sim::ball::Ball;
 use crate::sim::crates::Crate;
 use crate::sim::hazards::Cause;
 use crate::sim::platforms::{self, Platform};
+use crate::sim::seesaw::{self, Seesaw};
 
 /// Something that happened during a step, for sound/effects/UI to react to.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -116,6 +117,8 @@ pub enum EntityKind {
     Fan { force: Vec2 },
     /// Pushable box (moved by `Sim::step`; solid to the ball).
     Crate(Crate),
+    /// Plank on a pivot (turned by `Sim::step`).
+    Seesaw(Seesaw),
 }
 
 /// Steps a catapult holds the ball before firing.
@@ -156,6 +159,7 @@ pub const KNOWN_TYPES: &[&str] = &[
     "catapult",
     "fan",
     "crate",
+    "seesaw",
 ];
 
 /// Reads a string property with a default.
@@ -258,6 +262,25 @@ pub fn build(spec: &ObjectSpec) -> Result<Entity, String> {
                 switched: false,
                 anim: 0,
             }
+        }
+        "seesaw" => {
+            // The rect's width is the plank; its top edge is the plank's
+            // centre line and its bottom is where the post stands.
+            need_rect(spec)?;
+            let max = num_prop(spec, "max_angle", seesaw::DEFAULT_MAX_ANGLE_DEG)?;
+            if !(1.0..=60.0).contains(&max) {
+                return Err(format!(
+                    "seesaw '{}': max_angle must be 1..60 degrees",
+                    spec.name
+                ));
+            }
+            let pivot = vec2(spec.pos.x + spec.size.x / 2.0, spec.pos.y);
+            EntityKind::Seesaw(Seesaw::new(
+                pivot,
+                spec.size.x / 2.0,
+                max.to_radians(),
+                spec.pos.y + spec.size.y,
+            ))
         }
         "crate" => {
             need_rect(spec)?;
@@ -399,7 +422,8 @@ impl Entity {
             EntityKind::Platform(_)
             | EntityKind::Switch { .. }
             | EntityKind::Fan { .. }
-            | EntityKind::Crate(_) => {}
+            | EntityKind::Crate(_)
+            | EntityKind::Seesaw(_) => {}
             EntityKind::Spring { squish, .. } => *squish = squish.saturating_sub(1),
             EntityKind::Catapult {
                 cooldown, fired, ..

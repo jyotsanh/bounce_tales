@@ -16,6 +16,7 @@ pub mod map;
 pub mod physics;
 pub mod platforms;
 pub mod rng;
+pub mod seesaw;
 pub mod water;
 
 pub use ball::Ball;
@@ -120,6 +121,8 @@ pub struct Sim {
     pub respawn_anim: u32,
     /// Index (into `entities`) of the moving platform the ball rides.
     pub riding: Option<usize>,
+    /// Seesaw the ball rests on (entity index, position along the plank).
+    pub on_seesaw: Option<(usize, f32)>,
     /// Catapult holding the ball (entity index, steps until it fires).
     pub held: Option<(usize, u32)>,
     /// Total deaths this level.
@@ -205,6 +208,7 @@ impl Sim {
             respawn_anim: 0,
             riding: None,
             held: None,
+            on_seesaw: None,
             deaths: 0,
             lives: carry.lives,
             game_over: 0,
@@ -268,6 +272,7 @@ impl Sim {
             }
         }
         self.update_crates();
+        self.update_seesaws();
         self.ball.wind = self.wind_at(self.ball.pos);
         if !self.hold_in_catapult() {
             self.move_ball(input);
@@ -329,7 +334,9 @@ impl Sim {
                 c.push = Some(vx);
             }
         }
-        let platform_impact = self.collide_platforms(prev_bottom);
+        let platform_impact = self
+            .collide_platforms(prev_bottom)
+            .max(self.collide_seesaws());
         let impact = contacts.impact_speed.max(platform_impact);
         if impact > LAND_EVENT_MIN_SPEED {
             let normal = if platform_impact > contacts.impact_speed {
@@ -647,6 +654,45 @@ impl Sim {
         0.0
     }
 
+    /// Turns every seesaw, loaded by the ball if it rests on one.
+    fn update_seesaws(&mut self) {
+        let mass = self.ball.params.mass;
+        for (i, e) in self.entities.iter_mut().enumerate() {
+            if let EntityKind::Seesaw(s) = &mut e.kind {
+                let load = self
+                    .on_seesaw
+                    .filter(|&(j, _)| j == i)
+                    .map(|(_, at)| (at, mass));
+                s.advance(load);
+            }
+        }
+    }
+
+    /// Keeps the ball on its seesaw or lands it on one. Returns the landing
+    /// impact speed (0 if none).
+    fn collide_seesaws(&mut self) -> f32 {
+        if let Some((i, _)) = self.on_seesaw {
+            if let EntityKind::Seesaw(s) = &self.entities[i].kind
+                && let Some(at) = s.keep_rider(&mut self.ball)
+            {
+                self.on_seesaw = Some((i, at));
+                return 0.0;
+            }
+            self.on_seesaw = None;
+        }
+        for i in 0..self.entities.len() {
+            if let EntityKind::Seesaw(s) = &mut self.entities[i].kind
+                && let Some((at, impact)) = s.try_land(&mut self.ball)
+            {
+                if self.ball.grounded {
+                    self.on_seesaw = Some((i, at));
+                }
+                return impact;
+            }
+        }
+        0.0
+    }
+
     /// Destroys the ball; it comes back after `DEATH_TICKS` steps.
     pub fn die(&mut self, cause: Cause) {
         self.events.push(Event::Died {
@@ -659,6 +705,7 @@ impl Sim {
         self.ball.vel = Vec2::ZERO;
         self.riding = None;
         self.held = None;
+        self.on_seesaw = None;
     }
 
     fn respawn(&mut self) {
@@ -1450,6 +1497,61 @@ mod tests {
         assert_ne!(crate_pos(&sim), start);
         sim.restart_level();
         assert_eq!(crate_pos(&sim), start);
+    }
+
+    fn seesaw(sim: &Sim) -> &seesaw::Seesaw {
+        sim.entities
+            .iter()
+            .find_map(|e| match &e.kind {
+                EntityKind::Seesaw(w) => Some(w),
+                _ => None,
+            })
+            .unwrap()
+    }
+
+    #[test]
+    fn landing_on_one_side_tips_the_seesaw_that_way() {
+        for (x, sign) in [(184.0, -1.0), (248.0, 1.0)] {
+            let mut sim = Sim::for_level("seesaws").unwrap();
+            sim.ball.pos = macroquad::math::vec2(x, 180.0);
+            for _ in 0..60 {
+                sim.step(InputFrame::NONE);
+            }
+            let a = seesaw(&sim).angle.to_degrees();
+            assert!(a * sign > 10.0, "x {x}: angle {a}");
+        }
+    }
+
+    #[test]
+    fn a_ball_on_a_tilted_plank_rolls_downhill() {
+        let mut sim = Sim::for_level("seesaws").unwrap();
+        for e in &mut sim.entities {
+            if let EntityKind::Seesaw(w) = &mut e.kind {
+                w.angle = 20f32.to_radians(); // right end down
+            }
+        }
+        // Drop onto the high (left) part, a little left of the pivot.
+        sim.ball.pos = macroquad::math::vec2(200.0, 180.0);
+        let mut rolled_right = false;
+        for _ in 0..40 {
+            sim.step(InputFrame::NONE);
+            rolled_right |= sim.on_seesaw.is_some() && sim.ball.vel.x > 20.0;
+        }
+        assert!(rolled_right);
+    }
+
+    #[test]
+    fn heavier_ball_tips_the_seesaw_faster() {
+        let angle_after = |mass: f32| {
+            let mut sim = Sim::for_level("seesaws").unwrap();
+            sim.ball.params.mass = mass;
+            sim.ball.pos = macroquad::math::vec2(250.0, 210.0);
+            for _ in 0..12 {
+                sim.step(InputFrame::NONE);
+            }
+            seesaw(&sim).angle
+        };
+        assert!(angle_after(3.0) > angle_after(1.0));
     }
 
     #[test]

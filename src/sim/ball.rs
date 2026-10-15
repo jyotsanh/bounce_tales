@@ -55,6 +55,8 @@ pub struct BallParams {
     pub water_jump: f32,
     /// Hitting cracked blocks hard enough breaks them (heavy forms only).
     pub smashes: bool,
+    /// Weight on seesaws (1 = the red ball).
+    pub mass: f32,
 }
 
 impl BallParams {
@@ -82,6 +84,7 @@ impl BallParams {
         water_speed: 0.75,
         water_jump: 0.9,
         smashes: false,
+        mass: 1.0,
     };
 
     /// Take-off speed that reaches `jump_height` under `gravity` with the

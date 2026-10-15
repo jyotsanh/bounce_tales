@@ -1,0 +1,21 @@
+; Seesaw plank (drawn rotated about its centre). Run `cargo run -p artgen`.
+sheet seesaw cell 96x8 columns 1
+palette
+  Y #f0c27a   ; top edge
+  y #d9a865   ; top
+  p #c99558   ; plank
+  P #8e5f30   ; plank lines
+  K #4a2e14   ; outline
+  r #e3241b   ; pivot mark
+  R #a8150f   ; pivot mark shade
+end
+sprite plank
+KYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYK
+KyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyrrrryyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyK
+KppppppppppppppppppppppppppppppppppppppppppppprrrrpppppppppppppppppppppppppppppppppppppppppppppK
+KppppppppppppppppppppppppppppppppppppppppppppprrrrpppppppppppppppppppppppppppppppppppppppppppppK
+KPPPPPPPPPPPKPPPPPPPPPPPKPPPPPPPPPPPKPPPPPPPPPrrrrPPPPPPPPPPKPPPPPPPPPPPKPPPPPPPPPPPKPPPPPPPPPPK
+KppppppppppppppppppppppppppppppppppppppppppppprrrrpppppppppppppppppppppppppppppppppppppppppppppK
+KpppppppppppppppppppppppppppppppppppppppppppppRRRRpppppppppppppppppppppppppppppppppppppppppppppK
+KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK
+end

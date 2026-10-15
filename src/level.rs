@@ -37,7 +37,7 @@
 //! cell (ASCII ones are all linked by the name `gate`), `j` = spring, `>` /
 //! `<` = catapult firing right / left (32x16), `F` = fan blowing up (air
 //! stream 32 wide, 128 tall, standing on the cell's floor), `X` = big
-//! crate (32x32).
+//! crate (32x32), `W` = seesaw (6-tile plank on a 1-tile post).
 
 use std::io::Cursor;
 use std::path::Path;
@@ -156,6 +156,9 @@ pub const ITEM_SIZE: Vec2 = Vec2::new(16.0, 16.0);
 /// Size of an ASCII crate (`X`: a big 2x2-tile crate standing on the
 /// cell's floor, centred on it), px. Tiled crates can be any size.
 pub const CRATE_SIZE: Vec2 = Vec2::new(32.0, 32.0);
+/// Size of an ASCII seesaw (`W`: a 6-tile plank on a 1-tile post standing
+/// on the cell's floor, centred on it), px.
+pub const SEESAW_SIZE: Vec2 = Vec2::new(96.0, 16.0);
 /// Size of an ASCII catapult (`>` / `<`), px.
 pub const CATAPULT_SIZE: Vec2 = Vec2::new(32.0, 16.0);
 /// Size of an ASCII fan's air stream (`F`: 2 tiles wide, 8 tall, rising from
@@ -215,6 +218,7 @@ fn ascii_marker(c: char) -> Option<Marker> {
         },
         'F' => m("fan", "fan", FAN_SIZE),
         'X' => m("crate", "crate", CRATE_SIZE),
+        'W' => m("seesaw", "seesaw", SEESAW_SIZE),
         _ => return None,
     })
 }

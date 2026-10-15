@@ -19,6 +19,7 @@ use bounce_tales::sim::Sim;
 use bounce_tales::sim::camera::{VIEW_H, VIEW_W};
 use bounce_tales::sim::entities::GATE_ANIM_TICKS;
 use bounce_tales::sim::map::{TILE, TileMap, flags};
+use bounce_tales::sim::seesaw;
 use bounce_tales::sim::{Entity, EntityKind, Item, RESPAWN_ANIM_TICKS, cells_of};
 
 pub const SCREEN_W: u32 = VIEW_W as u32;
@@ -56,6 +57,7 @@ pub const ENTITY_SPRITES: &[&str] = &[
     "catapult_l_fired",
     "crate",
     "crate_big",
+    "seesaw_post",
 ];
 
 /// Roll frames in the ball atlas (`roll_0` … `roll_15`).
@@ -212,6 +214,19 @@ impl Renderer {
                 }
             }
             EntityKind::Crate(_) => {}
+            EntityKind::Seesaw(w) => {
+                let post_top = vec2(w.pivot.x - 8.0, w.pivot.y);
+                let post_len = (w.base_y - w.pivot.y).max(16.0);
+                self.sprites
+                    .items
+                    .draw_scaled("seesaw_post", post_top, vec2(16.0, post_len));
+                let angle = w.prev_angle + (w.angle - w.prev_angle) * alpha;
+                let size = vec2(w.half * 2.0, seesaw::THICKNESS);
+                let top_left = w.pivot - size / 2.0;
+                self.sprites
+                    .seesaw
+                    .draw_rotated("plank", top_left, size, angle);
+            }
             EntityKind::Spring { squish, .. } => {
                 let name = if *squish > 0 { "spring_1" } else { "spring_0" };
                 self.sprites.items.draw(name, e.pos);

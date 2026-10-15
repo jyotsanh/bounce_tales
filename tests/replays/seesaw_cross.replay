@@ -1,0 +1,10 @@
+# Seesaws level, holding right: roll onto the plank's left end (it tips
+# left), roll up across the pivot and off the raised right end onto the far
+# bank, then on to the exit.
+level seesaws
+85 R
+expect on_seesaw == 1
+expect seesaw.angle < -10
+115 R
+expect exit == 1
+expect deaths == 0
