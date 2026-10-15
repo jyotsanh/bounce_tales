@@ -29,6 +29,7 @@
 //! - Map property `music` (string) picks the tune; one of
 //!   [`crate::audio::music::TRACKS`] (default `forest`; ASCII maps with a
 //!   boss play `boss`).
+//! - Map property `title` (string) is the name on the world map.
 //! - Map property `par` (int, seconds) is the target time for the time
 //!   bonus on the results screen (default [`DEFAULT_PAR_SECONDS`]).
 //!
@@ -151,6 +152,9 @@ pub struct Level {
     pub par_seconds: u32,
     /// Music track name (one of [`crate::audio::music::TRACKS`]).
     pub music: String,
+    /// Name shown on the world map (map property `title`; default: the
+    /// level name in capitals).
+    pub title: String,
 }
 
 /// Music when a level sets none.
@@ -394,6 +398,14 @@ impl Level {
     /// Loads a level by name (Tiled levels win over ASCII maps of the same
     /// name).
     pub fn load(name: &str) -> Result<Level, String> {
+        let mut level = Level::load_untitled(name)?;
+        if level.title.is_empty() {
+            level.title = name.to_uppercase();
+        }
+        Ok(level)
+    }
+
+    fn load_untitled(name: &str) -> Result<Level, String> {
         if let Some((_, tmx)) = TMX_LEVELS.iter().find(|(n, _)| *n == name) {
             return Level::from_tmx(name, tmx).map_err(|e| format!("level '{name}': {e}"));
         }
@@ -441,6 +453,7 @@ impl Level {
             background: BACKGROUNDS[0].into(),
             par_seconds: ASCII_PAR_SECONDS,
             music,
+            title: String::new(),
         })
     }
 
@@ -671,6 +684,15 @@ impl Level {
                 ));
             }
         };
+        let title = match tm.properties.get("title") {
+            None => String::new(),
+            Some(tiled::PropertyValue::StringValue(t)) => t.to_uppercase(),
+            Some(other) => {
+                return Err(format!(
+                    "map property 'title' must be a string, got {other:?}"
+                ));
+            }
+        };
         let par_seconds = match tm.properties.get("par") {
             None => DEFAULT_PAR_SECONDS,
             Some(tiled::PropertyValue::IntValue(p)) if *p > 0 => *p as u32,
@@ -691,6 +713,7 @@ impl Level {
             background,
             par_seconds,
             music,
+            title,
         })
     }
 }
@@ -1045,6 +1068,7 @@ mod tests {
         );
         assert_eq!(Level::load("hypno").unwrap().music, "boss");
         assert_eq!(Level::load("flat").unwrap().music, "forest");
+        assert_eq!(Level::load("flat").unwrap().title, "FLAT");
     }
 
     #[test]

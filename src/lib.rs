@@ -6,6 +6,7 @@ pub mod audio;
 pub mod cli;
 pub mod game;
 pub mod level;
+pub mod progress;
 pub mod replay;
 pub mod sim;
 pub mod tileset;

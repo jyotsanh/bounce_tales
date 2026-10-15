@@ -94,6 +94,7 @@ async fn main() {
         }),
         None => App::new(),
     };
+    app.progress.unlock_all = opts.unlock_all;
     // Menu keys pressed since the last app step (a frame may run no step).
     let mut pending = MenuKeys::NONE;
     // App steps taken.
@@ -115,6 +116,8 @@ async fn main() {
         let pressed = |keys: &[KeyCode]| keys.iter().any(|&k| is_key_pressed(k));
         pending.up |= pressed(&[KeyCode::Up, KeyCode::W]);
         pending.down |= pressed(&[KeyCode::Down, KeyCode::S]);
+        pending.left |= pressed(&[KeyCode::Left, KeyCode::A]);
+        pending.right |= pressed(&[KeyCode::Right, KeyCode::D]);
         pending.confirm |= pressed(&[KeyCode::Enter, KeyCode::KpEnter, KeyCode::Space]);
         pending.back |= pressed(&[KeyCode::Escape, KeyCode::P]);
         if is_key_pressed(KeyCode::F1) {

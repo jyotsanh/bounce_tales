@@ -2,7 +2,8 @@
 
 use macroquad::prelude::*;
 
-use bounce_tales::app::{self, App, Screen};
+use bounce_tales::app::{self, App, MAP_ROW, MAP_ROW_GAP, Screen, map_node};
+use bounce_tales::game;
 use bounce_tales::sim::camera::{VIEW_H, VIEW_W};
 use bounce_tales::sim::map::TILE;
 
@@ -11,6 +12,9 @@ use super::{Renderer, ball_frame, font};
 const GOLD: Color = Color::new(1.0, 0.85, 0.25, 1.0);
 const RED: Color = Color::new(0.95, 0.25, 0.2, 1.0);
 const DIM: Color = Color::new(0.0, 0.0, 0.0, 0.6);
+/// World map area, screen y (top bar above, info panel below).
+const MAP_TOP: f32 = 40.0;
+const MAP_BOTTOM: f32 = 252.0;
 /// Top of the grass on the title backdrop.
 const GROUND_Y: f32 = 288.0;
 
@@ -45,6 +49,7 @@ impl Renderer {
                 self.draw_backdrop(t);
                 self.draw_help();
             }
+            Screen::Map { sel } => self.draw_map(app, sel),
             Screen::Playing => {}
             Screen::Paused { sel } => {
                 draw_rectangle(0.0, 0.0, VIEW_W, VIEW_H, DIM);
@@ -141,6 +146,148 @@ impl Renderer {
         }
     }
 
+    /// The world map: a winding path of level nodes over the hills, the
+    /// ball on the chosen one, and its records underneath.
+    fn draw_map(&self, app: &App, sel: usize) {
+        let t = app.ticks;
+        let f = self.font();
+        self.background.draw(Vec2::ZERO, 0.0, t);
+        draw_rectangle(0.0, 0.0, VIEW_W, VIEW_H, Color::new(0.0, 0.0, 0.0, 0.25));
+
+        // Map area between the top bar and the info panel; scrolls so the
+        // chosen node's row stays in view.
+        let (top, bottom) = (MAP_TOP, MAP_BOTTOM);
+        let rows = app.levels.len().div_ceil(MAP_ROW).max(1);
+        let max_scroll = ((rows - 1) as f32 * MAP_ROW_GAP + 60.0 - (bottom - top)).max(0.0);
+        let sel_row = (sel / MAP_ROW) as f32;
+        let scroll = (sel_row * MAP_ROW_GAP - (bottom - top) / 2.0 + 40.0).clamp(0.0, max_scroll);
+        let at = |i: usize| map_node(i) + vec2(0.0, bottom - 28.0 + scroll);
+        let visible = |p: Vec2| p.y > top - 12.0 && p.y < bottom + 12.0;
+
+        // Dotted path; the stretch to a locked level is grey.
+        for i in 1..app.levels.len() {
+            let (a, b) = (at(i - 1), at(i));
+            let color = if app.unlocked(i) {
+                Color::new(1.0, 0.95, 0.8, 0.95)
+            } else {
+                Color::new(0.3, 0.3, 0.3, 0.8)
+            };
+            let dots = (a.distance(b) / 8.0) as usize;
+            for d in 1..dots {
+                let p = a.lerp(b, d as f32 / dots as f32);
+                if visible(p) {
+                    draw_rectangle(p.x - 1.5, p.y - 1.5, 3.0, 3.0, color);
+                }
+            }
+        }
+
+        for (i, level) in app.levels.iter().enumerate() {
+            let p = at(i);
+            if !visible(p) {
+                continue;
+            }
+            let unlocked = app.unlocked(i);
+            let done = app.progress.get(&level.name).completed;
+            let fresh = app.unlocked_now == Some(i) && app.screen_ticks < 90;
+            let ring = if fresh && (app.screen_ticks / 6).is_multiple_of(2) {
+                WHITE
+            } else if done {
+                GOLD
+            } else {
+                Color::new(0.1, 0.1, 0.1, 1.0)
+            };
+            draw_circle(p.x, p.y, 12.0, ring);
+            let fill = if unlocked {
+                world_color(&level.music)
+            } else {
+                Color::new(0.35, 0.35, 0.38, 1.0)
+            };
+            draw_circle(p.x, p.y, 10.0, fill);
+            let label = if unlocked {
+                (i + 1).to_string()
+            } else {
+                "?".into()
+            };
+            font::draw_centred(f, &label, p.x, p.y - 3.0, 1.0, WHITE);
+            // Eggs found: little dots under the node.
+            for e in 0..level.eggs_total {
+                let found = e < app.progress.get(&level.name).eggs;
+                let ex = p.x - (level.eggs_total as f32 - 1.0) * 3.0 + e as f32 * 6.0;
+                let c = if found {
+                    WHITE
+                } else {
+                    Color::new(0.0, 0.0, 0.0, 0.5)
+                };
+                draw_circle(ex, p.y + 16.0, 2.0, c);
+            }
+        }
+
+        // The ball hops on the chosen node.
+        if !app.levels.is_empty() {
+            let p = at(sel);
+            let phase = (t % 36) as f32 / 36.0;
+            let hop = 4.0 * phase * (1.0 - phase) * 10.0;
+            self.sprites
+                .ball
+                .draw("roll_0", vec2(p.x - 8.0, p.y - 30.0 - hop));
+        }
+
+        // Top bar: title and totals.
+        draw_rectangle(0.0, 0.0, VIEW_W, top - 4.0, Color::new(0.0, 0.0, 0.0, 0.7));
+        font::draw_centred(f, "WORLD MAP", VIEW_W / 2.0, 6.0, 2.0, GOLD);
+        let eggs_total: u32 = app.levels.iter().map(|l| l.eggs_total).sum();
+        let eggs_found: u32 = app
+            .levels
+            .iter()
+            .map(|l| app.progress.get(&l.name).eggs.min(l.eggs_total))
+            .sum();
+        let totals = format!(
+            "SCORE {:06}   EGGS {}/{}",
+            app.progress.total_score(),
+            eggs_found,
+            eggs_total
+        );
+        font::draw_centred(f, &totals, VIEW_W / 2.0, 24.0, 1.0, WHITE);
+
+        // Info panel for the chosen level.
+        draw_rectangle(
+            0.0,
+            bottom + 4.0,
+            VIEW_W,
+            VIEW_H - bottom - 4.0,
+            Color::new(0.0, 0.0, 0.0, 0.7),
+        );
+        let Some(level) = app.levels.get(sel) else {
+            return;
+        };
+        let y = bottom + 10.0;
+        let title = format!("{} {}", sel + 1, level.title);
+        font::draw_centred(f, &title, VIEW_W / 2.0, y, 2.0, GOLD);
+        let rec = app.progress.get(&level.name);
+        let line = if !app.unlocked(sel) {
+            "LOCKED - FINISH THE LEVEL BEFORE".to_owned()
+        } else if rec.completed {
+            format!(
+                "BEST {:06}  EGGS {}/{}  {}",
+                rec.best_score,
+                rec.eggs,
+                level.eggs_total,
+                rec.best_seconds.map(game::format_time).unwrap_or_default()
+            )
+        } else {
+            format!("NEW!  EGGS 0/{}", level.eggs_total)
+        };
+        font::draw_centred(f, &line, VIEW_W / 2.0, y + 22.0, 1.0, WHITE);
+        font::draw_centred(
+            f,
+            "SPACE PLAY   ESC BACK",
+            VIEW_W / 2.0,
+            y + 38.0,
+            1.0,
+            Color::new(1.0, 1.0, 1.0, 0.6),
+        );
+    }
+
     fn draw_help(&self) {
         let f = self.font();
         let (x, y, w, h) = (14.0, 40.0, VIEW_W - 28.0, 236.0);
@@ -177,5 +324,15 @@ impl Renderer {
             );
         }
         font::draw_centred(f, "PRESS SPACE", VIEW_W / 2.0, y + h - 16.0, 1.0, GOLD);
+    }
+}
+
+/// Node colour for a level's world (from its music).
+fn world_color(music: &str) -> Color {
+    match music {
+        "cave" => Color::new(0.3, 0.45, 0.85, 1.0),
+        "castle" => Color::new(0.55, 0.55, 0.6, 1.0),
+        "boss" => Color::new(0.65, 0.25, 0.85, 1.0),
+        _ => Color::new(0.25, 0.65, 0.25, 1.0),
     }
 }

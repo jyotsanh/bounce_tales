@@ -103,7 +103,7 @@ Key rules:
 
 ### Phase H — Menus & story
 - [x] **30.** **Game state machine & menus**: title, main menu, pause, game over, screen transitions.
-- [ ] **31.** **Level select / world map** with locks, egg counts, best times.
+- [x] **31.** **Level select / world map** with locks, egg counts, best times.
 - [ ] **32.** **Save & options**: progress, eggs, settings (volume, scale, fullscreen) saved to an XDG path.
 - [ ] **33.** **Cutscene engine**: comic panels + text boxes. Intro, between-level and ending scenes.
 
@@ -400,3 +400,13 @@ Spare capacity: if a step overruns, the next prompt finishes it before moving on
 - Music: `App::music` → `title` on title/menu/help, silent on the game-over menu, otherwise the level's (pause keeps it). UI sounds `MenuMove`, `MenuSelect`, `MenuBack` (`App.ui_events`). Recording saves only steps where the game advanced.
 - Render (`src/render/screens.rs`): scrolling parallax + grass strip with a bouncing, rolling ball; wobbling BOUNCE / TALES logo; blinking PRESS SPACE; menu panel with gold pointer; HOW TO PLAY panel (keys + tips); PAUSED overlay; game-over choices under the HUD's GAME OVER; black fade. Font gained `=`, `[`, `]`, `>`.
 - Tests (10): title → menu → play fades into the first level, cursor wrap, help/back, quit fades then quits, pause freezes and resumes, pause restart + main menu, game over waits then TRY AGAIN restores lives, game over → menu, scripted runs restart themselves and ignore Esc, finished → menu.
+
+### Step 31 — World map / level select (done)
+- `src/progress.rs`: `Progress { records: BTreeMap<level, LevelRecord { completed, best_score, eggs (most in one run), best_seconds }>, unlock_all }`. Levels unlock in campaign order (`unlocked`), `next_level` = first unlocked level not done, `record` keeps the best of each figure. In memory for now; step 32 saves it.
+- Flow: main menu PLAY → **world map** (cursor on the next level to play). Space/Enter on an unlocked node fades into that level alone (fresh lives and score: a level's score is its own; the map total is the sum of best scores). Locked → refusal blip. Esc → main menu. The result is recorded as soon as the results screen appears; dismissing it (Space / jump) fades back to the map with the cursor on the next level, whose node flashes when it just unlocked. Pause menu and game-over menu now offer WORLD MAP instead of MAIN MENU.
+- Scripted runs (replays) are unchanged: the campaign still plays straight through.
+- `app::map_node(i)`: a path snaking upward three nodes per row (76 px apart, middle node lifted). `MapLevel { name, title, eggs_total, music }` built from the campaign at start. Up/Right = next, Down/Left = previous (no wrap); `MenuKeys` gained left/right.
+- Level map property `title` (default: the level name in capitals) → `Level.title`.
+- Render: hills backdrop; dotted path (grey towards locked levels); nodes coloured by world (forest green, cave blue, castle grey, boss purple; locked grey "?"), gold ring when done; egg dots (found white) under each node; the ball hops on the chosen node; the map scrolls to keep its row in view. Top bar: WORLD MAP, total score, eggs found / total. Bottom panel: number + title, best score / eggs / best time, or NEW! / LOCKED.
+- CLI `--unlock-all` (for testing levels out of order).
+- Tests: progress unlock order, best-of records; map cursor ends + locked refusal, unlock-all, finishing a level records/unlocks/returns with the cursor on the next, path layout, every campaign level on the map; updated flow tests.
