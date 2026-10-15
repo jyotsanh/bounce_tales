@@ -62,6 +62,24 @@ impl Default for Carry {
     }
 }
 
+/// A crumbling block in progress.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Crumble {
+    pub x: i32,
+    pub y: i32,
+    /// Steps left in the current phase (shaking, then gone).
+    pub ticks: u32,
+    pub gone: bool,
+}
+
+/// Steps a crumbling block shakes before falling away.
+pub const CRUMBLE_SHAKE_TICKS: u32 = 30;
+/// Steps before a fallen crumbling block comes back.
+pub const CRUMBLE_RETURN_TICKS: u32 = 300;
+/// Hitting a cracked block at least this fast breaks it (if the ball
+/// `smashes`), px/s.
+pub const SMASH_SPEED: f32 = 150.0;
+
 /// Most balls you can hold.
 pub const MAX_LIVES: u32 = 9;
 /// Steps the "game over" pause lasts before the level restarts.
@@ -74,8 +92,13 @@ pub const RESPAWN_ANIM_TICKS: u32 = 12;
 pub struct Sim {
     /// Number of steps taken since start.
     pub tick: u64,
-    /// Collision map plus drawable layers (static during play).
+    /// Collision map plus drawable layers as they are now (blocks can
+    /// crumble, break, open or appear during play).
     pub level: Level,
+    /// The level as loaded, for restoring blocks and restarting.
+    pub pristine: std::rc::Rc<Level>,
+    /// Crumbling blocks that are shaking or gone.
+    pub crumbles: Vec<Crumble>,
     pub ball: Ball,
     pub camera: Camera,
     /// Interactive objects built from the level's object specs.
@@ -148,6 +171,8 @@ impl Sim {
 
     /// Starts a level with lives and score carried in.
     pub fn with_level_carry(level: Level, carry: Carry) -> Sim {
+        let pristine = std::rc::Rc::new(level.clone());
+        let mut level = level;
         let ball = Ball::new(level.map.spawn);
         let entities =
             entities::build_all(&level.objects).expect("objects are validated when loading");
@@ -158,6 +183,14 @@ impl Sim {
                 .count() as u32
         };
         let (gems_total, eggs_total) = (count(Item::Gem), count(Item::Egg));
+        // Closed doors are solid from the start.
+        for e in &entities {
+            if let EntityKind::Door { bridge: false, .. } = e.kind {
+                for (x, y) in cells_of(e) {
+                    level.map.set(x, y, map::Tile::Solid);
+                }
+            }
+        }
         Sim {
             tick: 0,
             entities,
@@ -182,6 +215,8 @@ impl Sim {
             camera: Camera::snapped_to(&ball, &level.map),
             ball,
             level,
+            pristine,
+            crumbles: Vec::new(),
             rng: Rng::new(1),
             input: InputFrame::NONE,
             prev_input: InputFrame::NONE,
@@ -200,6 +235,7 @@ impl Sim {
         if self.exit_reached {
             return;
         }
+        self.tick_crumbles();
         if self.game_over > 0 {
             self.game_over -= 1;
             if self.game_over == 0 {
@@ -280,6 +316,9 @@ impl Sim {
             });
         }
 
+        self.update_blocks(&contacts.hits);
+        self.press_switches();
+
         self.camera.update(&self.ball, &self.level.map);
         if let Some(cause) = hazards::check(&self.ball, &self.level.map) {
             self.die(cause);
@@ -305,6 +344,143 @@ impl Sim {
                     }
                 }
                 _ => {}
+            }
+        }
+    }
+
+    /// Changes a cell during play, keeping the ground layer's picture in
+    /// step: removed with the block, restored from the pristine level.
+    fn set_cell(&mut self, x: i32, y: i32, tile: map::Tile) {
+        self.level.map.set(x, y, tile);
+        let restore = tile.is_solid();
+        let pristine = &self.pristine;
+        if let Some((li, layer)) = self
+            .level
+            .layers
+            .iter_mut()
+            .enumerate()
+            .find(|(_, l)| l.name == "ground")
+            && x >= 0
+            && y >= 0
+            && (x as usize) < layer.width
+            && (y as usize) < layer.height
+        {
+            let i = y as usize * layer.width + x as usize;
+            layer.cells[i] = if restore {
+                pristine.layers[li].cells[i]
+            } else {
+                None
+            };
+        }
+    }
+
+    /// Crumbling blocks under the ball start shaking; cracked blocks hit
+    /// hard by a smashing ball break. (`tick_crumbles` drops and restores.)
+    fn update_blocks(&mut self, hits: &[(i32, i32, f32)]) {
+        let centre =
+            |x: i32, y: i32| macroquad::math::vec2(x as f32 + 0.5, y as f32 + 0.5) * map::TILE;
+        for &(x, y, speed) in hits {
+            let f = self.level.map.flags(x, y);
+            let below_ball = centre(x, y).y > self.ball.pos.y;
+            if f & map::flags::CRUMBLE != 0
+                && below_ball
+                && self.level.map.is_solid(x, y)
+                && !self.crumbles.iter().any(|c| (c.x, c.y) == (x, y))
+            {
+                self.crumbles.push(Crumble {
+                    x,
+                    y,
+                    ticks: CRUMBLE_SHAKE_TICKS,
+                    gone: false,
+                });
+            }
+            if f & map::flags::CRACKED != 0
+                && self.ball.params.smashes
+                && speed >= SMASH_SPEED
+                && self.level.map.is_solid(x, y)
+            {
+                self.set_cell(x, y, map::Tile::Empty);
+                self.events.push(Event::Smashed { pos: centre(x, y) });
+            }
+        }
+    }
+
+    /// Runs crumbling-block timers (every step, also while dying, so a
+    /// block's return time doesn't depend on what the ball is doing).
+    fn tick_crumbles(&mut self) {
+        let centre =
+            |x: i32, y: i32| macroquad::math::vec2(x as f32 + 0.5, y as f32 + 0.5) * map::TILE;
+        let mut i = 0;
+        while i < self.crumbles.len() {
+            let c = self.crumbles[i];
+            if c.ticks > 1 {
+                self.crumbles[i].ticks -= 1;
+                i += 1;
+                continue;
+            }
+            if !c.gone {
+                self.set_cell(c.x, c.y, map::Tile::Empty);
+                self.events.push(Event::Crumbled {
+                    pos: centre(c.x, c.y),
+                });
+                self.crumbles[i] = Crumble {
+                    ticks: CRUMBLE_RETURN_TICKS,
+                    gone: true,
+                    ..c
+                };
+                i += 1;
+            } else if ball_overlaps_cell(&self.ball, c.x, c.y) {
+                i += 1; // wait until the ball has moved away
+            } else {
+                let original = self.pristine.map.get(c.x, c.y);
+                self.set_cell(c.x, c.y, original);
+                self.crumbles.remove(i);
+            }
+        }
+    }
+
+    /// The first touch of a switch opens its doors and builds its bridges.
+    fn press_switches(&mut self) {
+        let mut targets = Vec::new();
+        for e in &mut self.entities {
+            let inside = e.contains_ball(&self.ball);
+            let centre = e.centre();
+            if let EntityKind::Switch { target, on } = &mut e.kind
+                && !*on
+                && inside
+            {
+                *on = true;
+                targets.push(target.clone());
+                self.events.push(Event::Switched { pos: centre });
+            }
+        }
+        for target in targets {
+            let mut changes = Vec::new();
+            for e in &mut self.entities {
+                let centre = e.centre();
+                let cells = cells_of(e);
+                if let EntityKind::Door {
+                    name,
+                    bridge,
+                    switched,
+                    anim,
+                } = &mut e.kind
+                    && *name == target
+                    && !*switched
+                {
+                    *switched = true;
+                    *anim = entities::GATE_ANIM_TICKS;
+                    let tile = if *bridge {
+                        map::Tile::Solid
+                    } else {
+                        map::Tile::Empty
+                    };
+                    changes.extend(cells.into_iter().map(|(x, y)| (x, y, tile)));
+                    self.events.push(Event::GateMoved { pos: centre });
+                }
+            }
+            for (x, y, tile) in changes {
+                self.level.map.set(x, y, tile);
             }
         }
     }
@@ -366,7 +542,7 @@ impl Sim {
     /// Starts the level over: fresh entities, full lives, back to the
     /// start. Keeps the step counter, input history and restart count.
     fn restart_level(&mut self) {
-        let mut fresh = Sim::with_level_carry(self.level.clone(), self.start_carry);
+        let mut fresh = Sim::with_level_carry((*self.pristine).clone(), self.start_carry);
         fresh.tick = self.tick;
         fresh.started_tick = self.tick;
         fresh.input = self.input;
@@ -392,6 +568,21 @@ impl Sim {
     pub fn jump_pressed(&self) -> bool {
         self.input.jump && !self.prev_input.jump
     }
+}
+
+/// Map cells covered by an entity's rectangle.
+pub fn cells_of(e: &Entity) -> Vec<(i32, i32)> {
+    let (x0, y0) = map::TileMap::cell_at(e.pos + Vec2::splat(0.5));
+    let (x1, y1) = map::TileMap::cell_at(e.pos + e.size - Vec2::splat(0.5));
+    (y0..=y1)
+        .flat_map(|y| (x0..=x1).map(move |x| (x, y)))
+        .collect()
+}
+
+fn ball_overlaps_cell(ball: &Ball, x: i32, y: i32) -> bool {
+    let min = macroquad::math::vec2(x as f32, y as f32) * map::TILE;
+    let max = min + Vec2::splat(map::TILE);
+    ball.pos.distance(ball.pos.clamp(min, max)) < ball.radius
 }
 
 /// Fixed-timestep accumulator: turns variable frame times into a whole number
@@ -853,6 +1044,114 @@ mod tests {
             highest <= lift_top.y - 64.0 - 8.0 + 0.5,
             "highest {highest}"
         );
+    }
+
+    fn switches_level() -> Sim {
+        Sim::for_level("switches").unwrap()
+    }
+
+    #[test]
+    fn crumbling_block_falls_after_standing_then_returns() {
+        let mut sim = switches_level();
+        // Stand on the first crumbling block (cell 8,14).
+        sim.ball.pos = macroquad::math::vec2(8.5 * 16.0, 14.0 * 16.0 - 8.0);
+        let mut fell = false;
+        for _ in 0..(CRUMBLE_SHAKE_TICKS + 20) {
+            sim.step(InputFrame::NONE);
+            fell |= sim
+                .events
+                .iter()
+                .any(|e| matches!(e, Event::Crumbled { .. }));
+        }
+        assert!(fell);
+        assert_eq!(sim.level.map.get(8, 14), map::Tile::Empty);
+        // The ball drops into the pit and dies; the block comes back later.
+        for _ in 0..CRUMBLE_RETURN_TICKS {
+            sim.step(InputFrame::NONE);
+        }
+        assert_eq!(sim.deaths, 1);
+        assert_eq!(sim.level.map.get(8, 14), map::Tile::Solid);
+        assert!(sim.crumbles.is_empty());
+    }
+
+    #[test]
+    fn rolling_fast_crosses_a_crumbling_bridge() {
+        let mut sim = switches_level();
+        for _ in 0..150 {
+            sim.step(press("R"));
+        }
+        assert_eq!(sim.deaths, 0);
+        assert!(sim.ball.pos.x > 14.0 * 16.0, "x {}", sim.ball.pos.x);
+        assert!(
+            !sim.crumbles.is_empty(),
+            "the bridge started crumbling behind"
+        );
+    }
+
+    #[test]
+    fn switch_opens_the_door_and_builds_the_bridge() {
+        let mut sim = switches_level();
+        assert!(sim.level.map.is_solid(20, 12), "door closed");
+        assert!(!sim.level.map.is_solid(27, 14), "no bridge yet");
+        // Put the ball just left of the switch and roll onto it.
+        sim.ball.pos = macroquad::math::vec2(15.5 * 16.0, 14.0 * 16.0 - 8.0);
+        let mut switched = false;
+        for _ in 0..30 {
+            sim.step(press("R"));
+            switched |= sim
+                .events
+                .iter()
+                .any(|e| matches!(e, Event::Switched { .. }));
+        }
+        assert!(switched);
+        assert!(!sim.level.map.is_solid(20, 12), "door open");
+        assert!(sim.level.map.is_solid(27, 14), "bridge built");
+        for _ in 0..240 {
+            sim.step(press("R"));
+        }
+        assert!(sim.exit_reached, "reaches the exit at x {}", sim.ball.pos.x);
+    }
+
+    #[test]
+    fn closed_door_blocks_the_way() {
+        let mut sim = switches_level();
+        sim.ball.pos = macroquad::math::vec2(18.5 * 16.0, 14.0 * 16.0 - 8.0);
+        for _ in 0..120 {
+            sim.step(press("R"));
+        }
+        assert!(sim.ball.pos.x < 20.0 * 16.0, "x {}", sim.ball.pos.x);
+    }
+
+    #[test]
+    fn only_a_smashing_ball_breaks_cracked_blocks() {
+        for smashes in [false, true] {
+            let mut sim = switches_level();
+            sim.ball.params.smashes = smashes;
+            // Just right of the exit area, rolling hard at the wall (x 560).
+            sim.ball.pos = macroquad::math::vec2(553.0, 14.0 * 16.0 - 8.0);
+            sim.ball.vel.x = 250.0;
+            for _ in 0..10 {
+                sim.step(press("R"));
+            }
+            assert_eq!(
+                !sim.level.map.is_solid(35, 13),
+                smashes,
+                "smashes={smashes}"
+            );
+        }
+    }
+
+    #[test]
+    fn game_over_restores_broken_blocks() {
+        let mut sim = switches_level();
+        sim.lives = 1;
+        sim.ball.pos = macroquad::math::vec2(8.5 * 16.0, 14.0 * 16.0 - 8.0);
+        for _ in 0..(CRUMBLE_SHAKE_TICKS + 60 + DEATH_TICKS + GAME_OVER_TICKS) {
+            sim.step(InputFrame::NONE);
+        }
+        assert_eq!(sim.restarts, 1);
+        assert_eq!(sim.level.map.get(8, 14), map::Tile::Solid);
+        assert!(sim.crumbles.is_empty());
     }
 
     #[test]

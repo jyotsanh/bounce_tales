@@ -31,6 +31,14 @@ pub enum Event {
     CheckpointReached { respawn: Vec2 },
     /// The ball went into or out of water at `pos` moving at `speed` px/s.
     Splash { pos: Vec2, speed: f32 },
+    /// A crumbling block fell away (`pos` = cell centre).
+    Crumbled { pos: Vec2 },
+    /// A cracked block was smashed (`pos` = cell centre).
+    Smashed { pos: Vec2 },
+    /// A switch was pressed (`pos` = its centre).
+    Switched { pos: Vec2 },
+    /// A door opened or a bridge was built (`pos` = its centre).
+    GateMoved { pos: Vec2 },
     /// A collectible was picked up at `pos` (its centre).
     Collected { item: Item, pos: Vec2 },
     /// The last life was lost; the level restarts after a pause.
@@ -78,7 +86,22 @@ pub enum EntityKind {
     Pickup { item: Item, taken: bool },
     /// Moving one-way platform (moved by the sim before the ball).
     Platform(Platform),
+    /// Floor button: the first touch opens every door / builds every bridge
+    /// whose name is `target` (handled by `Sim::step`).
+    Switch { target: String, on: bool },
+    /// Solid cells over its rectangle until a switch opens it; a `bridge`
+    /// is the reverse (empty until switched). `anim` counts down the
+    /// open/build animation (drawing only).
+    Door {
+        name: String,
+        bridge: bool,
+        switched: bool,
+        anim: u32,
+    },
 }
+
+/// Steps of the door-opening / bridge-building animation.
+pub const GATE_ANIM_TICKS: u32 = 15;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Entity {
@@ -89,7 +112,17 @@ pub struct Entity {
 }
 
 /// Object types that `build` understands.
-pub const KNOWN_TYPES: &[&str] = &["exit", "checkpoint", "gem", "egg", "life", "platform"];
+pub const KNOWN_TYPES: &[&str] = &[
+    "exit",
+    "checkpoint",
+    "gem",
+    "egg",
+    "life",
+    "platform",
+    "switch",
+    "door",
+    "bridge",
+];
 
 /// Reads a number property (int or float) with a default.
 fn num_prop(spec: &ObjectSpec, key: &str, default: f32) -> Result<f32, String> {
@@ -121,6 +154,38 @@ pub fn build(spec: &ObjectSpec) -> Result<Entity, String> {
                 ));
             }
             EntityKind::Checkpoint { active: false }
+        }
+        "switch" => {
+            let Some(Prop::Str(target)) = spec.prop("target") else {
+                return Err(format!(
+                    "switch '{}' needs a string property 'target' (the door/bridge name)",
+                    spec.name
+                ));
+            };
+            if spec.size.x <= 0.0 || spec.size.y <= 0.0 {
+                return Err(format!("switch '{}' must be a rectangle object", spec.name));
+            }
+            EntityKind::Switch {
+                target: target.clone(),
+                on: false,
+            }
+        }
+        kind @ ("door" | "bridge") => {
+            if spec.name.is_empty() {
+                return Err(format!(
+                    "{kind} at {},{} needs a name",
+                    spec.pos.x, spec.pos.y
+                ));
+            }
+            if spec.size.x <= 0.0 || spec.size.y <= 0.0 {
+                return Err(format!("{kind} '{}' must be a rectangle object", spec.name));
+            }
+            EntityKind::Door {
+                name: spec.name.clone(),
+                bridge: kind == "bridge",
+                switched: false,
+                anim: 0,
+            }
         }
         "platform" => {
             if spec.points.len() < 2 {
@@ -223,7 +288,9 @@ impl Entity {
                     events.push(Event::CheckpointReached { respawn });
                 }
             }
-            EntityKind::Platform(_) => {} // moved by `Sim::step`
+            // Moved / handled by `Sim::step`.
+            EntityKind::Platform(_) | EntityKind::Switch { .. } => {}
+            EntityKind::Door { anim, .. } => *anim = anim.saturating_sub(1),
             EntityKind::Pickup { item, taken } => {
                 if !*taken && ball.pos.distance(centre) < ball.radius + PICKUP_RADIUS {
                     *taken = true;
@@ -324,6 +391,29 @@ mod tests {
         assert_eq!(e.pos, vec2(68.0, 100.0));
         s.points.pop();
         assert!(build(&s).unwrap_err().contains("polyline"));
+    }
+
+    #[test]
+    fn switches_and_doors_need_their_properties() {
+        let mut sw = spec("switch", vec2(16.0, 16.0));
+        assert!(build(&sw).unwrap_err().contains("target"));
+        sw.props = vec![("target".into(), Prop::Str("gate1".into()))];
+        assert!(matches!(
+            build(&sw).unwrap().kind,
+            EntityKind::Switch { on: false, .. }
+        ));
+        let mut door = spec("bridge", vec2(48.0, 16.0));
+        door.name = String::new();
+        assert!(build(&door).unwrap_err().contains("name"));
+        door.name = "gate1".into();
+        assert!(matches!(
+            build(&door).unwrap().kind,
+            EntityKind::Door {
+                bridge: true,
+                switched: false,
+                ..
+            }
+        ));
     }
 
     #[test]

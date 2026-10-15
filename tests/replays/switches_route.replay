@@ -1,0 +1,10 @@
+# Switches level, holding right: rush over the crumbling bridge (it falls
+# behind the ball), press the floor switch, which opens the door and builds
+# the bridge over the second pit, and roll on to the exit. Standing still on
+# the crumbling bridge would drop the ball into the pit.
+level switches
+60 R
+expect deaths == 0
+240 R
+expect exit == 1
+expect deaths == 0

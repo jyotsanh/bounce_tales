@@ -65,6 +65,8 @@ pub fn autotile(map: &TileMap, x: i32, y: i32) -> Option<&'static str> {
         Tile::Slope2RightHigh => "slope2_r_high",
         Tile::Slope2LeftHigh => "slope2_l_high",
         Tile::Slope2LeftLow => "slope2_l_low",
+        Tile::Solid if f & flags::CRUMBLE != 0 => "crumble",
+        Tile::Solid if f & flags::CRACKED != 0 => "cracked",
         Tile::Solid => {
             // The map's top row is the edge of the world, not open sky, and
             // no grass grows under water.

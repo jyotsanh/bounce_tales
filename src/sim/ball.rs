@@ -53,6 +53,8 @@ pub struct BallParams {
     pub water_speed: f32,
     /// Jump strength from the water surface as a share of a normal jump.
     pub water_jump: f32,
+    /// Hitting cracked blocks hard enough breaks them (heavy forms only).
+    pub smashes: bool,
 }
 
 impl BallParams {
@@ -79,6 +81,7 @@ impl BallParams {
         water_drag: (2.5, 6.0),
         water_speed: 0.75,
         water_jump: 0.9,
+        smashes: false,
     };
 
     /// Take-off speed that reaches `jump_height` under `gravity` with the

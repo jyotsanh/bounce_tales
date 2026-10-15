@@ -10,8 +10,8 @@
 //! - Tiles are 16x16; maps are finite; tiles must not be flipped/rotated.
 //! - Tilesets come from `assets/gen/*.tsx` (written by artgen). Each tile
 //!   has a `name` and, if it collides, a `shape` property (see
-//!   `Tile::from_shape_name`); `spike`/`spike_down`/`water` bool properties
-//!   set flags.
+//!   `Tile::from_shape_name`); `spike`/`spike_down`/`water`/`crumble`/
+//!   `cracked` bool properties set flags.
 //! - The tile layer named **`ground`** is the collision layer. Every tile
 //!   layer is drawn; layers with a bool property `front = true` are drawn in
 //!   front of the ball, others behind, in file order.
@@ -33,7 +33,8 @@
 //! 32x32, standing on the floor of that cell, centred on it), `*` = gem,
 //! `e` = egg, `+` = extra life (16x16, filling the cell), `H` / `V` =
 //! moving platform 3 tiles wide starting at that cell, travelling 8 tiles
-//! right / 4 tiles up and back.
+//! right / 4 tiles up and back, `S` = switch, `D` = door cell, `B` = bridge
+//! cell (ASCII ones are all linked by the name `gate`).
 
 use std::io::Cursor;
 use std::path::Path;
@@ -170,6 +171,9 @@ fn ascii_marker(c: char) -> Option<(&'static str, Vec2)> {
         '*' => Some(("gem", ITEM_SIZE)),
         'e' => Some(("egg", ITEM_SIZE)),
         '+' => Some(("life", ITEM_SIZE)),
+        'S' => Some(("switch", ITEM_SIZE)),
+        'D' => Some(("door", ITEM_SIZE)),
+        'B' => Some(("bridge", ITEM_SIZE)),
         _ => None,
     }
 }
@@ -188,14 +192,21 @@ fn ascii_objects(text: &str) -> (String, Vec<ObjectSpec>) {
             if let Some((kind, size)) = ascii_marker(c) {
                 let floor = (y as f32 + 1.0) * TILE;
                 let centre_x = (x as f32 + 0.5) * TILE;
+                // ASCII switches, doors and bridges are all linked by the
+                // name "gate".
+                let (name, props) = match kind {
+                    "switch" => ("switch", vec![("target".into(), Prop::Str("gate".into()))]),
+                    "door" | "bridge" => ("gate", Vec::new()),
+                    _ => (kind, Vec::new()),
+                };
                 objects.push(ObjectSpec {
                     kind: kind.into(),
-                    name: kind.into(),
+                    name: name.into(),
                     pos: vec2(centre_x - size.x / 2.0, floor - size.y),
                     size,
                     points: Vec::new(),
                     closed: false,
-                    props: Vec::new(),
+                    props,
                 });
                 out.push('.');
             } else if let Some(offset) = ascii_platform(c) {
@@ -395,6 +406,12 @@ impl Level {
                                 if is_true("spike_down") {
                                     cell_flags[i] |= map::flags::SPIKE_DOWN;
                                 }
+                                if is_true("crumble") {
+                                    cell_flags[i] |= map::flags::CRUMBLE;
+                                }
+                                if is_true("cracked") {
+                                    cell_flags[i] |= map::flags::CRACKED;
+                                }
                             }
                         }
                     }
@@ -590,8 +607,19 @@ pub fn ascii_to_tmx(text: &str) -> Result<String, String> {
     let mut extra = String::new();
     for (i, o) in level.objects.iter().enumerate() {
         if o.points.is_empty() {
+            let mut props = String::new();
+            for (k, v) in &o.props {
+                if let Prop::Str(v) = v {
+                    props.push_str(&format!("    <property name=\"{k}\" value=\"{v}\"/>\n"));
+                }
+            }
+            let body = if props.is_empty() {
+                "/>".to_owned()
+            } else {
+                format!(">\n   <properties>\n{props}   </properties>\n  </object>")
+            };
             extra.push_str(&format!(
-                "  <object id=\"{}\" name=\"{}\" type=\"{}\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\"/>\n",
+                "  <object id=\"{}\" name=\"{}\" type=\"{}\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\"{body}\n",
                 i + 2,
                 o.name,
                 o.kind,

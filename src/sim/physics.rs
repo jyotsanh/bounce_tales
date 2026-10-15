@@ -35,8 +35,11 @@ const MAX_SUBSTEPS: u32 = 16;
 const RESOLVE_PASSES: u32 = 4;
 
 /// What the ball touched during one step.
-#[derive(Debug, Clone, Copy, Default, PartialEq)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct Contacts {
+    /// Cells the ball was pushed out of, with the speed it hit them at
+    /// (px/s into the surface; 0 when just resting against them).
+    pub hits: Vec<(i32, i32, f32)>,
     pub floor: bool,
     pub wall: bool,
     pub ceiling: bool,
@@ -80,7 +83,7 @@ pub fn move_and_collide(ball: &mut Ball, map: &TileMap) -> Contacts {
             ball.vel = dir * surface_speed;
         }
     }
-    land(ball, c);
+    land(ball, &c);
     c
 }
 
@@ -122,20 +125,25 @@ fn resolve_deepest(ball: &mut Ball, map: &TileMap, c: &mut Contacts) -> bool {
     let (x0, y0) = TileMap::cell_at(p - Vec2::splat(r));
     let (x1, y1) = TileMap::cell_at(p + Vec2::splat(r));
 
-    let mut best: Option<(f32, Vec2)> = None; // (penetration, normal)
+    let mut best: Option<(f32, Vec2, (i32, i32))> = None; // (penetration, normal, cell)
     for ty in y0..=y1 {
         for tx in x0..=x1 {
             if let Some((pen, n)) = penetration(map, tx, ty, p, r)
-                && best.is_none_or(|(b, _)| pen > b)
+                && best.is_none_or(|(b, _, _)| pen > b)
             {
-                best = Some((pen, n));
+                best = Some((pen, n, (tx, ty)));
             }
         }
     }
-    let Some((pen, n)) = best else {
+    let Some((pen, n, (tx, ty))) = best else {
         return false;
     };
     ball.pos += n * pen;
+    let speed_in = (-ball.vel.dot(n)).max(0.0);
+    match c.hits.iter_mut().find(|h| (h.0, h.1) == (tx, ty)) {
+        Some(h) => h.2 = h.2.max(speed_in),
+        None => c.hits.push((tx, ty, speed_in)),
+    }
     respond(ball, n, c);
     true
 }
@@ -223,7 +231,7 @@ fn respond(ball: &mut Ball, n: Vec2, c: &mut Contacts) {
 
 /// Shared landing rules: bounce if hitting hard, otherwise come to rest.
 /// Also updates the ground/air counters.
-fn land(ball: &mut Ball, c: Contacts) {
+fn land(ball: &mut Ball, c: &Contacts) {
     let p = ball.params;
     if c.floor {
         ball.jumping = false;

@@ -17,8 +17,9 @@ use bounce_tales::game::{self, Game, Mode, REVEAL_STEP};
 use bounce_tales::level::{Decoration, TileLayer};
 use bounce_tales::sim::Sim;
 use bounce_tales::sim::camera::{VIEW_H, VIEW_W};
+use bounce_tales::sim::entities::GATE_ANIM_TICKS;
 use bounce_tales::sim::map::{TILE, TileMap, flags};
-use bounce_tales::sim::{Entity, EntityKind, Item, RESPAWN_ANIM_TICKS};
+use bounce_tales::sim::{Entity, EntityKind, Item, RESPAWN_ANIM_TICKS, cells_of};
 
 pub const SCREEN_W: u32 = VIEW_W as u32;
 pub const SCREEN_H: u32 = VIEW_H as u32;
@@ -41,6 +42,10 @@ pub const ENTITY_SPRITES: &[&str] = &[
     "plat_l",
     "plat_m",
     "plat_r",
+    "switch_off",
+    "switch_on",
+    "door",
+    "bridge",
 ];
 
 /// Roll frames in the ball atlas (`roll_0` … `roll_15`).
@@ -105,8 +110,21 @@ impl Renderer {
 
         let level = &sim.level;
         let map = &level.map;
+        let shaking = |x: i32, y: i32| sim.crumbles.iter().any(|c| !c.gone && (c.x, c.y) == (x, y));
         for layer in level.layers.iter().filter(|l| !l.front) {
-            self.draw_layer(layer, &level.sheets, view, |x, y| !is_water(map, x, y));
+            self.draw_layer(layer, &level.sheets, view, |x, y| {
+                !is_water(map, x, y) && !shaking(x, y)
+            });
+        }
+        // Crumbling blocks about to fall shake in place.
+        for c in sim.crumbles.iter().filter(|c| !c.gone) {
+            let jitter = if (sim.tick / 2).is_multiple_of(2) {
+                1.0
+            } else {
+                -1.0
+            };
+            let pos = vec2(c.x as f32, c.y as f32) * TILE + vec2(jitter, 0.0);
+            self.sprites.forest.draw("crumble", pos);
         }
         self.draw_decorations(&level.decorations, &level.sheets, false);
         for e in &sim.entities {
@@ -168,6 +186,41 @@ impl Renderer {
                 }
             }
             EntityKind::Pickup { taken: true, .. } => {}
+            EntityKind::Switch { on, .. } => {
+                let name = if *on { "switch_on" } else { "switch_off" };
+                self.sprites.items.draw(name, e.pos);
+            }
+            EntityKind::Door {
+                bridge,
+                switched,
+                anim,
+                ..
+            } => {
+                // 1 at rest in the new state, counting up from 0 while
+                // animating.
+                let t = 1.0 - *anim as f32 / GATE_ANIM_TICKS as f32;
+                let cells = cells_of(e);
+                let (x0, y0) = cells[0];
+                for (x, y) in cells {
+                    let pos = vec2(x as f32, y as f32) * TILE;
+                    if *bridge {
+                        // Planks appear from left to right.
+                        let col = (x - x0) as f32;
+                        let cols = (e.size.x / TILE).max(1.0);
+                        if *switched && col < (t * cols).ceil() {
+                            self.sprites.items.draw("bridge", pos);
+                        }
+                    } else if !*switched || *anim > 0 {
+                        // The door slides up into its frame.
+                        let rows = (e.size.y / TILE).max(1.0);
+                        let lift = if *switched { t * rows * TILE } else { 0.0 };
+                        let p = pos - vec2(0.0, lift);
+                        if p.y + TILE > y0 as f32 * TILE {
+                            self.sprites.items.draw("door", p);
+                        }
+                    }
+                }
+            }
             &EntityKind::Pickup { item, .. } => {
                 // Gentle bob, out of step between items so rows ripple.
                 let phase = e.pos.x * 0.15;

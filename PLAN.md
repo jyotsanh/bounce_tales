@@ -79,7 +79,7 @@ Key rules:
 - [x] **14.** **Level exit & completion**: exit gate, results screen (eggs found, time), next level.
 - [x] **15.** **Water**: buoyancy, drag, splash particles.
 - [x] **16.** **Moving platforms**: paths from Tiled polylines, ball rides and inherits velocity.
-- [ ] **17.** **Breakables, switches, doors**: crumbling blocks, cracked walls, switch-linked doors/bridges.
+- [x] **17.** **Breakables, switches, doors**: crumbling blocks, cracked walls, switch-linked doors/bridges.
 - [ ] **18.** **Springs, catapults, wind fans**.
 
 ### Phase D — Physics props
@@ -282,3 +282,12 @@ Spare capacity: if a step overruns, the next prompt finishes it before moving on
 - Art: `items.txt` + `plat_l/m/r` wooden plank pieces; drawn interpolated.
 - New ASCII level `platforms`: ferry across a bottomless gap, lift up to the exit ledge, gems over the gap (hop for them). Replay `platforms_route` was **recorded from a small scripted controller** (wait for the ferry, ride, hop onto the lift, steer onto it, ride up) — a reusable trick for long routes.
 - Tests: path back-and-forth with pause, loop, point_at, build with properties, carried exactly with the platform, jump-off keeps platform speed, rolling off the end, one-way from below, lift raises the ball.
+
+### Step 17 — Breakables, switches, doors (done)
+- **Mutable map**: `Sim.level` is now the live copy; `Sim.pristine: Rc<Level>` is the level as loaded (blocks come back from it; game-over restarts clone it). `TileMap::set`, `Sim::set_cell` (keeps the ground layer's picture in step: removed, or restored from pristine).
+- `physics::Contacts` (no longer `Copy`) has `hits: Vec<(x, y, speed into it)>` for every cell the ball was pushed out of.
+- **Crumbling** (`flags::CRUMBLE`, tile `crumble=true`, ASCII `x`, forest tile `crumble`): standing on one (hit from above) → `Sim.crumbles` entry, shakes 30 ticks (drawn jittering) → falls (`Event::Crumbled`, sand debris) → comes back after 300 ticks once the ball is clear. `tick_crumbles` runs every step, **also while dying** (the first version paused timers during death).
+- **Cracked** (`flags::CRACKED`, `cracked=true`, ASCII `k`, tile `cracked`): broken for good when hit at ≥ `SMASH_SPEED` (150) **by a ball whose `BallParams.smashes`** is true. False for the red ball; the stone ball (step 23) sets it. `Event::Smashed`, stone debris.
+- **Switch / door / bridge** objects: `switch` (rect, string property `target`), `door` and `bridge` (rect, `name`). The first touch of a switch → every door/bridge with that name switches: doors stop being solid (drawn sliding up into their frame), bridges become solid (planks appear left to right), `GATE_ANIM_TICKS` 15. Events `Switched`, `GateMoved`. Closed doors are made solid at level start. ASCII `S`, `D`, `B` are all linked by the name `gate`. `ascii2tmx` now writes object string properties.
+- Art: forest +`crumble` (sandstone), +`cracked` (boulder with a crack) (ids 18, 19); items +`switch_off/on`, `door`, `bridge`.
+- New ASCII level `switches` (crumbling bridge, switch, roofed door, bridge, exit, roofed cracked wall with an egg behind for the stone ball). Replays `switches_route` (holding right clears it), `crumble_fall`. Tests: crumble fall + return, fast crossing, switch → door + bridge, closed door blocks, smashing only with `smashes`, game over restores blocks.

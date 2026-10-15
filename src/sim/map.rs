@@ -177,9 +177,9 @@ pub struct TileMap {
 }
 
 /// ASCII letters that mark objects (exit, checkpoint, gem, egg, extra
-/// life, moving platforms); they are empty space
+/// life, moving platforms, switch, door, bridge); they are empty space
 /// in the collision map. See `level::ascii_marker`.
-pub const OBJECT_MARKERS: &[char] = &['E', 'C', '*', 'e', '+', 'H', 'V'];
+pub const OBJECT_MARKERS: &[char] = &['E', 'C', '*', 'e', '+', 'H', 'V', 'S', 'D', 'B'];
 
 /// Per-cell flag bits from tile properties (used from steps 11 and 15).
 pub mod flags {
@@ -190,13 +190,19 @@ pub mod flags {
     pub const WATER: u8 = 2;
     /// `spike_down=true`: spikes hanging from the top of the cell.
     pub const SPIKE_DOWN: u8 = 4;
+    /// `crumble=true`: a solid block that falls away shortly after the
+    /// ball stands on it, and comes back later.
+    pub const CRUMBLE: u8 = 8;
+    /// `cracked=true`: a solid block a heavy ball smashes for good.
+    pub const CRACKED: u8 = 16;
 }
 
 impl TileMap {
     /// Parses a map drawn in text, one row per line. Tile glyphs are listed
     /// on [`Tile`]; `o` marks the ball start (an empty tile, ball resting on
     /// the tile's bottom edge). `^` / `v` are spikes pointing up / down,
-    /// `~` is water (no collision shape). All rows must be the same length. Object
+    /// `~` is water (no collision shape), `x` a crumbling block and `k` a
+    /// cracked block (both solid). All rows must be the same length. Object
     /// markers ([`OBJECT_MARKERS`]) are empty space here;
     /// `level::Level::from_ascii` turns them into objects.
     pub fn from_ascii(text: &str) -> Result<TileMap, String> {
@@ -242,6 +248,14 @@ impl TileMap {
                     '~' => {
                         cell_flags[y * width + x] = flags::WATER;
                         Tile::Empty
+                    }
+                    'x' => {
+                        cell_flags[y * width + x] = flags::CRUMBLE;
+                        Tile::Solid
+                    }
+                    'k' => {
+                        cell_flags[y * width + x] = flags::CRACKED;
+                        Tile::Solid
                     }
                     other => Tile::from_glyph(other)
                         .ok_or_else(|| format!("unknown tile '{other}' at {x},{y}"))?,
@@ -306,6 +320,14 @@ impl TileMap {
         self.tiles[y as usize * self.width + x as usize]
     }
 
+    /// Changes a cell's shape (no-op outside the map). Used by blocks that
+    /// break, crumble, open or appear during play.
+    pub fn set(&mut self, x: i32, y: i32, tile: Tile) {
+        if x >= 0 && y >= 0 && x < self.width as i32 && y < self.height as i32 {
+            self.tiles[y as usize * self.width + x as usize] = tile;
+        }
+    }
+
     pub fn is_solid(&self, x: i32, y: i32) -> bool {
         self.get(x, y).is_solid()
     }
@@ -340,6 +362,7 @@ pub fn builtin_text(name: &str) -> Option<&'static str> {
         "hazards" => HAZARDS_MAP,
         "water" => WATER_MAP,
         "platforms" => PLATFORMS_MAP,
+        "switches" => SWITCHES_MAP,
         _ => return None,
     })
 }
@@ -349,7 +372,15 @@ pub fn builtin(name: &str) -> Option<TileMap> {
     builtin_text(name).map(|t| TileMap::from_ascii(t).expect("built-in maps are valid"))
 }
 
-pub const BUILTIN_NAMES: &[&str] = &["test", "flat", "slopes", "hazards", "water", "platforms"];
+pub const BUILTIN_NAMES: &[&str] = &[
+    "test",
+    "flat",
+    "slopes",
+    "hazards",
+    "water",
+    "platforms",
+    "switches",
+];
 
 /// Test map: one screen with a step block, a low ceiling, a tunnel, a
 /// staircase of platforms up to an exit, a 45° ramp and a gentle 1:2 hill.
@@ -508,6 +539,33 @@ const PLATFORMS_MAP: &str = r"
     ######...........#############
 ";
 
+/// Breakables and gates (40 wide): a crumbling bridge over a bottomless pit
+/// (x 128..224), a floor switch (x 256), a 5-tall door under a ceiling
+/// (x 320) and a bridge over a second pit (x 416..496) — both worked by the
+/// switch — then the exit, and a roofed cracked wall (x 560) hiding an egg.
+const SWITCHES_MAP: &str = r"
+    #......................................#
+    #......................................#
+    #......................................#
+    #......................................#
+    #......................................#
+    #......................................#
+    #......................................#
+    #......................................#
+    #..............###########.............#
+    #...................D.............######
+    #...................D..............k...#
+    #...................D..............k...#
+    #...................D..............k...#
+    #.o.............S...D............E.k.e.#
+    ########xxxxxx############BBBBB#########
+    ########......############.....#########
+    ########......############.....#########
+    ########......############.....#########
+    ########......############.....#########
+    ########......############.....#########
+";
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -532,6 +590,16 @@ mod tests {
             Some(Tile::Slope2LeftLow)
         );
         assert_eq!(Tile::from_shape_name("round"), None);
+    }
+
+    #[test]
+    fn breakable_glyphs_and_set() {
+        let mut m = TileMap::from_ascii("o.\nxk").unwrap();
+        assert_eq!((m.get(0, 1), m.flags(0, 1)), (Tile::Solid, flags::CRUMBLE));
+        assert_eq!((m.get(1, 1), m.flags(1, 1)), (Tile::Solid, flags::CRACKED));
+        m.set(0, 1, Tile::Empty);
+        assert_eq!(m.get(0, 1), Tile::Empty);
+        m.set(-1, 0, Tile::Empty); // outside: ignored
     }
 
     #[test]

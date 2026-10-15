@@ -7,3 +7,7 @@ life 80 0 16 16
 plat_l 96 0 16 16
 plat_m 112 0 16 16
 plat_r 0 16 16 16
+switch_off 16 16 16 16
+switch_on 32 16 16 16
+door 48 16 16 16
+bridge 64 16 16 16

@@ -1,0 +1,7 @@
+# Switches level: stop on the crumbling bridge and it gives way under the
+# ball (shake 0.5 s), dropping it into the pit.
+level switches
+52 R
+expect ball.x > 128
+90 -
+expect deaths == 1

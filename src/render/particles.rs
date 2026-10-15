@@ -47,6 +47,15 @@ const CONFETTI: [Color; 5] = [
     Color::new(0.34, 0.69, 0.19, 1.0),
     Color::new(0.30, 0.55, 0.95, 1.0),
 ];
+const SAND: [Color; 2] = [
+    Color::new(0.85, 0.72, 0.47, 1.0),
+    Color::new(0.54, 0.42, 0.23, 1.0),
+];
+const STONE: [Color; 3] = [
+    Color::new(0.69, 0.67, 0.63, 1.0),
+    Color::new(0.55, 0.53, 0.49, 1.0),
+    Color::new(0.35, 0.34, 0.31, 1.0),
+];
 const WATER_DROP: Color = Color::new(0.62, 0.84, 1.0, 1.0);
 const GOLD_SPARK: Color = Color::new(1.0, 0.85, 0.25, 1.0);
 const GEM_SPARK: Color = Color::new(0.62, 0.89, 1.0, 1.0);
@@ -100,6 +109,10 @@ impl Particles {
                 }
                 Event::GameOver => {}
                 Event::Splash { pos, speed } => self.splash(pos, speed),
+                Event::Crumbled { pos } => self.debris(pos, &SAND, 10, 60.0),
+                Event::Smashed { pos } => self.debris(pos, &STONE, 16, 160.0),
+                Event::Switched { pos } => self.sparkle(pos, LIFE_GREEN),
+                Event::GateMoved { pos } => self.puffs(pos, 8, 50.0),
                 Event::Collected { item, pos } => {
                     let (color, text) = match item {
                         Item::Gem => (GEM_SPARK, format!("+{}", item.points())),
@@ -160,6 +173,25 @@ impl Particles {
                 color: DUST,
                 size: self.rng.range(1.5, 2.5),
                 gravity: 150.0,
+            });
+        }
+    }
+
+    /// Chunks of a broken block tumbling out of `at` (its centre).
+    fn debris(&mut self, at: Vec2, colors: &[Color], n: usize, spread: f32) {
+        for i in 0..n {
+            let life = self.rng.range(0.5, 0.9);
+            self.list.push(Particle {
+                pos: at + vec2(self.rng.range(-6.0, 6.0), self.rng.range(-6.0, 6.0)),
+                vel: vec2(
+                    self.rng.range(-spread, spread),
+                    self.rng.range(-spread, spread * 0.3),
+                ),
+                life,
+                max_life: life,
+                color: colors[i % colors.len()],
+                size: self.rng.range(2.0, 4.0),
+                gravity: 600.0,
             });
         }
     }
