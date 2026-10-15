@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<map version="1.10" orientation="orthogonal" renderorder="right-down" width="64" height="40" tilewidth="16" tileheight="16" infinite="0" nextlayerid="3" nextobjectid="2">
+<map version="1.10" orientation="orthogonal" renderorder="right-down" width="64" height="40" tilewidth="16" tileheight="16" infinite="0" nextlayerid="3" nextobjectid="27">
  <tileset firstgid="1" source="../gen/forest.tsx"/>
+ <tileset firstgid="15" source="../gen/deco.tsx"/>
  <layer id="1" name="ground" width="64" height="40">
   <data encoding="csv">
 6,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,5,
@@ -48,6 +49,47 @@
  <objectgroup id="2" name="objects">
   <object id="1" name="spawn" type="spawn" x="56" y="608">
    <point/>
+  </object>
+  <object id="2" name="exit" type="exit" x="24" y="160" width="32" height="32"/>
+  <object id="3" gid="20" x="88" y="608" width="16" height="16"/>
+  <object id="4" gid="15" x="24" y="608" width="16" height="16"/>
+  <object id="5" gid="16" x="40" y="608" width="16" height="16"/>
+  <object id="6" gid="21" x="150" y="608" width="16" height="16"/>
+  <object id="7" gid="22" x="166" y="608" width="16" height="16"/>
+  <object id="8" gid="17" x="256" y="560" width="16" height="16"/>
+  <object id="9" gid="18" x="280" y="560" width="16" height="16"/>
+  <object id="10" gid="19" x="300" y="560" width="16" height="16"/>
+  <object id="11" gid="15" x="560" y="608" width="16" height="16"/>
+  <object id="12" gid="16" x="576" y="608" width="16" height="16"/>
+  <object id="13" gid="21" x="600" y="608" width="16" height="16"/>
+  <object id="14" gid="22" x="616" y="608" width="16" height="16"/>
+  <object id="15" gid="17" x="700" y="608" width="16" height="16"/>
+  <object id="16" gid="19" x="760" y="608" width="16" height="16"/>
+  <object id="17" gid="16" x="690" y="576" width="16" height="16"/>
+  <object id="18" gid="15" x="120" y="192" width="16" height="16"/>
+  <object id="19" gid="18" x="200" y="192" width="16" height="16"/>
+  <object id="20" gid="17" x="330" y="192" width="16" height="16"/>
+  <object id="21" gid="15" x="420" y="192" width="16" height="16"/>
+  <object id="22" gid="19" x="470" y="192" width="16" height="16"/>
+  <object id="23" gid="18" x="60" y="608" width="16" height="16">
+   <properties>
+    <property name="front" type="bool" value="true"/>
+   </properties>
+  </object>
+  <object id="24" gid="18" x="180" y="608" width="16" height="16">
+   <properties>
+    <property name="front" type="bool" value="true"/>
+   </properties>
+  </object>
+  <object id="25" gid="18" x="620" y="608" width="16" height="16">
+   <properties>
+    <property name="front" type="bool" value="true"/>
+   </properties>
+  </object>
+  <object id="26" gid="18" x="380" y="192" width="16" height="16">
+   <properties>
+    <property name="front" type="bool" value="true"/>
+   </properties>
   </object>
  </objectgroup>
 </map>

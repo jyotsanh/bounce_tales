@@ -187,7 +187,9 @@ pub mod flags {
 impl TileMap {
     /// Parses a map drawn in text, one row per line. Tile glyphs are listed
     /// on [`Tile`]; `o` marks the ball start (an empty tile, ball resting on
-    /// the tile's bottom edge). All rows must be the same length.
+    /// the tile's bottom edge). All rows must be the same length. Object
+    /// markers (`E`) are empty space here; `level::Level::from_ascii` turns
+    /// them into objects.
     pub fn from_ascii(text: &str) -> Result<TileMap, String> {
         let rows: Vec<&str> = text
             .lines()
@@ -218,6 +220,7 @@ impl TileMap {
                         ));
                         Tile::Empty
                     }
+                    'E' => Tile::Empty,
                     other => Tile::from_glyph(other)
                         .ok_or_else(|| format!("unknown tile '{other}' at {x},{y}"))?,
                 });
@@ -323,8 +326,8 @@ pub fn builtin(name: &str) -> Option<TileMap> {
 
 pub const BUILTIN_NAMES: &[&str] = &["test", "flat", "slopes"];
 
-/// Default map: one screen with a step block, a low ceiling, a tunnel, a
-/// staircase of platforms, a 45° ramp and a gentle 1:2 hill.
+/// Test map: one screen with a step block, a low ceiling, a tunnel, a
+/// staircase of platforms up to an exit, a 45° ramp and a gentle 1:2 hill.
 const TEST_MAP: &str = r"
     #.............#
     #.............#
@@ -334,7 +337,7 @@ const TEST_MAP: &str = r"
     #.............#
     #.............#
     #.............#
-    #.............#
+    #..........E..#
     #........####.#
     #.............#
     #..####.......#
@@ -348,7 +351,8 @@ const TEST_MAP: &str = r"
     ###############
 ";
 
-/// Empty room with a flat floor, for physics replays.
+/// Empty room with a flat floor and an exit by the right wall, for physics
+/// replays.
 const FLAT_MAP: &str = r"
     #.............#
     #.............#
@@ -367,7 +371,7 @@ const FLAT_MAP: &str = r"
     #.............#
     #.............#
     #.............#
-    #..o..........#
+    #..o........E.#
     ###############
     ###############
 ";

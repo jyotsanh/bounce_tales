@@ -8,6 +8,7 @@
 
 pub mod ball;
 pub mod camera;
+pub mod entities;
 pub mod input;
 pub mod map;
 pub mod physics;
@@ -15,6 +16,7 @@ pub mod rng;
 
 pub use ball::Ball;
 pub use camera::Camera;
+pub use entities::{Entity, EntityKind, Event};
 pub use input::InputFrame;
 pub use map::TileMap;
 
@@ -41,6 +43,12 @@ pub struct Sim {
     pub level: Level,
     pub ball: Ball,
     pub camera: Camera,
+    /// Interactive objects built from the level's object specs.
+    pub entities: Vec<Entity>,
+    /// What happened during the latest step (cleared at the start of each).
+    pub events: Vec<Event>,
+    /// The ball has reached the exit (stays true).
+    pub exit_reached: bool,
     pub rng: Rng,
     /// Input used in the most recent step.
     pub input: InputFrame,
@@ -67,8 +75,13 @@ impl Sim {
 
     pub fn with_level(level: Level) -> Sim {
         let ball = Ball::new(level.map.spawn);
+        let entities =
+            entities::build_all(&level.objects).expect("objects are validated when loading");
         Sim {
             tick: 0,
+            entities,
+            events: Vec::new(),
+            exit_reached: false,
             camera: Camera::snapped_to(&ball, &level.map),
             ball,
             level,
@@ -83,6 +96,7 @@ impl Sim {
         self.prev_input = self.input;
         self.input = input;
         self.tick += 1;
+        self.events.clear();
 
         let jump_pressed = self.jump_pressed();
         self.ball.update(input, jump_pressed);
@@ -94,6 +108,13 @@ impl Sim {
             self.camera = Camera::snapped_to(&self.ball, &self.level.map);
         } else {
             self.camera.update(&self.ball, &self.level.map);
+        }
+
+        for e in &mut self.entities {
+            e.update(&self.ball, &mut self.events);
+        }
+        if self.events.contains(&Event::ExitReached) {
+            self.exit_reached = true;
         }
     }
 

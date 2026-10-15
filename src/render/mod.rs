@@ -8,15 +8,20 @@ use macroquad::prelude::*;
 
 use atlas::Sprites;
 
-use bounce_tales::level::TileLayer;
+use bounce_tales::level::{Decoration, TileLayer};
 use bounce_tales::sim::Sim;
 use bounce_tales::sim::camera::{VIEW_H, VIEW_W};
 use bounce_tales::sim::map::{TILE, TileMap};
+use bounce_tales::sim::{Entity, EntityKind};
 
 pub const SCREEN_W: u32 = VIEW_W as u32;
 pub const SCREEN_H: u32 = VIEW_H as u32;
 
 const SKY: Color = Color::new(0.55, 0.80, 0.95, 1.0);
+
+/// Sprites in the `objects` atlas that entities use (checked in tests).
+#[cfg(test)]
+pub const ENTITY_SPRITES: &[&str] = &["exit"];
 
 /// Roll frames in the ball atlas (`roll_0` … `roll_15`).
 pub const BALL_FRAMES: usize = 16;
@@ -69,6 +74,10 @@ impl Renderer {
         for layer in level.layers.iter().filter(|l| !l.front) {
             self.draw_layer(layer, &level.sheets, view);
         }
+        self.draw_decorations(&level.decorations, &level.sheets, false);
+        for e in &sim.entities {
+            self.draw_entity(e);
+        }
 
         let b = &sim.ball;
         let p = b.render_pos(alpha);
@@ -79,6 +88,20 @@ impl Renderer {
 
         for layer in level.layers.iter().filter(|l| l.front) {
             self.draw_layer(layer, &level.sheets, view);
+        }
+        self.draw_decorations(&level.decorations, &level.sheets, true);
+    }
+
+    fn draw_decorations(&self, decorations: &[Decoration], sheets: &[String], front: bool) {
+        for d in decorations.iter().filter(|d| d.front == front) {
+            let atlas = self.sprites.by_name(&sheets[d.tile.sheet as usize]);
+            atlas.draw_index(d.tile.id as usize, d.pos);
+        }
+    }
+
+    fn draw_entity(&self, e: &Entity) {
+        match e.kind {
+            EntityKind::Exit { .. } => self.sprites.objects.draw("exit", e.pos),
         }
     }
 

@@ -69,7 +69,7 @@ Key rules:
 ### Phase B — Content pipeline
 - [x] **07.** **Art pipeline**: `tools/artgen` (ASCII + palette → PNG). Ball sprite with roll rotation, first forest tileset.
 - [x] **08.** **Tiled loader**: load `.tmx` from embedded bytes. Tile properties (`solid`, `slope`, `spike`, `water`) → collision map. Render tile layers.
-- [ ] **09.** **Object layers + ascii2tmx**: spawn, exit, decoration objects. Entity list. Level sketch tool.
+- [x] **09.** **Object layers + ascii2tmx**: spawn, exit, decoration objects. Entity list. Level sketch tool.
 - [ ] **10.** **Visual polish base**: parallax backgrounds, ball squash/stretch on landing, simple particles.
 
 ### Phase C — Core gameplay
@@ -211,3 +211,13 @@ Spare capacity: if a step overruns, the next prompt finishes it before moving on
 - Render: `draw_layer` per tile layer (back layers, ball, front layers), `Atlas::draw_index(id)`, `Sprites::by_name(tileset)`.
 - Tests: TMX round-trip of every ASCII map (collision + pictures equal), every level loads, every `.tmx` is registered, property → shape/flag parsing with an inline test tileset, front layers, error cases (no ground, no spawn, flipped tile, missing tileset).
 - Editing levels: install Tiled (e.g. `sudo apt install tiled` or Flatpak `org.mapeditor.Tiled`), open `assets/levels/*.tmx`, save, and **add new files to `TMX_LEVELS`** (a test fails if you forget).
+
+### Step 09 — Objects, exit, decorations, entities (done)
+- `level::ObjectSpec { kind, name, pos, size, points, props }` (generic; `Prop` Bool/Int/Float/Str, sorted by key). Tiled rect → pos = top-left + size; polyline/polygon → absolute `points`; tile objects with no type → `Decoration { tile, pos (top-left; Tiled anchors tile objects bottom-left), front }` (front from the object or its layer property). Untyped non-tile objects, flipped/rotated decorations and unknown types are **load errors**.
+- `sim::entities`: `Entity { pos, size, kind: EntityKind }`, `build(spec)` validates (unknown types list the known ones), `Entity::update(ball, events)`. **Recipe for new kinds** is in the module doc. First kind: `Exit { reached }`; the ball centre inside the rect → `Event::ExitReached` (once).
+- `Sim`: `entities`, `events` (cleared every step, for audio/FX later), `exit_reached`. Replay field `exit`.
+- ASCII marker `E` = 32x32 exit standing on that cell's floor, centred (`level::EXIT_SIZE`). `TileMap::from_ascii` treats it as empty; `ascii2tmx` writes it as a rect object. `flat` and `test` maps have exits.
+- Art: `assets/art/deco.txt` (tileset, append-only: flower_red, flower_yellow, mushroom, tuft, rock, sign_right, bush_l, bush_r) and `assets/art/objects.txt` (32x32 entity sprites: `exit` gate with checkered flag). `Sprites` now has `deco`, `objects`; `render::ENTITY_SPRITES` is checked against the index.
+- `big.tmx`: deco tileset (firstgid 15), 20 decorations + 4 front tufts, exit at the left end of the top ledge (24,160).
+- Draw order: back tile layers → back decorations → entities → ball → front tile layers → front decorations.
+- Tests: entity build/validate/trigger, ASCII exit marker, TMX decorations/front/props/typed objects, unknown/untyped object errors, round trip now compares objects. Replay `exit_flat`.

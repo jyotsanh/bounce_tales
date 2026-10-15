@@ -1,0 +1,9 @@
+# Flat level: the exit gate stands by the right wall (x 184..216). Rolling
+# right reaches it; the exit flag stays set afterwards.
+level flat
+30 R
+expect exit == 0
+90 R
+expect exit == 1
+60 L
+expect exit == 1

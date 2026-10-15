@@ -1,0 +1,47 @@
+; Sprites for level objects (entities). 32x32 cells; positions are not
+; referenced by levels, so order does not matter here.
+; Run `cargo run -p artgen` after editing.
+sheet objects cell 32x32 columns 4
+palette
+  p #9a6a38   ; wood
+  P #643c1c   ; wood shade
+  b #c08a4c   ; beam
+  B #8a5a2c   ; beam shade
+  K #202020   ; flag dark
+  w #f4f4f4   ; flag light
+  r #e3241b   ; ribbon
+end
+sprite exit
+...............PKKwwKKw.........
+...............PKKwwKKw.........
+...............PwwKKwwK.........
+...............PwwKKwwK.........
+...............P................
+...............P................
+bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+BbbbBbbbBbbbBbbbBbbbBbbbBbbbBbbb
+bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
+..pppP...r............r...pppP..
+..pppP...r............r...pppP..
+..pppP...r............r...pppP..
+..pppP...r............r...pppP..
+..pppP...r............r...pppP..
+..pppP...r............r...pppP..
+..pppP..r.r..........r.r..pppP..
+..pppP....................pppP..
+..pppP....................pppP..
+..pppP....................pppP..
+..pppP....................pppP..
+..pppP....................pppP..
+..pppP....................pppP..
+..pppP....................pppP..
+..pppP....................pppP..
+..pppP....................pppP..
+..pppP....................pppP..
+..pppP....................pppP..
+..pppP....................pppP..
+..pppP....................pppP..
+..pppP....................pppP..
+..pppP....................pppP..
+end

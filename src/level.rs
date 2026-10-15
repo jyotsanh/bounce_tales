@@ -16,6 +16,15 @@
 //!   front of the ball, others behind, in file order.
 //! - An object layer holds one point object of type **`spawn`**, placed
 //!   where the bottom of the ball should rest.
+//! - Other objects with a type become [`ObjectSpec`]s, turned into game
+//!   entities by `sim::entities` (e.g. `exit`: a rectangle the ball must
+//!   reach). Unknown types are load errors, so typos are caught.
+//! - Tile objects without a type (picked from a tileset such as `deco`) are
+//!   [`Decoration`]s: pictures placed anywhere, no collision. They are drawn
+//!   in front of the ball if the object or its layer has `front = true`.
+//!
+//! ASCII maps can mark objects too: `E` = exit (32x32, standing on the
+//! floor of that cell, centred on it).
 
 use std::io::Cursor;
 use std::path::Path;
@@ -30,7 +39,10 @@ use crate::tileset;
 pub const TMX_LEVELS: &[(&str, &str)] = &[("big", include_str!("../assets/levels/big.tmx"))];
 
 /// Embedded tilesets, looked up by file name from `.tmx` references.
-const TILESETS: &[(&str, &str)] = &[("forest.tsx", include_str!("../assets/gen/forest.tsx"))];
+const TILESETS: &[(&str, &str)] = &[
+    ("forest.tsx", include_str!("../assets/gen/forest.tsx")),
+    ("deco.tsx", include_str!("../assets/gen/deco.tsx")),
+];
 
 /// One drawable tile: which tileset (index into `Level::sheets`) and which
 /// sprite in it.
@@ -60,12 +72,108 @@ impl TileLayer {
     }
 }
 
+/// A custom property value from Tiled.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Prop {
+    Bool(bool),
+    Int(i32),
+    Float(f32),
+    Str(String),
+}
+
+/// A typed object from a level, before the sim turns it into an entity.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ObjectSpec {
+    /// Tiled object type (`exit`, …).
+    pub kind: String,
+    pub name: String,
+    /// Top-left corner (rectangles) or position (points), level pixels.
+    pub pos: Vec2,
+    /// Width/height for rectangles, zero otherwise.
+    pub size: Vec2,
+    /// Polyline/polygon points in level pixels (empty otherwise).
+    pub points: Vec<Vec2>,
+    pub props: Vec<(String, Prop)>,
+}
+
+impl ObjectSpec {
+    pub fn prop(&self, key: &str) -> Option<&Prop> {
+        self.props.iter().find(|(k, _)| k == key).map(|(_, v)| v)
+    }
+}
+
+/// A picture placed freely in the level (no collision).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Decoration {
+    pub tile: TileRef,
+    /// Top-left corner, level pixels.
+    pub pos: Vec2,
+    pub front: bool,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Level {
     pub map: TileMap,
     pub layers: Vec<TileLayer>,
     /// Tileset (= atlas) names that `TileRef::sheet` indexes.
     pub sheets: Vec<String>,
+    /// Typed objects, in file order.
+    pub objects: Vec<ObjectSpec>,
+    pub decorations: Vec<Decoration>,
+}
+
+/// Size of the exit gate, px.
+pub const EXIT_SIZE: Vec2 = Vec2::new(32.0, 32.0);
+
+/// ASCII object markers, replaced by empty space before the map is parsed.
+fn ascii_objects(text: &str) -> (String, Vec<ObjectSpec>) {
+    let mut objects = Vec::new();
+    let rows: Vec<&str> = text
+        .lines()
+        .map(str::trim)
+        .filter(|l| !l.is_empty())
+        .collect();
+    let mut out = String::new();
+    for (y, row) in rows.iter().enumerate() {
+        for (x, c) in row.chars().enumerate() {
+            if c == 'E' {
+                let floor = (y as f32 + 1.0) * TILE;
+                let centre_x = (x as f32 + 0.5) * TILE;
+                objects.push(ObjectSpec {
+                    kind: "exit".into(),
+                    name: "exit".into(),
+                    pos: vec2(centre_x - EXIT_SIZE.x / 2.0, floor - EXIT_SIZE.y),
+                    size: EXIT_SIZE,
+                    points: Vec::new(),
+                    props: Vec::new(),
+                });
+                out.push('.');
+            } else {
+                out.push(c);
+            }
+        }
+        out.push('\n');
+    }
+    (out, objects)
+}
+
+fn convert_props(props: &tiled::Properties) -> Vec<(String, Prop)> {
+    let mut v: Vec<(String, Prop)> = props
+        .iter()
+        .filter_map(|(k, p)| {
+            let prop = match p {
+                tiled::PropertyValue::BoolValue(b) => Prop::Bool(*b),
+                tiled::PropertyValue::IntValue(i) => Prop::Int(*i),
+                tiled::PropertyValue::FloatValue(f) => Prop::Float(*f),
+                tiled::PropertyValue::StringValue(s) => Prop::Str(s.clone()),
+                _ => return None,
+            };
+            Some((k.clone(), prop))
+        })
+        .collect();
+    // Tiled stores properties in a HashMap: sort for a stable order.
+    v.sort_by(|a, b| a.0.cmp(&b.0));
+    v
 }
 
 /// Every level name: built-in ASCII maps, then Tiled levels.
@@ -93,7 +201,8 @@ impl Level {
 
     /// An ASCII map with one auto-tiled `ground` layer of forest tiles.
     pub fn from_ascii(text: &str) -> Result<Level, String> {
-        let map = TileMap::from_ascii(text)?;
+        let (text, objects) = ascii_objects(text);
+        let map = TileMap::from_ascii(&text)?;
         let names = tileset::forest_names();
         let mut cells = Vec::with_capacity(map.width * map.height);
         for y in 0..map.height as i32 {
@@ -115,6 +224,8 @@ impl Level {
             map,
             layers: vec![layer],
             sheets: vec!["forest".into()],
+            objects,
+            decorations: Vec::new(),
         })
     }
 
@@ -160,6 +271,8 @@ impl Level {
         let mut layers = Vec::new();
         let mut has_ground = false;
         let mut spawn: Option<Vec2> = None;
+        let mut objects = Vec::new();
+        let mut decorations = Vec::new();
 
         for layer in tm.layers() {
             match layer.layer_type() {
@@ -224,15 +337,76 @@ impl Level {
                         cells,
                     });
                 }
-                tiled::LayerType::Objects(objects) => {
-                    for obj in objects.objects() {
+                tiled::LayerType::Objects(group) => {
+                    let layer_front = matches!(
+                        layer.properties.get("front"),
+                        Some(tiled::PropertyValue::BoolValue(true))
+                    );
+                    for obj in group.objects() {
+                        let pos = vec2(obj.x, obj.y);
                         if obj.user_type == "spawn" {
                             if spawn.is_some() {
                                 return Err("more than one spawn".into());
                             }
                             // Point marks where the ball's bottom rests.
-                            spawn = Some(vec2(obj.x, obj.y - BALL_RADIUS));
+                            spawn = Some(pos - vec2(0.0, BALL_RADIUS));
+                            continue;
                         }
+                        if let (Some(t), "") = (obj.tile_data(), obj.user_type.as_str()) {
+                            if t.flip_h || t.flip_v || t.flip_d || obj.rotation != 0.0 {
+                                return Err(format!(
+                                    "decoration '{}' is flipped or rotated (not supported)",
+                                    obj.name
+                                ));
+                            }
+                            let tiled::TilesetLocation::Map(sheet) = *t.tileset_location() else {
+                                return Err("decorations from templates are not supported".into());
+                            };
+                            let front = layer_front
+                                || matches!(
+                                    obj.properties.get("front"),
+                                    Some(tiled::PropertyValue::BoolValue(true))
+                                );
+                            // Tile objects are anchored at their bottom-left.
+                            let h = match obj.shape {
+                                tiled::ObjectShape::Rect { height, .. } => height,
+                                _ => TILE,
+                            };
+                            decorations.push(Decoration {
+                                tile: TileRef {
+                                    sheet: sheet as u8,
+                                    id: t.id() as u16,
+                                },
+                                pos: pos - vec2(0.0, h),
+                                front,
+                            });
+                            continue;
+                        }
+                        if obj.user_type.is_empty() {
+                            return Err(format!(
+                                "object '{}' at {},{} has no type",
+                                obj.name, obj.x, obj.y
+                            ));
+                        }
+                        let (size, points) = match &obj.shape {
+                            tiled::ObjectShape::Rect { width, height } => {
+                                (vec2(*width, *height), Vec::new())
+                            }
+                            tiled::ObjectShape::Polyline { points }
+                            | tiled::ObjectShape::Polygon { points } => (
+                                Vec2::ZERO,
+                                points.iter().map(|&(x, y)| pos + vec2(x, y)).collect(),
+                            ),
+                            _ => (Vec2::ZERO, Vec::new()),
+                        };
+                        objects.push(ObjectSpec {
+                            kind: obj.user_type.clone(),
+                            name: obj.name.clone(),
+                            pos,
+                            size,
+                            points,
+                            props: convert_props(&obj.properties),
+                        });
                     }
                 }
                 tiled::LayerType::Image(_) => {} // backgrounds come later
@@ -245,10 +419,14 @@ impl Level {
             return Err("no tile layer named 'ground'".into());
         }
         let spawn = spawn.ok_or("no object of type 'spawn'")?;
+        // Catch unknown object types and bad properties at load time.
+        crate::sim::entities::build_all(&objects)?;
         Ok(Level {
             map: TileMap::from_parts(w, h, shapes, cell_flags, spawn)?,
             layers,
             sheets,
+            objects,
+            decorations,
         })
     }
 }
@@ -312,9 +490,23 @@ pub fn ascii_to_tmx(text: &str) -> Result<String, String> {
     }
     let spawn_x = map.spawn.x;
     let spawn_y = map.spawn.y + BALL_RADIUS;
+    let mut extra = String::new();
+    for (i, o) in level.objects.iter().enumerate() {
+        extra.push_str(&format!(
+            "  <object id=\"{}\" name=\"{}\" type=\"{}\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\"/>\n",
+            i + 2,
+            o.name,
+            o.kind,
+            o.pos.x,
+            o.pos.y,
+            o.size.x,
+            o.size.y
+        ));
+    }
+    let next_id = level.objects.len() + 2;
     Ok(format!(
         r#"<?xml version="1.0" encoding="UTF-8"?>
-<map version="1.10" orientation="orthogonal" renderorder="right-down" width="{w}" height="{h}" tilewidth="16" tileheight="16" infinite="0" nextlayerid="3" nextobjectid="2">
+<map version="1.10" orientation="orthogonal" renderorder="right-down" width="{w}" height="{h}" tilewidth="16" tileheight="16" infinite="0" nextlayerid="3" nextobjectid="{next_id}">
  <tileset firstgid="1" source="../gen/forest.tsx"/>
  <layer id="1" name="ground" width="{w}" height="{h}">
   <data encoding="csv">
@@ -324,7 +516,7 @@ pub fn ascii_to_tmx(text: &str) -> Result<String, String> {
   <object id="1" name="spawn" type="spawn" x="{spawn_x}" y="{spawn_y}">
    <point/>
   </object>
- </objectgroup>
+{extra} </objectgroup>
 </map>
 "#
     ))
@@ -340,7 +532,10 @@ mod tests {
             let level = Level::load(name).unwrap_or_else(|e| panic!("{e}"));
             assert!(level.layers.iter().any(|l| l.name == "ground"), "{name}");
             for sheet in &level.sheets {
-                assert_eq!(sheet, "forest", "{name}: unknown tileset");
+                assert!(
+                    ["forest", "deco"].contains(&sheet.as_str()),
+                    "{name}: tileset '{sheet}' has no atlas in the renderer"
+                );
             }
         }
         assert!(Level::load("nope").unwrap_err().contains("known:"));
@@ -408,6 +603,73 @@ mod tests {
         assert_eq!(m.get(2, 1), Tile::Slope45Left);
         assert_eq!(m.get(1, 1), Tile::Empty);
         assert_eq!(level.layers[0].get(1, 0), Some(TileRef { sheet: 0, id: 1 }));
+    }
+
+    #[test]
+    fn ascii_exit_marker() {
+        let level = Level::from_ascii("o.E\n###").unwrap();
+        assert_eq!(level.objects.len(), 1);
+        let exit = &level.objects[0];
+        assert_eq!(exit.kind, "exit");
+        assert_eq!(exit.pos, vec2(40.0 - 16.0, 16.0 - 32.0));
+        assert_eq!(exit.size, EXIT_SIZE);
+        assert_eq!(level.map.get(2, 0), Tile::Empty);
+    }
+
+    #[test]
+    fn decorations_and_typed_objects_from_tmx() {
+        let tmx = ascii_to_tmx("o...\n####")
+            .unwrap()
+            .replace(
+                r#"<tileset firstgid="1" source="../gen/forest.tsx"/>"#,
+                r#"<tileset firstgid="1" source="../gen/forest.tsx"/>
+ <tileset firstgid="15" source="../gen/deco.tsx"/>"#,
+            )
+            .replace(
+                " </objectgroup>",
+                r#"  <object id="5" gid="17" x="32" y="16" width="16" height="16"/>
+  <object id="6" gid="18" x="48" y="16" width="16" height="16">
+   <properties><property name="front" type="bool" value="true"/></properties>
+  </object>
+  <object id="7" name="goal" type="exit" x="40" y="-16" width="32" height="32">
+   <properties><property name="next" value="level2"/></properties>
+  </object>
+ </objectgroup>"#,
+            );
+        let level = Level::from_tmx("t", &tmx).unwrap();
+        assert_eq!(level.sheets, ["forest", "deco"]);
+        assert_eq!(level.decorations.len(), 2);
+        let d = level.decorations[0];
+        assert_eq!(d.tile, TileRef { sheet: 1, id: 2 });
+        assert_eq!(d.pos, vec2(32.0, 0.0), "anchored at the bottom-left");
+        assert!(!d.front);
+        assert!(level.decorations[1].front);
+        assert_eq!(level.objects.len(), 1);
+        let exit = &level.objects[0];
+        assert_eq!((exit.kind.as_str(), exit.name.as_str()), ("exit", "goal"));
+        assert_eq!(exit.pos, vec2(40.0, -16.0));
+        assert_eq!(exit.prop("next"), Some(&Prop::Str("level2".into())));
+    }
+
+    #[test]
+    fn unknown_object_types_fail_to_load() {
+        let tmx = ascii_to_tmx("o.\n##").unwrap().replace(
+            " </objectgroup>",
+            r#"  <object id="5" name="oops" type="exitt" x="0" y="0" width="32" height="32"/>
+ </objectgroup>"#,
+        );
+        let e = Level::from_tmx("t", &tmx).unwrap_err();
+        assert!(e.contains("unknown object type 'exitt'"), "{e}");
+        let untyped = ascii_to_tmx("o.\n##").unwrap().replace(
+            " </objectgroup>",
+            r#"  <object id="5" name="what" x="0" y="0" width="32" height="32"/>
+ </objectgroup>"#,
+        );
+        assert!(
+            Level::from_tmx("t", &untyped)
+                .unwrap_err()
+                .contains("no type")
+        );
     }
 
     #[test]

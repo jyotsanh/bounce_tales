@@ -99,6 +99,8 @@ impl Atlas {
 pub struct Sprites {
     pub ball: Atlas,
     pub forest: Atlas,
+    pub deco: Atlas,
+    pub objects: Atlas,
 }
 
 macro_rules! embedded_atlas {
@@ -116,6 +118,8 @@ impl Sprites {
         Sprites {
             ball: embedded_atlas!("ball"),
             forest: embedded_atlas!("forest"),
+            deco: embedded_atlas!("deco"),
+            objects: embedded_atlas!("objects"),
         }
     }
 
@@ -125,6 +129,8 @@ impl Sprites {
         match name {
             "ball" => &self.ball,
             "forest" => &self.forest,
+            "deco" => &self.deco,
+            "objects" => &self.objects,
             _ => panic!("no atlas named '{name}'"),
         }
     }
@@ -141,6 +147,14 @@ mod tests {
         assert_eq!(m[1], ("b".to_owned(), Rect::new(16.0, 0.0, 16.0, 16.0)));
         assert!(parse_index("a 0 0 16").is_err());
         assert!(parse_index("a 0 0 16 x").is_err());
+    }
+
+    #[test]
+    fn embedded_objects_index_has_entity_sprites() {
+        let objects = parse_index(include_str!("../../assets/gen/objects.idx")).unwrap();
+        for name in super::super::ENTITY_SPRITES {
+            assert!(objects.iter().any(|(n, _)| n == name), "{name}");
+        }
     }
 
     #[test]
