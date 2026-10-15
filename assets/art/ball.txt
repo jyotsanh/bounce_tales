@@ -1,0 +1,51 @@
+; The red ball. `body` turns with rolling (the seam and mark show the
+; spin); `shade` is fixed lighting from the top-left plus an outline.
+; Run `cargo run -p artgen` after editing.
+sheet ball cell 16x16 columns 8
+palette
+  r #e3241b   ; rubber red
+  d #a8150f   ; seam
+  o #4a0707   ; outline
+  h #ffffffe6 ; highlight
+  l #ffffff59 ; soft light
+  s #00000038 ; shade
+  S #00000070 ; deep shade
+end
+sprite body
+.....rrrrrr.....
+...rrrrrrrrrr...
+..rrrrrrrrrrrr..
+.rrrrrrrrrrrrrr.
+.rrrrddrrrrrrrr.
+rrrrrdrrrrrrrrrr
+rrrrrrrrrrrrrrrr
+drrrrrrrrrrrrrrd
+dddrrrrrrrrrrddd
+rrddddddddddddrr
+rrrrrddddddrrrrr
+.rrrrrrrrrrrrrr.
+.rrrrrrrrrrrrrr.
+..rrrrrrrrrrrr..
+...rrrrrrrrrr...
+.....rrrrrr.....
+end
+sprite shade
+.....oooooo.....
+...oohll...oo...
+..ohhhll....so..
+.ohhhlll....sso.
+.ohhlll.....sso.
+olllll......ssSo
+ollll......sssSo
+o.........sssSSo
+o........ssssSSo
+o.......ssssSSSo
+o......ssssSSSSo
+.o..ssssssSSSSo.
+.ossssssSSSSSSo.
+..osssSSSSSSSo..
+...ooSSSSSSoo...
+.....oooooo.....
+end
+; 16 roll frames, 22.5 degrees apart, clockwise (= rolling right).
+spin roll from body frames 16 fill r over shade

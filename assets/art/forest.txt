@@ -1,0 +1,267 @@
+; Forest tileset. ORDER MATTERS: Tiled levels (step 8) refer to tiles by
+; position (0 = first sprite, 8 per row). Only append new tiles at the end.
+; Run `cargo run -p artgen` after editing.
+sheet forest cell 16x16 columns 8
+palette
+  G #8be04a   ; grass light
+  g #57b030   ; grass
+  V #2f7d22   ; grass dark
+  D #b07a45   ; dirt light
+  d #8a5a30   ; dirt
+  K #643c1c   ; dirt dark
+  O #3b2410   ; dirt deepest / roots
+  S #bdb6aa   ; stone light
+  s #7d766c   ; stone dark
+end
+sprite grass_top
+GGGGGGGGGGGGGGGG
+GGGGGGGGGGGGGGGG
+gggggggggggggggg
+VVVVVVVVVVVVVVVV
+dVddVVddVdKVdVVd
+ddddVddddddVdKdd
+dddddddddddddddd
+dddDdKdddKdddddd
+dddddddddddddddd
+ddKDDDddddddddKd
+dddddddddddddddK
+dddDddDDddddddKd
+dDDddddddddddddd
+dddddddddddddddK
+ddddddddddKddddd
+dddddddddddddddd
+end
+sprite grass_left
+.GGGGGGGGGGGGGGG
+VgGGGGGGGGGGGGGG
+Vggggggggggggggg
+VgVVVVVVVVVVVVVV
+VgddVVddVdKVdVVd
+VVddVddddddVdKdd
+KVdddddddddddddd
+KddDdKdddKdddddd
+Kddddddddddddddd
+KdKDDDddddddddKd
+KddddddddddddddK
+KddDddDDddddddKd
+KDDddddddddddddd
+KddddddddddddddK
+KdddddddddKddddd
+Kddddddddddddddd
+end
+sprite grass_right
+GGGGGGGGGGGGGGG.
+GGGGGGGGGGGGGGgV
+gggggggggggggggV
+VVVVVVVVVVVVVVgV
+dVVdVKdVddVVddgV
+ddKdVddddddVddVV
+ddddddddddddddVK
+ddddddKdddKdDddK
+dddddddddddddddK
+dKddddddddDDDKdK
+KddddddddddddddK
+dKddddddDDddDddK
+dddddddddddddDDK
+KddddddddddddddK
+dddddKdddddddddK
+dddddddddddddddK
+end
+sprite grass_platform
+GGGGGGGGGGGGGGGG
+GGGGGGGGGGGGGGGG
+gggggggggggggggg
+VVVVVVVVVVVVVVVV
+dVddVVddVdKVdVVd
+ddddVddddddVdKdd
+dddddddddddddddd
+dddDdKdddKdddddd
+dddddddddddddddd
+ddKDDDddddddddKd
+dddddddddddddddK
+dddDddDDddddddKd
+dDDddddddddddddd
+dddddddddddddddK
+KKKKKKKKKKKKKKKK
+OOOOOOOOOOOOOOOO
+end
+sprite dirt
+dddddddddddddddd
+ddDdddDDdddddDdd
+dDdddddddddddDDd
+ddKddDdddddddddd
+ddddddddddKDdddd
+dddddddddddddKdd
+dddddddddddddddd
+dddDdKdddKdddddd
+dddddddddddddddd
+ddKDDDddddddddKd
+dddddddddddddddK
+dddDddDDddddddKd
+dDDddddddddddddd
+dddddddddddddddK
+ddddddddddKddddd
+dddddddddddddddd
+end
+sprite dirt_stones
+dddddddddddddddd
+ddDdddDDdddddDdd
+dDdddddddddddDDd
+ddKddDdddddddddd
+ddddSSddddKDdddd
+dddSSSsddddddKdd
+ddddssdddddddddd
+dddDdKdddKdddddd
+dddddddddddddddd
+ddKDDDddddddddKd
+dddddddddddSSddK
+dddDddDDddSSSsKd
+dDDddddddddssddd
+dddddddddddddddK
+ddddddddddKddddd
+dddddddddddddddd
+end
+sprite dirt_bottom
+dddddddddddddddd
+ddDdddDDdddddDdd
+dDdddddddddddDDd
+ddKddDdddddddddd
+ddddddddddKDdddd
+dddddddddddddKdd
+dddddddddddddddd
+dddDdKdddKdddddd
+dddddddddddddddd
+ddKDDDddddddddKd
+dddddddddddddddK
+dddDddDDddddddKd
+dDDddddddddddddd
+dddddddddddddddK
+KKKKKKKKKKKKKKKK
+OOOOOOOOOOOOOOOO
+end
+sprite dirt_roots
+dddddddddddddddd
+ddDdddDDdddddDdd
+dDdddddddddddDDd
+ddOddDdddddddddd
+dddOOdddddKDdddd
+dddddOdddddddKdd
+ddddddOOdddddddd
+dddDdKddOKdddddd
+dddddddddOdddddd
+ddKDDDdddOddddKd
+ddddddddddOOdddK
+dddDddDDddddOdKd
+dDDddddddddddddd
+dddddddddddddddK
+ddddddddddKddddd
+dddddddddddddddd
+end
+sprite slope45_r
+...............G
+..............GG
+.............GGG
+............GGGg
+...........GGGgg
+..........GGGggV
+.........GGGggVV
+........GGGggVVd
+.......GGGggVVVd
+......GGGggVVVKd
+.....GGGggVVdddK
+....GGGggVVVddKd
+...GGGggVVdVdddd
+..GGGggVVddVdddK
+.GGGggVVVdKddddd
+GGGggVVddddddddd
+end
+sprite slope45_l
+G...............
+GG..............
+GGG.............
+gGGG............
+ggGGG...........
+VggGGG..........
+VVggGGG.........
+dVVggGGG........
+dVVVggGGG.......
+ddKVVggGGG......
+ddddVVggGGG.....
+dddDVVVggGGG....
+dDDdVVVVggGGG...
+ddddVddVVggGGG..
+ddddddddVVggGGG.
+ddddddddVVVggGGG
+end
+sprite slope2_r_low
+................
+................
+................
+................
+................
+................
+................
+................
+...............G
+.............GGG
+...........GGGGg
+.........GGGGggg
+.......GGGGgggVV
+.....GGGGgggVVVK
+...GGGGgggVVVVVd
+.GGGGgggVVVVdddd
+end
+sprite slope2_r_high
+...............G
+.............GGG
+...........GGGGg
+.........GGGGggg
+.......GGGGgggVV
+.....GGGGgggVVVd
+...GGGGgggVVVVVd
+.GGGGgggVVVVdddd
+GGGgggVVVddVdddd
+GgggVVVdVdddddKd
+ggVVVVdddddddddK
+VVVDVdDDddddddKd
+VVDdVddddddddddd
+dddddddddddddddK
+ddddddddddKddddd
+dddddddddddddddd
+end
+sprite slope2_l_high
+G...............
+GGG.............
+gGGGG...........
+gggGGGG.........
+VVgggGGGG.......
+dVVVgggGGGG.....
+dVdVVVgggGGGG...
+dddDVVVVgggGGGG.
+ddddVVdVVVgggGGG
+ddKDDDddVVVVgggG
+dddddddddddVVVgg
+dddDddDDdddVdVVV
+dDDddddddddVdVVV
+dddddddddddddddK
+ddddddddddKddddd
+dddddddddddddddd
+end
+sprite slope2_l_low
+................
+................
+................
+................
+................
+................
+................
+................
+G...............
+GGG.............
+gGGGG...........
+gggGGGG.........
+VVgggGGGG.......
+dVVVgggGGGG.....
+dVdVVVgggGGGG...
+ddddVVVVgggGGGG.
+end

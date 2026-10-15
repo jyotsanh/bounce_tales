@@ -67,7 +67,7 @@ Key rules:
 - [x] **06.** **Camera**: follow with deadzone and look-ahead, clamped to level bounds.
 
 ### Phase B — Content pipeline
-- [ ] **07.** **Art pipeline**: `tools/artgen` (ASCII + palette → PNG). Ball sprite with roll rotation, first forest tileset.
+- [x] **07.** **Art pipeline**: `tools/artgen` (ASCII + palette → PNG). Ball sprite with roll rotation, first forest tileset.
 - [ ] **08.** **Tiled loader**: load `.tmx` from embedded bytes. Tile properties (`solid`, `slope`, `spike`, `water`) → collision map. Render tile layers.
 - [ ] **09.** **Object layers + ascii2tmx**: spawn, exit, decoration objects. Entity list. Level sketch tool.
 - [ ] **10.** **Visual polish base**: parallax backgrounds, ball squash/stretch on landing, simple particles.
@@ -190,3 +190,11 @@ Spare capacity: if a step overruns, the next prompt finishes it before moving on
 - New default level **`big`** (64x40: step, ramp, plateau, 1:2 slope, 3-tile pit, 12-platform zigzag tower, top ledge back left). `test` stays for replays.
 - Renderer: `target_camera(target, view)` builds the Camera2D per frame; `screen_camera` for the overlay (now shows cam); tiles outside the view are culled.
 - Tests: 10 camera unit tests (snap/clamp, centring small levels, screen-sized level never scrolls, look-ahead lead, smooth turn pan, no pan back on stop, jump doesn't bob, gradual recentre, falls followed, whole-pixel render). Replays `camera_slopes`, `camera_big` (hop path depends on tuning; re-check if physics changes).
+
+### Step 07 — Art pipeline (done)
+- Cargo **workspace**: root `bounce_tales` + `tools/artgen` (dep: `png`). `scripts/check.sh` now runs clippy/test with `--workspace`.
+- `artgen` source format (doc comment in `tools/artgen/src/lib.rs`): `sheet <name> cell WxH columns N`, `palette … end` (`#RRGGBB[AA]`, `.` = transparent), `sprite <name> … end`, `spin <prefix> from <sprite> frames N fill <char> [over <sprite>]` (pre-rotated frames, clockwise; `over` = fixed lighting, masked to the shape). `;` comments outside sprites.
+- `cargo run -p artgen` writes `assets/gen/<sheet>.png` + `.idx` (`name x y w h`). **Generated files are committed.** `tools/artgen/tests/up_to_date.rs` fails if they drift from `assets/art/*.txt` (verified by changing a pixel). `cargo run -p artgen -- --check` does the same from the CLI.
+- Art: `assets/art/ball.txt` (body with seam + mark, shade overlay with highlight/outline, 16 roll frames `roll_0..15`); `assets/art/forest.txt` (14 tiles, **order matters for Tiled, append only**: grass_top, grass_left, grass_right, grass_platform, dirt, dirt_stones, dirt_bottom, dirt_roots, slope45_r, slope45_l, slope2_r_low, slope2_r_high, slope2_l_high, slope2_l_low). First drafts came from a one-off Python script (circle mask, light-based shading, slope grass lines); the `.txt` files are the source of truth now.
+- Game: `src/render/atlas.rs`: `Atlas` (embedded via `include_bytes!`/`include_str!`, nearest filter, `draw(name, pos)` rounds to whole pixels), `Sprites::load()`. Ball frame = `ball_frame(angle)` (nearest of 16). `forest_tile(map, x, y)` auto-tiles ASCII maps from the shape plus open sides (top row of the map counts as closed). Dirt variety comes from a fixed per-cell hash.
+- Screenshots now go to `shots/` (gitignored). Live window verified the right way up with textures.

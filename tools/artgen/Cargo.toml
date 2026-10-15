@@ -1,0 +1,8 @@
+[package]
+name = "artgen"
+version = "0.1.0"
+edition = "2024"
+description = "Turns ASCII sprite sheets in assets/art into PNG atlases in assets/gen"
+
+[dependencies]
+png = "0.17"
