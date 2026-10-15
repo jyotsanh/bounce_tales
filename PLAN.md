@@ -104,7 +104,7 @@ Key rules:
 ### Phase H — Menus & story
 - [x] **30.** **Game state machine & menus**: title, main menu, pause, game over, screen transitions.
 - [x] **31.** **Level select / world map** with locks, egg counts, best times.
-- [ ] **32.** **Save & options**: progress, eggs, settings (volume, scale, fullscreen) saved to an XDG path.
+- [x] **32.** **Save & options**: progress, eggs, settings (volume, scale, fullscreen) saved to an XDG path.
 - [ ] **33.** **Cutscene engine**: comic panels + text boxes. Intro, between-level and ending scenes.
 
 ### Phase I — Levels (you share references before each one)
@@ -410,3 +410,11 @@ Spare capacity: if a step overruns, the next prompt finishes it before moving on
 - Render: hills backdrop; dotted path (grey towards locked levels); nodes coloured by world (forest green, cave blue, castle grey, boss purple; locked grey "?"), gold ring when done; egg dots (found white) under each node; the ball hops on the chosen node; the map scrolls to keep its row in view. Top bar: WORLD MAP, total score, eggs found / total. Bottom panel: number + title, best score / eggs / best time, or NEW! / LOCKED.
 - CLI `--unlock-all` (for testing levels out of order).
 - Tests: progress unlock order, best-of records; map cursor ends + locked refusal, unlock-all, finishing a level records/unlocks/returns with the cursor on the next, path layout, every campaign level on the map; updated flow tests.
+
+### Step 32 — Save & options (done)
+- Deps: `serde` (derive), `ron`, `directories`. `src/save.rs`: `SaveData { version: 1, settings: Settings { volume, fullscreen }, progress }` as pretty RON; every struct is `#[serde(default)]` so missing fields load as defaults; `unlock_all` is `#[serde(skip)]`. `default_path()` = `ProjectDirs` data dir → `~/.local/share/bounce_tales/save.ron` (XDG_DATA_HOME honoured). `store` writes `save.ron.tmp` then renames (atomic), creating the directory. Missing file = fresh start.
+- Binary: loads the save at start (a corrupt file is moved to `save.ron.bad` with a warning, then defaults); writes it whenever `App.dirty` (level result recorded, any setting changed, progress reset). `--save <file>` / `--no-save`; scripted runs (`--frames` / `--replay`) never read or write it. `--mute` still forces mute at start.
+- Options screen (main menu OPTIONS, and pause menu OPTIONS over the frozen game): MUSIC and SOUND (left/right, 10-step bars, grey when muted), FULLSCREEN (toggle), RESET PROGRESS (main menu only → "ERASE ALL PROGRESS?" NO / YES, NO first), BACK. Main menu: PLAY / OPTIONS / HOW TO PLAY / QUIT; pause: RESUME / RESTART LEVEL / OPTIONS / WORLD MAP.
+- Settings now live in `App.settings`; hotkeys moved into `App::hotkey` (M, -/=, [/], and new **F11** fullscreen), `Sounds::set_volume` mirrors them. Fullscreen applied with `set_fullscreen` on change and at start.
+- Font gained `<`.
+- Tests: save text round trip, unlock_all not saved, defaults for missing fields + bad text error, file store/load/missing/garbage, default path; options volumes/fullscreen/back, reset asks first (NO keeps, YES clears), options from pause (game shown, level music, no reset), hotkeys.

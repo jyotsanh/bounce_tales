@@ -8,5 +8,6 @@ pub mod game;
 pub mod level;
 pub mod progress;
 pub mod replay;
+pub mod save;
 pub mod sim;
 pub mod tileset;

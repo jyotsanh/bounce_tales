@@ -24,6 +24,10 @@ pub struct Options {
     pub mute: bool,
     /// Every world-map level playable (for testing).
     pub unlock_all: bool,
+    /// Save file to use instead of the default one.
+    pub save: Option<PathBuf>,
+    /// Don't read or write any save file.
+    pub no_save: bool,
     /// Initial window scale factor (window = 240*scale x 320*scale).
     pub scale: u32,
 }
@@ -41,6 +45,8 @@ Options:
                        (needs --frames or --replay)
   --record <file>      Record keyboard input to a replay file on exit
   --debug              Start with the debug overlay on (F1 toggles)
+  --save <file>        Use this save file (default: the user data dir)
+  --no-save            Don't read or write a save file
   --unlock-all         Make every level on the world map playable
   --mute               Start with sound off (M toggles)
   --scale <N>          Window scale factor (default 2)
@@ -78,6 +84,8 @@ impl Options {
                 "--debug" => opts.debug = true,
                 "--mute" => opts.mute = true,
                 "--unlock-all" => opts.unlock_all = true,
+                "--save" => opts.save = Some(value("--save")?.into()),
+                "--no-save" => opts.no_save = true,
                 "--scale" => {
                     let s = parse_num("--scale", &value("--scale")?)?;
                     if !(1..=8).contains(&s) {
@@ -137,6 +145,9 @@ mod tests {
             "3",
             "--mute",
             "--unlock-all",
+            "--save",
+            "s.ron",
+            "--no-save",
         ])
         .unwrap();
         assert_eq!(o.level.as_deref(), Some("l1"));
@@ -146,6 +157,8 @@ mod tests {
         assert_eq!(o.scale, 3);
         assert!(o.mute);
         assert!(o.unlock_all);
+        assert_eq!(o.save, Some("s.ron".into()));
+        assert!(o.no_save);
     }
 
     #[test]

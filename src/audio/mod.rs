@@ -7,7 +7,8 @@ pub mod sfx;
 pub mod synth;
 
 /// Volume steps, 0 (off) ..= [`Volume::MAX`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
 pub struct Volume {
     pub music: u8,
     pub sfx: u8,

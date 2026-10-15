@@ -4,10 +4,13 @@
 
 use std::collections::BTreeMap;
 
+use serde::{Deserialize, Serialize};
+
 use crate::game::LevelResult;
 
 /// Best results for one level.
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(default)]
 pub struct LevelRecord {
     pub completed: bool,
     pub best_score: u32,
@@ -16,11 +19,13 @@ pub struct LevelRecord {
     pub best_seconds: Option<u32>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(default)]
 pub struct Progress {
     /// By level name.
     pub records: BTreeMap<String, LevelRecord>,
-    /// Every level playable (`--unlock-all`, for testing).
+    /// Every level playable (`--unlock-all`, for testing; never saved).
+    #[serde(skip)]
     pub unlock_all: bool,
 }
 

@@ -505,3 +505,13 @@ sprite arrow
 .w....
 ......
 end
+sprite larrow
+....w.
+...ww.
+..www.
+.wwww.
+..www.
+...ww.
+....w.
+......
+end

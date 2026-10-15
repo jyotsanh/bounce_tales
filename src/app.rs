@@ -7,9 +7,11 @@
 
 use macroquad::math::{Vec2, vec2};
 
+use crate::audio::Volume;
 use crate::game::{self, CAMPAIGN, Game, Mode};
 use crate::level::Level;
 use crate::progress::Progress;
+use crate::save::Settings;
 use crate::sim::{Carry, GAME_OVER_TICKS, InputFrame, Sim};
 
 /// Steps for a fade out (and the same again for the fade in).
@@ -17,8 +19,9 @@ pub const FADE: u32 = 18;
 /// Steps of "GAME OVER" before its menu takes input.
 pub const GAME_OVER_MENU_AFTER: u32 = 45;
 
-pub const MAIN_MENU: &[&str] = &["PLAY", "HOW TO PLAY", "QUIT"];
-pub const PAUSE_MENU: &[&str] = &["RESUME", "RESTART LEVEL", "WORLD MAP"];
+pub const MAIN_MENU: &[&str] = &["PLAY", "OPTIONS", "HOW TO PLAY", "QUIT"];
+pub const PAUSE_MENU: &[&str] = &["RESUME", "RESTART LEVEL", "OPTIONS", "WORLD MAP"];
+pub const CONFIRM_MENU: &[&str] = &["NO", "YES"];
 pub const GAME_OVER_MENU: &[&str] = &["TRY AGAIN", "WORLD MAP"];
 
 /// Map nodes per row of the winding path.
@@ -67,6 +70,49 @@ pub enum Screen {
     GameOver {
         sel: usize,
     },
+    /// Volumes, fullscreen, reset; opened from the main menu or the pause
+    /// menu (then the game shows underneath and RESET is left out).
+    Options {
+        sel: usize,
+        from_pause: bool,
+    },
+    /// "Erase all progress?" NO / YES.
+    ConfirmReset {
+        sel: usize,
+    },
+}
+
+/// One row of the options screen.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OptionItem {
+    Music,
+    Sound,
+    Fullscreen,
+    Reset,
+    Back,
+}
+
+impl OptionItem {
+    pub fn label(self) -> &'static str {
+        match self {
+            OptionItem::Music => "MUSIC",
+            OptionItem::Sound => "SOUND",
+            OptionItem::Fullscreen => "FULLSCREEN",
+            OptionItem::Reset => "RESET PROGRESS",
+            OptionItem::Back => "BACK",
+        }
+    }
+}
+
+/// Keys that work on every screen.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Hotkey {
+    Mute,
+    MusicDown,
+    MusicUp,
+    SfxDown,
+    SfxUp,
+    Fullscreen,
 }
 
 /// What happens at the dark midpoint of a fade.
@@ -154,6 +200,9 @@ pub struct App {
     /// This level's result is already in `progress`.
     result_recorded: bool,
     prev_jump: bool,
+    pub settings: Settings,
+    /// Progress or settings changed since the last save.
+    pub dirty: bool,
 }
 
 impl App {
@@ -179,6 +228,8 @@ impl App {
             unlocked_now: None,
             result_recorded: false,
             prev_jump: false,
+            settings: Settings::default(),
+            dirty: false,
         }
     }
 
@@ -220,16 +271,30 @@ impl App {
         self.game.is_some()
             && matches!(
                 self.screen,
-                Screen::Playing | Screen::Paused { .. } | Screen::GameOver { .. }
+                Screen::Playing
+                    | Screen::Paused { .. }
+                    | Screen::GameOver { .. }
+                    | Screen::Options {
+                        from_pause: true,
+                        ..
+                    }
             )
     }
 
     /// Music for the current screen.
     pub fn music(&self) -> Option<&str> {
         match (&self.screen, &self.game) {
-            (Screen::Title | Screen::Menu { .. } | Screen::Help | Screen::Map { .. }, _) => {
-                Some("title")
-            }
+            (
+                Screen::Title
+                | Screen::Menu { .. }
+                | Screen::Help
+                | Screen::Map { .. }
+                | Screen::ConfirmReset { .. }
+                | Screen::Options {
+                    from_pause: false, ..
+                },
+                _,
+            ) => Some("title"),
             (Screen::GameOver { .. }, _) => None,
             (_, Some(g)) => crate::audio::music::for_game(g),
             (_, None) => None,
@@ -294,6 +359,10 @@ impl App {
                             self.start_fade(Action::ToMap);
                         }
                         "HOW TO PLAY" => self.go(Screen::Help),
+                        "OPTIONS" => self.go(Screen::Options {
+                            sel: 0,
+                            from_pause: false,
+                        }),
                         _ => self.start_fade(Action::Quit),
                     }
                 }
@@ -301,7 +370,35 @@ impl App {
             Screen::Help => {
                 if keys.confirm || keys.back {
                     self.ui_events.push(UiEvent::Back);
-                    self.go(Screen::Menu { sel: 1 });
+                    self.go(Screen::Menu { sel: 2 });
+                }
+            }
+            Screen::Options { sel, from_pause } => self.step_options(sel, from_pause, keys),
+            Screen::ConfirmReset { sel } => {
+                let back = Screen::Options {
+                    sel: 3,
+                    from_pause: false,
+                };
+                if keys.back {
+                    self.ui_events.push(UiEvent::Back);
+                    self.go(back);
+                    return;
+                }
+                let sel = self.navigate(sel, CONFIRM_MENU.len(), keys);
+                self.screen = Screen::ConfirmReset { sel };
+                if keys.confirm {
+                    if CONFIRM_MENU[sel] == "YES" {
+                        self.ui_events.push(UiEvent::Select);
+                        self.progress = Progress {
+                            unlock_all: self.progress.unlock_all,
+                            ..Progress::default()
+                        };
+                        self.map_sel = 0;
+                        self.dirty = true;
+                    } else {
+                        self.ui_events.push(UiEvent::Back);
+                    }
+                    self.go(back);
                 }
             }
             Screen::Map { sel } => self.step_map(sel, keys),
@@ -334,6 +431,10 @@ impl App {
                     match PAUSE_MENU[sel] {
                         "RESUME" => self.go(Screen::Playing),
                         "RESTART LEVEL" => self.start_fade(Action::RestartLevel),
+                        "OPTIONS" => self.go(Screen::Options {
+                            sel: 0,
+                            from_pause: true,
+                        }),
                         _ => self.start_fade(Action::ToMap),
                     }
                 }
@@ -348,6 +449,117 @@ impl App {
                         _ => self.start_fade(Action::ToMap),
                     }
                 }
+            }
+        }
+    }
+
+    /// Rows of the options screen.
+    pub fn option_items(from_pause: bool) -> Vec<OptionItem> {
+        let mut v = vec![OptionItem::Music, OptionItem::Sound, OptionItem::Fullscreen];
+        if !from_pause {
+            v.push(OptionItem::Reset);
+        }
+        v.push(OptionItem::Back);
+        v
+    }
+
+    /// The value shown beside an option.
+    pub fn option_value(&self, item: OptionItem) -> String {
+        let v = &self.settings.volume;
+        let level = |l: u8| {
+            if v.muted {
+                "MUTED".to_owned()
+            } else {
+                format!("{l}/{}", Volume::MAX)
+            }
+        };
+        match item {
+            OptionItem::Music => level(v.music),
+            OptionItem::Sound => level(v.sfx),
+            OptionItem::Fullscreen => if self.settings.fullscreen {
+                "ON"
+            } else {
+                "OFF"
+            }
+            .into(),
+            OptionItem::Reset | OptionItem::Back => String::new(),
+        }
+    }
+
+    fn step_options(&mut self, sel: usize, from_pause: bool, keys: MenuKeys) {
+        let items = App::option_items(from_pause);
+        let leave = if from_pause {
+            Screen::Paused { sel: 2 }
+        } else {
+            Screen::Menu { sel: 1 }
+        };
+        if keys.back {
+            self.ui_events.push(UiEvent::Back);
+            self.go(leave);
+            return;
+        }
+        let sel = self.navigate(sel, items.len(), keys);
+        self.screen = Screen::Options { sel, from_pause };
+        let side = keys.left || keys.right;
+        match items[sel] {
+            OptionItem::Music | OptionItem::Sound if side => {
+                let v = &mut self.settings.volume;
+                let level = if items[sel] == OptionItem::Music {
+                    &mut v.music
+                } else {
+                    &mut v.sfx
+                };
+                Volume::nudge(level, keys.right);
+                v.muted = false;
+                self.dirty = true;
+                self.ui_events.push(UiEvent::Move);
+            }
+            OptionItem::Fullscreen if side || keys.confirm => {
+                self.settings.fullscreen = !self.settings.fullscreen;
+                self.dirty = true;
+                self.ui_events.push(UiEvent::Select);
+            }
+            OptionItem::Reset if keys.confirm => {
+                self.ui_events.push(UiEvent::Select);
+                self.go(Screen::ConfirmReset { sel: 0 });
+            }
+            OptionItem::Back if keys.confirm => {
+                self.ui_events.push(UiEvent::Back);
+                self.go(leave);
+            }
+            _ => {}
+        }
+    }
+
+    /// A hotkey pressed anywhere; returns the message to show.
+    pub fn hotkey(&mut self, key: Hotkey) -> String {
+        let v = &mut self.settings.volume;
+        self.dirty = true;
+        match key {
+            Hotkey::Mute => {
+                v.muted = !v.muted;
+                if v.muted { "SOUND OFF" } else { "SOUND ON" }.into()
+            }
+            Hotkey::MusicDown | Hotkey::MusicUp => {
+                Volume::nudge(&mut v.music, key == Hotkey::MusicUp);
+                v.muted = false;
+                format!("MUSIC {}/{}", v.music, Volume::MAX)
+            }
+            Hotkey::SfxDown | Hotkey::SfxUp => {
+                Volume::nudge(&mut v.sfx, key == Hotkey::SfxUp);
+                v.muted = false;
+                format!("SOUND {}/{}", v.sfx, Volume::MAX)
+            }
+            Hotkey::Fullscreen => {
+                self.settings.fullscreen = !self.settings.fullscreen;
+                format!(
+                    "FULLSCREEN {}",
+                    if self.settings.fullscreen {
+                        "ON"
+                    } else {
+                        "OFF"
+                    }
+                )
             }
         }
     }
@@ -412,6 +624,7 @@ impl App {
             return;
         }
         self.result_recorded = true;
+        self.dirty = true;
         let result = result.clone();
         let index = self.level_index(&result.level);
         let was_unlocked = index.map(|i| self.unlocked(i + 1));
@@ -550,7 +763,7 @@ mod tests {
         let mut app = App::new();
         press(&mut app, CONFIRM);
         press(&mut app, UP);
-        assert_eq!(app.screen, Screen::Menu { sel: 2 });
+        assert_eq!(app.screen, Screen::Menu { sel: 3 });
         press(&mut app, DOWN);
         assert_eq!(app.screen, Screen::Menu { sel: 0 });
         assert_eq!(app.ui_events, vec![UiEvent::Move]);
@@ -561,10 +774,11 @@ mod tests {
         let mut app = App::new();
         press(&mut app, CONFIRM);
         press(&mut app, DOWN);
+        press(&mut app, DOWN);
         press(&mut app, CONFIRM);
         assert_eq!(app.screen, Screen::Help);
         press(&mut app, BACK);
-        assert_eq!(app.screen, Screen::Menu { sel: 1 });
+        assert_eq!(app.screen, Screen::Menu { sel: 2 });
         press(&mut app, BACK);
         assert_eq!(app.screen, Screen::Title);
     }
@@ -687,6 +901,10 @@ mod tests {
         right: true,
         ..MenuKeys::NONE
     };
+    const LEFT: MenuKeys = MenuKeys {
+        left: true,
+        ..MenuKeys::NONE
+    };
 
     fn on_map(campaign: &[&str]) -> App {
         let mut app = App::with_campaign(campaign);
@@ -744,6 +962,94 @@ mod tests {
         assert_eq!(app.screen, Screen::Map { sel: 1 }, "cursor on the next");
         assert!(app.game.is_none());
         assert!(app.progress.total_score() > 0);
+    }
+
+    fn to_options() -> App {
+        let mut app = App::new();
+        press(&mut app, CONFIRM);
+        press(&mut app, DOWN);
+        press(&mut app, CONFIRM);
+        assert_eq!(
+            app.screen,
+            Screen::Options {
+                sel: 0,
+                from_pause: false
+            }
+        );
+        app
+    }
+
+    #[test]
+    fn options_change_volumes_and_fullscreen() {
+        let mut app = to_options();
+        assert!(!app.dirty);
+        press(&mut app, RIGHT);
+        assert_eq!(app.settings.volume.music, Volume::DEFAULT.music + 1);
+        assert!(app.dirty);
+        press(&mut app, DOWN);
+        press(&mut app, LEFT);
+        assert_eq!(app.settings.volume.sfx, Volume::DEFAULT.sfx - 1);
+        assert_eq!(app.option_value(OptionItem::Sound), "7/10");
+        press(&mut app, DOWN);
+        press(&mut app, CONFIRM);
+        assert!(app.settings.fullscreen);
+        assert_eq!(app.option_value(OptionItem::Fullscreen), "ON");
+        press(&mut app, BACK);
+        assert_eq!(app.screen, Screen::Menu { sel: 1 });
+    }
+
+    #[test]
+    fn reset_asks_first() {
+        let mut app = to_options();
+        app.progress
+            .records
+            .insert("big".into(), Default::default());
+        for _ in 0..3 {
+            press(&mut app, DOWN);
+        }
+        press(&mut app, CONFIRM);
+        assert_eq!(app.screen, Screen::ConfirmReset { sel: 0 });
+        press(&mut app, CONFIRM); // NO
+        assert_eq!(app.progress.records.len(), 1);
+        assert!(matches!(app.screen, Screen::Options { sel: 3, .. }));
+        press(&mut app, CONFIRM);
+        press(&mut app, DOWN);
+        press(&mut app, CONFIRM); // YES
+        assert!(app.progress.records.is_empty());
+        assert!(app.dirty);
+    }
+
+    #[test]
+    fn options_from_pause_keep_the_game_and_skip_reset() {
+        let mut app = App::playing("flat", false).unwrap();
+        press(&mut app, BACK);
+        press(&mut app, DOWN);
+        press(&mut app, DOWN);
+        press(&mut app, CONFIRM);
+        assert!(matches!(
+            app.screen,
+            Screen::Options {
+                from_pause: true,
+                ..
+            }
+        ));
+        assert!(app.shows_game());
+        assert_eq!(app.music(), Some("forest"));
+        assert!(!App::option_items(true).contains(&OptionItem::Reset));
+        press(&mut app, BACK);
+        assert_eq!(app.screen, Screen::Paused { sel: 2 });
+    }
+
+    #[test]
+    fn hotkeys_change_settings() {
+        let mut app = App::new();
+        assert_eq!(app.hotkey(Hotkey::MusicDown), "MUSIC 5/10");
+        assert_eq!(app.hotkey(Hotkey::Mute), "SOUND OFF");
+        assert_eq!(app.option_value(OptionItem::Music), "MUTED");
+        assert_eq!(app.hotkey(Hotkey::SfxUp), "SOUND 9/10");
+        assert!(!app.settings.volume.muted);
+        assert_eq!(app.hotkey(Hotkey::Fullscreen), "FULLSCREEN ON");
+        assert!(app.dirty);
     }
 
     #[test]

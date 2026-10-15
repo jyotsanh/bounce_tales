@@ -122,39 +122,12 @@ impl Sounds {
         }
     }
 
-    /// Volume keys: M mutes, -/= music, [/] effects. Returns a short
-    /// message to show when something changed.
-    pub fn handle_keys(&mut self, pressed: impl Fn(VolumeKey) -> bool) -> Option<String> {
-        if self.silent_run() {
-            return None;
+    /// Follows the player's settings (applied live to the music).
+    pub fn set_volume(&mut self, volume: Volume) {
+        if self.silent_run() || volume == self.volume {
+            return;
         }
-        let v = &mut self.volume;
-        let msg = if pressed(VolumeKey::Mute) {
-            v.muted = !v.muted;
-            if v.muted { "SOUND OFF" } else { "SOUND ON" }.to_owned()
-        } else if pressed(VolumeKey::MusicDown) || pressed(VolumeKey::MusicUp) {
-            Volume::nudge(&mut v.music, pressed(VolumeKey::MusicUp));
-            v.muted = false;
-            format!("MUSIC {}/{}", v.music, Volume::MAX)
-        } else if pressed(VolumeKey::SfxDown) || pressed(VolumeKey::SfxUp) {
-            Volume::nudge(&mut v.sfx, pressed(VolumeKey::SfxUp));
-            v.muted = false;
-            let msg = format!("SOUND {}/{}", v.sfx, Volume::MAX);
-            self.play(Sfx::Gem, 1.0); // a sample at the new level
-            msg
-        } else {
-            return None;
-        };
+        self.volume = volume;
         self.volume_changed();
-        Some(msg)
     }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum VolumeKey {
-    Mute,
-    MusicDown,
-    MusicUp,
-    SfxDown,
-    SfxUp,
 }

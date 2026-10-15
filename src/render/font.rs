@@ -36,6 +36,7 @@ pub fn glyph_name(c: char) -> Option<&'static str> {
         '[' => "lbracket",
         ']' => "rbracket",
         '>' => "arrow",
+        '<' => "larrow",
         _ => "quest",
     })
 }

@@ -2,7 +2,8 @@
 
 use macroquad::prelude::*;
 
-use bounce_tales::app::{self, App, MAP_ROW, MAP_ROW_GAP, Screen, map_node};
+use bounce_tales::app::{self, App, MAP_ROW, MAP_ROW_GAP, OptionItem, Screen, map_node};
+use bounce_tales::audio::Volume;
 use bounce_tales::game;
 use bounce_tales::sim::camera::{VIEW_H, VIEW_W};
 use bounce_tales::sim::map::TILE;
@@ -51,6 +52,22 @@ impl Renderer {
             }
             Screen::Map { sel } => self.draw_map(app, sel),
             Screen::Playing => {}
+            Screen::Options { sel, from_pause } => {
+                if from_pause {
+                    draw_rectangle(0.0, 0.0, VIEW_W, VIEW_H, DIM);
+                } else {
+                    self.draw_backdrop(t);
+                }
+                self.draw_options(app, sel, from_pause, t);
+            }
+            Screen::ConfirmReset { sel } => {
+                self.draw_backdrop(t);
+                let f = self.font();
+                draw_rectangle(16.0, 96.0, VIEW_W - 32.0, 52.0, DIM);
+                font::draw_centred(f, "ERASE ALL", VIEW_W / 2.0, 104.0, 2.0, RED);
+                font::draw_centred(f, "PROGRESS?", VIEW_W / 2.0, 124.0, 2.0, RED);
+                self.draw_menu(app::CONFIRM_MENU, sel, 178.0, t);
+            }
             Screen::Paused { sel } => {
                 draw_rectangle(0.0, 0.0, VIEW_W, VIEW_H, DIM);
                 font::draw_centred(self.font(), "PAUSED", VIEW_W / 2.0, 100.0, 3.0, GOLD);
@@ -283,6 +300,86 @@ impl Renderer {
             "SPACE PLAY   ESC BACK",
             VIEW_W / 2.0,
             y + 38.0,
+            1.0,
+            Color::new(1.0, 1.0, 1.0, 0.6),
+        );
+    }
+
+    /// Settings rows: label on the left, value (volume bar, ON/OFF) on the
+    /// right; arrows beside the chosen adjustable value.
+    fn draw_options(&self, app: &App, sel: usize, from_pause: bool, tick: u64) {
+        let f = self.font();
+        font::draw_centred(f, "OPTIONS", VIEW_W / 2.0, 56.0, 3.0, GOLD);
+        let items = App::option_items(from_pause);
+        let (x, y0, line) = (20.0, 112.0, 26.0);
+        draw_rectangle(
+            x - 8.0,
+            y0 - 10.0,
+            VIEW_W - 2.0 * (x - 8.0),
+            items.len() as f32 * line + 8.0,
+            DIM,
+        );
+        for (i, item) in items.iter().enumerate() {
+            let y = y0 + i as f32 * line;
+            let chosen = i == sel;
+            let color = if chosen { GOLD } else { WHITE };
+            let blink = (tick / 15).is_multiple_of(2);
+            match item {
+                OptionItem::Music | OptionItem::Sound => {
+                    font::draw(f, item.label(), vec2(x, y), 1.0, color, true);
+                    let v = &app.settings.volume;
+                    let level = if *item == OptionItem::Music {
+                        v.music
+                    } else {
+                        v.sfx
+                    };
+                    // Ten-segment bar (hollow when muted).
+                    let bx = 104.0;
+                    for s in 0..Volume::MAX {
+                        let on = s < level;
+                        let c = if v.muted {
+                            Color::new(0.5, 0.5, 0.5, 1.0)
+                        } else if on {
+                            color
+                        } else {
+                            Color::new(0.25, 0.25, 0.25, 1.0)
+                        };
+                        let h = 4.0 + s as f32 * 0.6;
+                        draw_rectangle(bx + s as f32 * 9.0, y + 7.0 - h, 7.0, h, c);
+                    }
+                    if chosen && blink {
+                        font::draw(f, "<", vec2(bx - 10.0, y), 1.0, GOLD, true);
+                        font::draw(f, ">", vec2(bx + 92.0, y), 1.0, GOLD, true);
+                    }
+                }
+                OptionItem::Fullscreen => {
+                    font::draw(f, item.label(), vec2(x, y), 1.0, color, true);
+                    let value = app.option_value(*item);
+                    font::draw(
+                        f,
+                        &value,
+                        vec2(VIEW_W - x - font::width(&value, 1.0), y),
+                        1.0,
+                        color,
+                        true,
+                    );
+                }
+                OptionItem::Reset | OptionItem::Back => {
+                    let label = if chosen {
+                        format!("> {}", item.label())
+                    } else {
+                        item.label().to_owned()
+                    };
+                    font::draw(f, &label, vec2(x, y), 1.0, color, true);
+                }
+            }
+        }
+        let hint = "UP DOWN CHOOSE  LEFT RIGHT CHANGE";
+        font::draw_centred(
+            f,
+            hint,
+            VIEW_W / 2.0,
+            y0 + items.len() as f32 * line + 12.0,
             1.0,
             Color::new(1.0, 1.0, 1.0, 0.6),
         );

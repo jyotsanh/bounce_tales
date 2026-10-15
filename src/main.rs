@@ -3,14 +3,14 @@ mod sound;
 
 use macroquad::prelude::*;
 
-use bounce_tales::app::{App, MenuKeys, UiEvent};
-use bounce_tales::audio::Volume;
+use bounce_tales::app::{App, Hotkey, MenuKeys, UiEvent};
 use bounce_tales::audio::sfx::Sfx;
 use bounce_tales::cli::{self, CliError, Options};
 use bounce_tales::replay::Replay;
+use bounce_tales::save::{self, SaveData};
 use bounce_tales::sim::{DEFAULT_LEVEL, FixedStep, InputFrame};
 use render::{Renderer, SCREEN_H, SCREEN_W};
-use sound::{Sounds, VolumeKey};
+use sound::Sounds;
 
 /// How long a volume message stays up, frames.
 const TOAST_FRAMES: u32 = 75;
@@ -71,15 +71,6 @@ async fn main() {
 
     prevent_quit();
     let mut renderer = Renderer::new();
-    let mut sounds = if frame_limit.is_some() {
-        Sounds::silent()
-    } else {
-        Sounds::load(Volume {
-            muted: opts.mute,
-            ..Volume::DEFAULT
-        })
-        .await
-    };
     // A replay's own `level` line wins over --level. No level at all: the
     // title screen.
     let level = replay
@@ -94,7 +85,37 @@ async fn main() {
         }),
         None => App::new(),
     };
+    // Scripted runs neither read nor write the save, so they never depend
+    // on (or change) the player's progress.
+    let save_path = if frame_limit.is_some() || opts.no_save {
+        None
+    } else {
+        opts.save.clone().or_else(save::default_path)
+    };
+    if let Some(path) = &save_path {
+        match SaveData::load(path) {
+            Ok(data) => {
+                app.progress = data.progress;
+                app.settings = data.settings;
+            }
+            Err(e) => {
+                // Keep the broken file for inspection; start afresh.
+                let bad = path.with_extension("ron.bad");
+                eprintln!("warning: {e}; moved it to {}", bad.display());
+                let _ = std::fs::rename(path, &bad);
+            }
+        }
+    }
     app.progress.unlock_all = opts.unlock_all;
+    if opts.mute {
+        app.settings.volume.muted = true;
+    }
+    let mut sounds = if frame_limit.is_some() {
+        Sounds::silent()
+    } else {
+        Sounds::load(app.settings.volume).await
+    };
+    let mut fullscreen = false;
     // Menu keys pressed since the last app step (a frame may run no step).
     let mut pending = MenuKeys::NONE;
     // App steps taken.
@@ -123,17 +144,24 @@ async fn main() {
         if is_key_pressed(KeyCode::F1) {
             debug = !debug;
         }
-        let volume_key = |k: VolumeKey| {
-            is_key_pressed(match k {
-                VolumeKey::Mute => KeyCode::M,
-                VolumeKey::MusicDown => KeyCode::Minus,
-                VolumeKey::MusicUp => KeyCode::Equal,
-                VolumeKey::SfxDown => KeyCode::LeftBracket,
-                VolumeKey::SfxUp => KeyCode::RightBracket,
-            })
-        };
-        if let Some(msg) = sounds.handle_keys(volume_key) {
-            toast = Some((msg, TOAST_FRAMES));
+        let hotkeys = [
+            (KeyCode::M, Hotkey::Mute),
+            (KeyCode::Minus, Hotkey::MusicDown),
+            (KeyCode::Equal, Hotkey::MusicUp),
+            (KeyCode::LeftBracket, Hotkey::SfxDown),
+            (KeyCode::RightBracket, Hotkey::SfxUp),
+            (KeyCode::F11, Hotkey::Fullscreen),
+        ];
+        if frame_limit.is_none() {
+            for (code, key) in hotkeys {
+                if is_key_pressed(code) {
+                    toast = Some((app.hotkey(key), TOAST_FRAMES));
+                    sounds.set_volume(app.settings.volume);
+                    if matches!(key, Hotkey::SfxDown | Hotkey::SfxUp) {
+                        sounds.play(Sfx::Gem, 1.0); // a sample at the new level
+                    }
+                }
+            }
         }
 
         let steps = match frame_limit {
@@ -179,7 +207,25 @@ async fn main() {
             }
         }
 
+        sounds.set_volume(app.settings.volume);
         sounds.update_music(app.music()).await;
+        if app.settings.fullscreen != fullscreen {
+            fullscreen = app.settings.fullscreen;
+            set_fullscreen(fullscreen);
+        }
+        if app.dirty {
+            app.dirty = false;
+            if let Some(path) = &save_path {
+                let data = SaveData {
+                    settings: app.settings,
+                    progress: app.progress.clone(),
+                    ..SaveData::default()
+                };
+                if let Err(e) = data.store(path) {
+                    eprintln!("warning: {e}");
+                }
+            }
+        }
 
         let alpha = if frame_limit.is_some() {
             1.0
