@@ -2,6 +2,7 @@
 //! window (simulation, replays, CLI parsing) so integration tests can use it.
 
 pub mod cli;
+pub mod game;
 pub mod level;
 pub mod replay;
 pub mod sim;

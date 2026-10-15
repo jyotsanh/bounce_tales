@@ -76,7 +76,7 @@ Key rules:
 - [x] **11.** **Hazards & death**: spikes, bottomless pits, death animation, respawn.
 - [x] **12.** **Lives & checkpoints**: checkpoint objects, lives counter, game over → level restart.
 - [x] **13.** **Collectibles & HUD**: eggs/gems, score, bitmap font, HUD.
-- [ ] **14.** **Level exit & completion**: exit gate, results screen (eggs found, time), next level.
+- [x] **14.** **Level exit & completion**: exit gate, results screen (eggs found, time), next level.
 - [ ] **15.** **Water**: buoyancy, drag, splash particles.
 - [ ] **16.** **Moving platforms**: paths from Tiled polylines, ball rides and inherits velocity.
 - [ ] **17.** **Breakables, switches, doors**: crumbling blocks, cracked walls, switch-linked doors/bridges.
@@ -255,3 +255,12 @@ Spare capacity: if a step overruns, the next prompt finishes it before moving on
 - HUD: `icon_ball ×N`, gem count, `eggs/total` (only if the level has eggs), 6-digit score at the top right; GAME OVER now in the pixel font at 2x. Items bob (±1.5 px, phase by x) and gems animate (8 ticks per frame). Pickups emit sparkles plus a floating popup ("+10", "+500", "1UP").
 - Content: `hazards` has 3 gems after the spikes and an egg at the pit-jump apex (placed by tracing the jump path; the first guess was too low). `big.tmx` has 34 items: gem trails (step, plateau, pit arc, every tower platform, top ledge), 3 eggs (behind the tower on the floor, the top-right tower platform, above the ledge start), 1 extra life. The plateau checkpoint moved left so it doesn't overlap the gem row.
 - Replay `hazards_collect` (clean run = 3 gems + egg = 530). Tests: pickup build from rect/point, collect-once radius, scoring/counting, lives cap, popups, every glyph in the font index.
+
+### Step 14 — Level completion & game flow (done)
+- `src/game.rs` (lib, deterministic, unit-tested): `Game { sim, mode, campaign, index, level_name, results }`, `Mode::{Playing, Results { result, ticks }, Finished { ticks }}`. `CAMPAIGN` = ["big", "hazards"] for now (real levels in steps 34-38). `--level X` starts there; a level outside the campaign goes to Finished after its results.
+- Flow: exit touched → `COMPLETE_DELAY` (75 ticks of confetti) → Results (lines reveal every 10 ticks; continue needs a **fresh** jump press after `CONTINUE_AFTER` = 30, so a held jump can't skip it) → next level with `Carry { lives, score }` → … → Finished ("WELL DONE!", total score, eggs) → jump restarts the campaign fresh.
+- `LevelResult::from_sim`: time (seconds of the current attempt), par, gems, eggs, deaths, time bonus = (par − seconds) × 10, all-eggs bonus 1000, final score. Results are kept in `Game::results` (for saving in step 32).
+- Sim: `Carry` + `Sim::with_level_carry`; `start_carry` (a game over restarts with the lives/score you entered the level with); `started_tick` (reset on restart); **the sim freezes once the exit is reached**; `exit_tick` stops the level clock (the screenshot showed the 75-tick celebration being counted as level time).
+- Level map property `par` (int seconds, default 120; ASCII maps 60).
+- main: drives `Game`; uses its own `step_count` for frame limits and replay input (the sim tick pauses on Finished, which would loop a scripted run forever). Renderer `draw_flow(&game)`: results panel and finished screen in the pixel font, blinking PRESS JUMP.
+- Tests: results + bonuses, held jump doesn't skip, carry of lives (lost lives stay lost) and score into the next level, Finished → fresh start, campaign levels load, par property, exit freeze + clock stop, game-over returns to the carried values.

@@ -41,6 +41,22 @@ pub const DEFAULT_LEVEL: &str = "big";
 pub const DEATH_TICKS: u32 = 60;
 /// Lives at the start of a level (and after a game over).
 pub const START_LIVES: u32 = 3;
+/// What a level starts with, carried over from the previous level.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Carry {
+    pub lives: u32,
+    pub score: u32,
+}
+
+impl Default for Carry {
+    fn default() -> Carry {
+        Carry {
+            lives: START_LIVES,
+            score: 0,
+        }
+    }
+}
+
 /// Most balls you can hold.
 pub const MAX_LIVES: u32 = 9;
 /// Steps the "game over" pause lasts before the level restarts.
@@ -63,6 +79,8 @@ pub struct Sim {
     pub events: Vec<Event>,
     /// The ball has reached the exit (stays true).
     pub exit_reached: bool,
+    /// Tick at which the exit was reached (stops the level clock).
+    pub exit_tick: Option<u64>,
     /// Where the ball comes back after dying (level start; checkpoints move
     /// it in step 12). Ball centre, px.
     pub respawn_point: Vec2,
@@ -80,7 +98,14 @@ pub struct Sim {
     pub game_over: u32,
     /// How many times the level was restarted after a game over.
     pub restarts: u32,
+    /// Total score, including what was carried into the level.
     pub score: u32,
+    /// Lives and score this level started with (a game over goes back to
+    /// these).
+    pub start_carry: Carry,
+    /// Tick at which the current attempt started (reset by a game-over
+    /// restart); level time = `tick - started_tick`.
+    pub started_tick: u64,
     /// Gems and eggs collected this level, and how many the level has.
     pub gems: u32,
     pub gems_total: u32,
@@ -111,6 +136,11 @@ impl Sim {
     }
 
     pub fn with_level(level: Level) -> Sim {
+        Sim::with_level_carry(level, Carry::default())
+    }
+
+    /// Starts a level with lives and score carried in.
+    pub fn with_level_carry(level: Level, carry: Carry) -> Sim {
         let ball = Ball::new(level.map.spawn);
         let entities =
             entities::build_all(&level.objects).expect("objects are validated when loading");
@@ -126,14 +156,17 @@ impl Sim {
             entities,
             events: Vec::new(),
             exit_reached: false,
+            exit_tick: None,
             respawn_point: level.map.spawn,
             dying: 0,
             respawn_anim: 0,
             deaths: 0,
-            lives: START_LIVES,
+            lives: carry.lives,
             game_over: 0,
             restarts: 0,
-            score: 0,
+            score: carry.score,
+            start_carry: carry,
+            started_tick: 0,
             gems: 0,
             gems_total,
             eggs: 0,
@@ -155,6 +188,10 @@ impl Sim {
         self.events.clear();
         self.respawn_anim = self.respawn_anim.saturating_sub(1);
 
+        // Level finished: everything holds still (the game flow takes over).
+        if self.exit_reached {
+            return;
+        }
         if self.game_over > 0 {
             self.game_over -= 1;
             if self.game_over == 0 {
@@ -204,7 +241,10 @@ impl Sim {
         }
         for e in &self.events {
             match *e {
-                Event::ExitReached => self.exit_reached = true,
+                Event::ExitReached => {
+                    self.exit_reached = true;
+                    self.exit_tick = Some(self.tick);
+                }
                 Event::CheckpointReached { respawn } => self.respawn_point = respawn,
                 Event::Collected { item, .. } => {
                     self.score += item.points();
@@ -243,14 +283,21 @@ impl Sim {
     /// Starts the level over: fresh entities, full lives, back to the
     /// start. Keeps the step counter, input history and restart count.
     fn restart_level(&mut self) {
-        let mut fresh = Sim::with_level(self.level.clone());
+        let mut fresh = Sim::with_level_carry(self.level.clone(), self.start_carry);
         fresh.tick = self.tick;
+        fresh.started_tick = self.tick;
         fresh.input = self.input;
         fresh.prev_input = self.prev_input;
         fresh.restarts = self.restarts + 1;
         fresh.respawn_anim = RESPAWN_ANIM_TICKS;
         fresh.events.push(Event::LevelRestarted);
         *self = fresh;
+    }
+
+    /// Seconds played on the current attempt (the clock stops at the exit).
+    pub fn level_seconds(&self) -> f32 {
+        let end = self.exit_tick.unwrap_or(self.tick);
+        (end - self.started_tick) as f32 / TICKS_PER_SECOND as f32
     }
 
     /// True while the ball should be drawn (not popped, not game over).
@@ -453,6 +500,7 @@ mod tests {
         assert_eq!(sim.lives, START_LIVES);
         assert_eq!(sim.deaths, 0);
         assert_eq!(sim.restarts, 1);
+        assert_eq!(sim.started_tick, sim.tick);
         assert_eq!(
             sim.tick,
             tick + GAME_OVER_TICKS as u64,
@@ -491,6 +539,42 @@ mod tests {
         assert_eq!((sim.gems, sim.eggs), (1, 1));
         assert_eq!(sim.lives, START_LIVES + 1);
         assert_eq!(sim.score, 10 + 500 + 100);
+    }
+
+    #[test]
+    fn carry_sets_start_values_and_game_over_returns_to_them() {
+        let level = Level::load("hazards").unwrap();
+        let mut sim = Sim::with_level_carry(
+            level,
+            Carry {
+                lives: 1,
+                score: 700,
+            },
+        );
+        assert_eq!((sim.lives, sim.score), (1, 700));
+        until_death(&mut sim, "R", 200);
+        wait(&mut sim, DEATH_TICKS + GAME_OVER_TICKS);
+        assert_eq!(sim.restarts, 1);
+        assert_eq!((sim.lives, sim.score), (1, 700));
+    }
+
+    #[test]
+    fn reaching_the_exit_freezes_the_level() {
+        let mut sim = Sim::for_level("flat").unwrap();
+        while !sim.exit_reached {
+            sim.step(press("R"));
+        }
+        let (pos, tick) = (sim.ball.pos, sim.tick);
+        for _ in 0..30 {
+            sim.step(press("L"));
+        }
+        assert_eq!(sim.ball.pos, pos);
+        assert_eq!(sim.tick, tick + 30, "ticks still count for the game flow");
+        assert_eq!(
+            sim.level_seconds(),
+            (tick as f32) / 60.0,
+            "but the level clock stopped"
+        );
     }
 
     #[test]

@@ -26,6 +26,8 @@
 //!
 //! - Map property `background` (string) picks the parallax backdrop; one of
 //!   [`BACKGROUNDS`] (default `forest`).
+//! - Map property `par` (int, seconds) is the target time for the time
+//!   bonus on the results screen (default [`DEFAULT_PAR_SECONDS`]).
 //!
 //! ASCII maps can mark objects too: `E` = exit, `C` = checkpoint (both
 //! 32x32, standing on the floor of that cell, centred on it), `*` = gem,
@@ -127,7 +129,14 @@ pub struct Level {
     pub decorations: Vec<Decoration>,
     /// Parallax backdrop name (one of [`BACKGROUNDS`]).
     pub background: String,
+    /// Target time for the time bonus, seconds.
+    pub par_seconds: u32,
 }
+
+/// Target time when a level sets no `par` property, seconds.
+pub const DEFAULT_PAR_SECONDS: u32 = 120;
+/// Target time for built-in ASCII maps (all small), seconds.
+const ASCII_PAR_SECONDS: u32 = 60;
 
 /// Parallax backdrops the renderer knows.
 pub const BACKGROUNDS: &[&str] = &["forest"];
@@ -253,6 +262,7 @@ impl Level {
             objects,
             decorations: Vec::new(),
             background: BACKGROUNDS[0].into(),
+            par_seconds: ASCII_PAR_SECONDS,
         })
     }
 
@@ -461,6 +471,15 @@ impl Level {
                 ));
             }
         };
+        let par_seconds = match tm.properties.get("par") {
+            None => DEFAULT_PAR_SECONDS,
+            Some(tiled::PropertyValue::IntValue(p)) if *p > 0 => *p as u32,
+            Some(other) => {
+                return Err(format!(
+                    "map property 'par' must be a positive int (seconds), got {other:?}"
+                ));
+            }
+        };
         // Catch unknown object types and bad properties at load time.
         crate::sim::entities::build_all(&objects)?;
         Ok(Level {
@@ -470,6 +489,7 @@ impl Level {
             objects,
             decorations,
             background,
+            par_seconds,
         })
     }
 }
@@ -722,6 +742,30 @@ mod tests {
                 .unwrap_err()
                 .contains("no type")
         );
+    }
+
+    #[test]
+    fn par_property() {
+        let tmx = ascii_to_tmx("o.\n##").unwrap();
+        assert_eq!(
+            Level::from_tmx("t", &tmx).unwrap().par_seconds,
+            DEFAULT_PAR_SECONDS
+        );
+        let with = |v: &str| {
+            tmx.replace(
+                "<tileset firstgid",
+                &format!(
+                    "<properties><property name=\"par\" type=\"int\" value=\"{v}\"/></properties>\n <tileset firstgid"
+                ),
+            )
+        };
+        assert_eq!(Level::from_tmx("t", &with("45")).unwrap().par_seconds, 45);
+        assert!(
+            Level::from_tmx("t", &with("0"))
+                .unwrap_err()
+                .contains("par")
+        );
+        assert_eq!(Level::from_ascii("o.\n##").unwrap().par_seconds, 60);
     }
 
     #[test]

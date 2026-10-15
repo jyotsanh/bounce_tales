@@ -3,8 +3,9 @@ mod render;
 use macroquad::prelude::*;
 
 use bounce_tales::cli::{self, CliError, Options};
+use bounce_tales::game::Game;
 use bounce_tales::replay::Replay;
-use bounce_tales::sim::{DEFAULT_LEVEL, FixedStep, InputFrame, Sim};
+use bounce_tales::sim::{DEFAULT_LEVEL, FixedStep, InputFrame};
 use render::{Renderer, SCREEN_H, SCREEN_W};
 
 fn options() -> Options {
@@ -69,16 +70,18 @@ async fn main() {
         .and_then(|r| r.level.clone())
         .or(opts.level.clone())
         .unwrap_or_else(|| DEFAULT_LEVEL.to_owned());
-    let mut sim = Sim::for_level(&level).unwrap_or_else(|e| {
+    let mut game = Game::new(&level).unwrap_or_else(|e| {
         eprintln!("error: {e}");
         std::process::exit(2);
     });
+    // Game steps taken (the sim's own tick pauses on the finished screen).
+    let mut step_count: u64 = 0;
     let mut clock = FixedStep::default();
     let mut recorded = Replay::default();
     let mut failures = Vec::new();
     let mut debug = opts.debug;
     if let Some(r) = &replay {
-        failures.extend(r.failures_now(&sim));
+        failures.extend(r.failures_now(&game.sim));
     }
 
     loop {
@@ -90,7 +93,7 @@ async fn main() {
         }
 
         let steps = match frame_limit {
-            Some(limit) if sim.tick >= limit => {
+            Some(limit) if step_count >= limit => {
                 // The previous frame's drawing has been flushed by now.
                 if let Some(path) = &opts.screenshot {
                     renderer.save_screenshot(&path.to_string_lossy());
@@ -104,16 +107,17 @@ async fn main() {
         let live = keyboard_input();
         for _ in 0..steps {
             let input = match &replay {
-                Some(r) => r.input_at(sim.tick),
+                Some(r) => r.input_at(step_count),
                 None => live,
             };
-            sim.step(input);
-            renderer.on_step(&sim);
+            game.step(input);
+            step_count += 1;
+            renderer.on_step(&game.sim);
             if opts.record.is_some() {
                 recorded.inputs.push(input);
             }
             if let Some(r) = &replay {
-                failures.extend(r.failures_now(&sim));
+                failures.extend(r.failures_now(&game.sim));
             }
         }
 
@@ -122,10 +126,11 @@ async fn main() {
         } else {
             clock.alpha()
         };
-        renderer.draw_game(&sim, alpha);
-        renderer.draw_hud(&sim);
+        renderer.draw_game(&game.sim, alpha);
+        renderer.draw_hud(&game.sim);
+        renderer.draw_flow(&game);
         if debug {
-            renderer.draw_debug(&sim, get_fps());
+            renderer.draw_debug(&game.sim, get_fps());
         }
         renderer.present();
         next_frame().await;
@@ -133,7 +138,7 @@ async fn main() {
 
     if let Some(path) = &opts.record {
         match std::fs::write(path, recorded.to_text()) {
-            Ok(()) => println!("recorded {} steps to {}", sim.tick, path.display()),
+            Ok(()) => println!("recorded {step_count} steps to {}", path.display()),
             Err(e) => eprintln!("error: could not write {}: {e}", path.display()),
         }
     }

@@ -13,6 +13,7 @@ use atlas::Sprites;
 use background::Background;
 use particles::Particles;
 
+use bounce_tales::game::{self, Game, Mode, REVEAL_STEP};
 use bounce_tales::level::{Decoration, TileLayer};
 use bounce_tales::sim::Sim;
 use bounce_tales::sim::camera::{VIEW_H, VIEW_W};
@@ -219,6 +220,74 @@ impl Renderer {
                 2.0,
                 Color::new(1.0, 0.85, 0.25, 1.0),
             );
+        }
+    }
+
+    /// Level-complete results and the finished screen, over the game.
+    pub fn draw_flow(&self, g: &Game) {
+        set_camera(&self.screen_camera);
+        let f = &self.sprites.font;
+        let gold = Color::new(1.0, 0.85, 0.25, 1.0);
+        let dim = Color::new(0.0, 0.0, 0.0, 0.72);
+        match &g.mode {
+            Mode::Playing => {}
+            Mode::Results { result: r, ticks } => {
+                let (x, y, w, h) = (20.0, 60.0, VIEW_W - 40.0, 190.0);
+                draw_rectangle(x, y, w, h, dim);
+                font::draw_centred(f, "LEVEL", VIEW_W / 2.0, y + 12.0, 2.0, gold);
+                font::draw_centred(f, "COMPLETE!", VIEW_W / 2.0, y + 32.0, 2.0, gold);
+                let lines = [
+                    (
+                        "TIME",
+                        format!(
+                            "{} / {}",
+                            game::format_time(r.seconds),
+                            game::format_time(r.par_seconds)
+                        ),
+                    ),
+                    ("GEMS", format!("{}/{}", r.gems, r.gems_total)),
+                    ("EGGS", format!("{}/{}", r.eggs, r.eggs_total)),
+                    ("TIME BONUS", r.time_bonus.to_string()),
+                    ("EGG BONUS", r.egg_bonus.to_string()),
+                    ("SCORE", format!("{:06}", r.score)),
+                ];
+                // Lines appear one after another.
+                let shown = (*ticks / REVEAL_STEP) as usize;
+                for (i, (label, value)) in lines.iter().enumerate().take(shown) {
+                    let ly = y + 62.0 + i as f32 * 16.0;
+                    let color = if i == lines.len() - 1 { gold } else { WHITE };
+                    font::draw(f, label, vec2(x + 14.0, ly), 1.0, color, true);
+                    let vx = x + w - 14.0 - font::width(value, 1.0);
+                    font::draw(f, value, vec2(vx, ly), 1.0, color, true);
+                }
+                if *ticks >= game::CONTINUE_AFTER && (*ticks / 20) % 2 == 0 {
+                    font::draw_centred(f, "PRESS JUMP", VIEW_W / 2.0, y + h - 16.0, 1.0, WHITE);
+                }
+            }
+            Mode::Finished { ticks } => {
+                draw_rectangle(0.0, 0.0, VIEW_W, VIEW_H, dim);
+                font::draw_centred(f, "WELL DONE!", VIEW_W / 2.0, 90.0, 2.0, gold);
+                let (eggs, total) = g.eggs_found();
+                font::draw_centred(
+                    f,
+                    &format!("SCORE {:06}", g.score()),
+                    VIEW_W / 2.0,
+                    140.0,
+                    1.0,
+                    WHITE,
+                );
+                font::draw_centred(
+                    f,
+                    &format!("EGGS {eggs}/{total}"),
+                    VIEW_W / 2.0,
+                    156.0,
+                    1.0,
+                    WHITE,
+                );
+                if *ticks >= game::CONTINUE_AFTER && (*ticks / 20) % 2 == 0 {
+                    font::draw_centred(f, "PRESS JUMP", VIEW_W / 2.0, 220.0, 1.0, WHITE);
+                }
+            }
         }
     }
 
