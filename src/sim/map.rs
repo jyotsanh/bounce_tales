@@ -177,9 +177,9 @@ pub struct TileMap {
 }
 
 /// ASCII letters that mark objects (exit, checkpoint, gem, egg, extra
-/// life); they are empty space
+/// life, moving platforms); they are empty space
 /// in the collision map. See `level::ascii_marker`.
-pub const OBJECT_MARKERS: &[char] = &['E', 'C', '*', 'e', '+'];
+pub const OBJECT_MARKERS: &[char] = &['E', 'C', '*', 'e', '+', 'H', 'V'];
 
 /// Per-cell flag bits from tile properties (used from steps 11 and 15).
 pub mod flags {
@@ -339,6 +339,7 @@ pub fn builtin_text(name: &str) -> Option<&'static str> {
         "slopes" => SLOPES_MAP,
         "hazards" => HAZARDS_MAP,
         "water" => WATER_MAP,
+        "platforms" => PLATFORMS_MAP,
         _ => return None,
     })
 }
@@ -348,7 +349,7 @@ pub fn builtin(name: &str) -> Option<TileMap> {
     builtin_text(name).map(|t| TileMap::from_ascii(t).expect("built-in maps are valid"))
 }
 
-pub const BUILTIN_NAMES: &[&str] = &["test", "flat", "slopes", "hazards", "water"];
+pub const BUILTIN_NAMES: &[&str] = &["test", "flat", "slopes", "hazards", "water", "platforms"];
 
 /// Test map: one screen with a step block, a low ceiling, a tunnel, a
 /// staircase of platforms up to an exit, a 45° ramp and a gentle 1:2 hill.
@@ -478,6 +479,33 @@ const WATER_MAP: &str = r"
     ######~~~~~~~~~~~~######
     ########################
     ########################
+";
+
+/// Moving platforms (30 wide): a ferry (x 96..144 at y 224, travelling 128
+/// px right) across a bottomless gap to the right bank (x 272+), then a lift
+/// (x 320..368, top y 208 rising to 144) up to a ledge (top y 160) with the
+/// exit. Gems hang over the gap.
+const PLATFORMS_MAP: &str = r"
+    #............................#
+    #............................#
+    #............................#
+    #............................#
+    #............................#
+    #............................#
+    #............................#
+    #............................#
+    #............................#
+    #..........................E.#
+    #.......................######
+    #........*.*.*...............#
+    #............................#
+    #.o.................V........#
+    ######H..........#############
+    ######...........#############
+    ######...........#############
+    ######...........#############
+    ######...........#############
+    ######...........#############
 ";
 
 #[cfg(test)]

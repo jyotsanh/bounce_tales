@@ -1,4 +1,5 @@
-; Collectibles (16x16): gem shimmer frames, egg, extra-life ball.
+; Collectibles (16x16): gem shimmer frames, egg, extra-life ball; moving
+; platform pieces (left end, middle, right end).
 ; Run `cargo run -p artgen` after editing.
 sheet items cell 16x16 columns 8
 palette
@@ -14,6 +15,12 @@ palette
   r #e3241b   ; ball
   R #a8150f   ; ball shade
   G #4cd23c   ; plus badge
+  Y #f0c27a   ; plank top edge
+  y #b8834a   ; plank line
+  b #c99558   ; plank
+  B #8e5f30   ; plank shade
+  K #4a2e14   ; plank outline
+  S #d8d8d8   ; bolt
 end
 sprite gem_0
 ................
@@ -122,4 +129,58 @@ sprite life
 ....RrrrrrrR....
 ......RRRR......
 ................
+end
+sprite plat_l
+.YYYYYYYYYYYYYYY
+Kbbbbbbbbbbbbbbb
+KbbBbbbbbbbbbbbb
+KbbSbbbbbbbbbbbb
+Kyyyyyyyyyyyyyyy
+Kbbbbbbbbbbbbbbb
+KbbbbbbbbBbbbbbb
+Kbbbbbbbbbbbbbbb
+Kyyyyyyyyyyyyyyy
+KbbSbbbbbbbbbbbb
+KbbbbbBbbbbbbBbb
+Kbbbbbbbbbbbbbbb
+KBBBBBBBBBBBBBBB
+KBBBBBBBBBBBBBBB
+KKKKKKKKKKKKKKKK
+.KKKKKKKKKKKKKKK
+end
+sprite plat_m
+YYYYYYYYYYYYYYYY
+bbbbbbbbbbbbbbbb
+bbbBbbbbbbbbbbbb
+bbbbbbbbbbbbbbbb
+yyyyyyyyyyyyyyyy
+bbbbbbbbbbbbbbbb
+bbbbbbbbbBbbbbbb
+bbbbbbbbbbbbbbbb
+yyyyyyyyyyyyyyyy
+bbbbbbbbbbbbbbbb
+bbbbbbBbbbbbbBbb
+bbbbbbbbbbbbbbbb
+BBBBBBBBBBBBBBBB
+BBBBBBBBBBBBBBBB
+KKKKKKKKKKKKKKKK
+KKKKKKKKKKKKKKKK
+end
+sprite plat_r
+YYYYYYYYYYYYYYY.
+bbbbbbbbbbbbbbbK
+bbbBbbbbbbbbbbbK
+bbbbbbbbbbbbSbbK
+yyyyyyyyyyyyyyyK
+bbbbbbbbbbbbbbbK
+bbbbbbbbbBbbbbbK
+bbbbbbbbbbbbbbbK
+yyyyyyyyyyyyyyyK
+bbbbbbbbbbbbSbbK
+bbbbbbBbbbbbbBbK
+bbbbbbbbbbbbbbbK
+BBBBBBBBBBBBBBBK
+BBBBBBBBBBBBBBBK
+KKKKKKKKKKKKKKKK
+KKKKKKKKKKKKKKK.
 end

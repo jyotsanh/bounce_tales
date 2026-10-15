@@ -1,0 +1,23 @@
+# Platforms level, full route (recorded from a scripted controller):
+# wait for the ferry to come back, ride it across the gap, hop onto the
+# lift, ride it up, roll onto the ledge and reach the exit.
+level platforms
+417 -
+expect riding == 0
+33 R
+expect riding == 1
+190 -
+expect riding == 1
+expect ball.x > 220
+56 R
+31 -
+1 RJ
+23 R
+4 -
+26 L
+71 -
+expect riding == 1
+expect ball.y < 140
+45 R
+expect exit == 1
+expect deaths == 0

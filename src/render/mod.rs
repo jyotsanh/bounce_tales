@@ -38,6 +38,9 @@ pub const ENTITY_SPRITES: &[&str] = &[
     "icon_ball",
     "icon_gem",
     "icon_egg",
+    "plat_l",
+    "plat_m",
+    "plat_r",
 ];
 
 /// Roll frames in the ball atlas (`roll_0` … `roll_15`).
@@ -107,7 +110,7 @@ impl Renderer {
         }
         self.draw_decorations(&level.decorations, &level.sheets, false);
         for e in &sim.entities {
-            self.draw_entity(e, sim.tick);
+            self.draw_entity(e, sim.tick, alpha);
         }
 
         self.particles.draw();
@@ -147,10 +150,25 @@ impl Renderer {
         }
     }
 
-    fn draw_entity(&self, e: &Entity, tick: u64) {
-        match e.kind {
+    fn draw_entity(&self, e: &Entity, tick: u64, alpha: f32) {
+        match &e.kind {
+            EntityKind::Platform(p) => {
+                let top_left =
+                    p.prev_top_centre.lerp(p.top_centre, alpha) - vec2(p.width / 2.0, 0.0);
+                let pieces = (p.width / TILE).round() as usize;
+                for i in 0..pieces {
+                    let name = match i {
+                        0 => "plat_l",
+                        _ if i == pieces - 1 => "plat_r",
+                        _ => "plat_m",
+                    };
+                    self.sprites
+                        .items
+                        .draw(name, top_left + vec2(i as f32 * TILE, 0.0));
+                }
+            }
             EntityKind::Pickup { taken: true, .. } => {}
-            EntityKind::Pickup { item, .. } => {
+            &EntityKind::Pickup { item, .. } => {
                 // Gentle bob, out of step between items so rows ripple.
                 let phase = e.pos.x * 0.15;
                 let bob = ((tick as f32 * 0.08 + phase).sin() * 1.5).round();
@@ -165,7 +183,7 @@ impl Renderer {
                 }
             }
             EntityKind::Exit { .. } => self.sprites.objects.draw("exit", e.pos),
-            EntityKind::Checkpoint { active } => {
+            &EntityKind::Checkpoint { active } => {
                 let name = if active {
                     "checkpoint_on"
                 } else {

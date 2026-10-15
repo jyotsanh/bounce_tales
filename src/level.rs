@@ -31,7 +31,9 @@
 //!
 //! ASCII maps can mark objects too: `E` = exit, `C` = checkpoint (both
 //! 32x32, standing on the floor of that cell, centred on it), `*` = gem,
-//! `e` = egg, `+` = extra life (16x16, filling the cell).
+//! `e` = egg, `+` = extra life (16x16, filling the cell), `H` / `V` =
+//! moving platform 3 tiles wide starting at that cell, travelling 8 tiles
+//! right / 4 tiles up and back.
 
 use std::io::Cursor;
 use std::path::Path;
@@ -100,6 +102,8 @@ pub struct ObjectSpec {
     pub size: Vec2,
     /// Polyline/polygon points in level pixels (empty otherwise).
     pub points: Vec<Vec2>,
+    /// The points form a closed polygon (not an open polyline).
+    pub closed: bool,
     pub props: Vec<(String, Prop)>,
 }
 
@@ -148,6 +152,16 @@ pub const ITEM_SIZE: Vec2 = Vec2::new(16.0, 16.0);
 /// Size of a checkpoint post, px.
 pub const CHECKPOINT_SIZE: Vec2 = Vec2::new(32.0, 32.0);
 
+/// Path offset for ASCII platform markers: `H` travels 8 tiles right and
+/// back, `V` rises 4 tiles and back.
+fn ascii_platform(c: char) -> Option<Vec2> {
+    match c {
+        'H' => Some(vec2(8.0 * TILE, 0.0)),
+        'V' => Some(vec2(0.0, -4.0 * TILE)),
+        _ => None,
+    }
+}
+
 /// Object type and size for an ASCII marker letter.
 fn ascii_marker(c: char) -> Option<(&'static str, Vec2)> {
     match c {
@@ -180,6 +194,21 @@ fn ascii_objects(text: &str) -> (String, Vec<ObjectSpec>) {
                     pos: vec2(centre_x - size.x / 2.0, floor - size.y),
                     size,
                     points: Vec::new(),
+                    closed: false,
+                    props: Vec::new(),
+                });
+                out.push('.');
+            } else if let Some(offset) = ascii_platform(c) {
+                // Platform 3 tiles wide starting at this cell, top flush
+                // with the cell's top.
+                let start = vec2(x as f32 * TILE + 1.5 * TILE, y as f32 * TILE);
+                objects.push(ObjectSpec {
+                    kind: "platform".into(),
+                    name: "platform".into(),
+                    pos: start,
+                    size: Vec2::ZERO,
+                    points: vec![start, start + offset],
+                    closed: false,
                     props: Vec::new(),
                 });
                 out.push('.');
@@ -428,16 +457,20 @@ impl Level {
                                 obj.name, obj.x, obj.y
                             ));
                         }
-                        let (size, points) = match &obj.shape {
+                        let abs = |points: &Vec<(f32, f32)>| -> Vec<Vec2> {
+                            points.iter().map(|&(x, y)| pos + vec2(x, y)).collect()
+                        };
+                        let (size, points, closed) = match &obj.shape {
                             tiled::ObjectShape::Rect { width, height } => {
-                                (vec2(*width, *height), Vec::new())
+                                (vec2(*width, *height), Vec::new(), false)
                             }
-                            tiled::ObjectShape::Polyline { points }
-                            | tiled::ObjectShape::Polygon { points } => (
-                                Vec2::ZERO,
-                                points.iter().map(|&(x, y)| pos + vec2(x, y)).collect(),
-                            ),
-                            _ => (Vec2::ZERO, Vec::new()),
+                            tiled::ObjectShape::Polyline { points } => {
+                                (Vec2::ZERO, abs(points), false)
+                            }
+                            tiled::ObjectShape::Polygon { points } => {
+                                (Vec2::ZERO, abs(points), true)
+                            }
+                            _ => (Vec2::ZERO, Vec::new(), false),
                         };
                         objects.push(ObjectSpec {
                             kind: obj.user_type.clone(),
@@ -445,6 +478,7 @@ impl Level {
                             pos,
                             size,
                             points,
+                            closed,
                             props: convert_props(&obj.properties),
                         });
                     }
@@ -555,16 +589,35 @@ pub fn ascii_to_tmx(text: &str) -> Result<String, String> {
     let spawn_y = map.spawn.y + BALL_RADIUS;
     let mut extra = String::new();
     for (i, o) in level.objects.iter().enumerate() {
-        extra.push_str(&format!(
-            "  <object id=\"{}\" name=\"{}\" type=\"{}\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\"/>\n",
-            i + 2,
-            o.name,
-            o.kind,
-            o.pos.x,
-            o.pos.y,
-            o.size.x,
-            o.size.y
-        ));
+        if o.points.is_empty() {
+            extra.push_str(&format!(
+                "  <object id=\"{}\" name=\"{}\" type=\"{}\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\"/>\n",
+                i + 2,
+                o.name,
+                o.kind,
+                o.pos.x,
+                o.pos.y,
+                o.size.x,
+                o.size.y
+            ));
+        } else {
+            // Paths are stored relative to the object's position.
+            let rel: Vec<String> = o
+                .points
+                .iter()
+                .map(|p| format!("{},{}", p.x - o.pos.x, p.y - o.pos.y))
+                .collect();
+            let tag = if o.closed { "polygon" } else { "polyline" };
+            extra.push_str(&format!(
+                "  <object id=\"{}\" name=\"{}\" type=\"{}\" x=\"{}\" y=\"{}\">\n   <{tag} points=\"{}\"/>\n  </object>\n",
+                i + 2,
+                o.name,
+                o.kind,
+                o.pos.x,
+                o.pos.y,
+                rel.join(" ")
+            ));
+        }
     }
     let next_id = level.objects.len() + 2;
     Ok(format!(
@@ -682,7 +735,10 @@ mod tests {
     #[test]
     fn every_object_marker_has_a_kind() {
         for &c in map::OBJECT_MARKERS {
-            assert!(ascii_marker(c).is_some(), "{c}");
+            assert!(
+                ascii_marker(c).is_some() || ascii_platform(c).is_some(),
+                "{c}"
+            );
         }
         let level = Level::from_ascii("oC.\n###").unwrap();
         assert_eq!(level.objects[0].kind, "checkpoint");

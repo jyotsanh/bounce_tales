@@ -36,6 +36,7 @@ pub const FIELDS: &[(&str, Probe)] = &[
     ("ball.angle", |s| s.ball.angle as f64),
     ("ball.squash", |s| s.ball.squash as f64),
     ("ball.water", |s| s.ball.water as f64),
+    ("riding", |s| s.riding.is_some() as u8 as f64),
     ("cam.x", |s| s.camera.pos.x as f64),
     ("cam.y", |s| s.camera.pos.y as f64),
     ("exit", |s| s.exit_reached as u8 as f64),

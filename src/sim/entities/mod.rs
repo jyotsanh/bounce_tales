@@ -7,9 +7,10 @@
 
 use macroquad::math::{Vec2, vec2};
 
-use crate::level::ObjectSpec;
+use crate::level::{ObjectSpec, Prop};
 use crate::sim::ball::Ball;
 use crate::sim::hazards::Cause;
+use crate::sim::platforms::{self, Platform};
 
 /// Something that happened during a step, for sound/effects/UI to react to.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -75,6 +76,8 @@ pub enum EntityKind {
     Checkpoint { active: bool },
     /// Collectible; stays collected after a death (not after a game over).
     Pickup { item: Item, taken: bool },
+    /// Moving one-way platform (moved by the sim before the ball).
+    Platform(Platform),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -86,7 +89,20 @@ pub struct Entity {
 }
 
 /// Object types that `build` understands.
-pub const KNOWN_TYPES: &[&str] = &["exit", "checkpoint", "gem", "egg", "life"];
+pub const KNOWN_TYPES: &[&str] = &["exit", "checkpoint", "gem", "egg", "life", "platform"];
+
+/// Reads a number property (int or float) with a default.
+fn num_prop(spec: &ObjectSpec, key: &str, default: f32) -> Result<f32, String> {
+    match spec.prop(key) {
+        None => Ok(default),
+        Some(Prop::Int(i)) => Ok(*i as f32),
+        Some(Prop::Float(f)) => Ok(*f),
+        Some(other) => Err(format!(
+            "{} '{}': property '{key}' must be a number, got {other:?}",
+            spec.kind, spec.name
+        )),
+    }
+}
 
 /// Turns a level object into an entity, or explains what is wrong with it.
 pub fn build(spec: &ObjectSpec) -> Result<Entity, String> {
@@ -105,6 +121,35 @@ pub fn build(spec: &ObjectSpec) -> Result<Entity, String> {
                 ));
             }
             EntityKind::Checkpoint { active: false }
+        }
+        "platform" => {
+            if spec.points.len() < 2 {
+                return Err(format!(
+                    "platform '{}' must be a polyline or polygon with 2+ points",
+                    spec.name
+                ));
+            }
+            let width = num_prop(spec, "width", platforms::DEFAULT_WIDTH_TILES as f32)?;
+            let speed = num_prop(spec, "speed", platforms::DEFAULT_SPEED)?;
+            let wait = num_prop(spec, "wait", platforms::DEFAULT_WAIT_SECONDS)?;
+            if width < 1.0 || speed <= 0.0 || wait < 0.0 {
+                return Err(format!(
+                    "platform '{}': width >= 1 tile, speed > 0, wait >= 0",
+                    spec.name
+                ));
+            }
+            let p = Platform::new(
+                spec.points.clone(),
+                spec.closed,
+                speed,
+                (wait * crate::sim::TICKS_PER_SECOND as f32).round() as u32,
+                width.round() * crate::sim::map::TILE,
+            );
+            return Ok(Entity {
+                pos: p.top_left(),
+                size: vec2(p.width, platforms::PLATFORM_H),
+                kind: EntityKind::Platform(p),
+            });
         }
         kind @ ("gem" | "egg" | "life") => {
             let item = match kind {
@@ -178,6 +223,7 @@ impl Entity {
                     events.push(Event::CheckpointReached { respawn });
                 }
             }
+            EntityKind::Platform(_) => {} // moved by `Sim::step`
             EntityKind::Pickup { item, taken } => {
                 if !*taken && ball.pos.distance(centre) < ball.radius + PICKUP_RADIUS {
                     *taken = true;
@@ -203,6 +249,7 @@ mod tests {
             pos: vec2(100.0, 100.0),
             size,
             points: Vec::new(),
+            closed: false,
             props: Vec::new(),
         }
     }
@@ -258,6 +305,25 @@ mod tests {
                 pos: vec2(100.0, 100.0)
             }]
         );
+    }
+
+    #[test]
+    fn builds_platform_with_properties() {
+        let mut s = spec("platform", Vec2::ZERO);
+        s.points = vec![vec2(100.0, 100.0), vec2(200.0, 100.0)];
+        s.props = vec![
+            ("speed".into(), Prop::Int(80)),
+            ("width".into(), Prop::Int(4)),
+            ("wait".into(), Prop::Float(1.0)),
+        ];
+        let e = build(&s).unwrap();
+        let EntityKind::Platform(p) = &e.kind else {
+            panic!("not a platform")
+        };
+        assert_eq!((p.speed, p.width, p.wait), (80.0, 64.0, 60));
+        assert_eq!(e.pos, vec2(68.0, 100.0));
+        s.points.pop();
+        assert!(build(&s).unwrap_err().contains("polyline"));
     }
 
     #[test]

@@ -13,6 +13,7 @@ pub mod hazards;
 pub mod input;
 pub mod map;
 pub mod physics;
+pub mod platforms;
 pub mod rng;
 pub mod water;
 
@@ -93,6 +94,8 @@ pub struct Sim {
     pub dying: u32,
     /// Counts down from `RESPAWN_ANIM_TICKS` after a respawn (drawing).
     pub respawn_anim: u32,
+    /// Index (into `entities`) of the moving platform the ball rides.
+    pub riding: Option<usize>,
     /// Total deaths this level.
     pub deaths: u32,
     /// Balls left, including the one in play. Losing the last one is game
@@ -164,6 +167,7 @@ impl Sim {
             respawn_point: level.map.spawn,
             dying: 0,
             respawn_anim: 0,
+            riding: None,
             deaths: 0,
             lives: carry.lives,
             game_over: 0,
@@ -216,23 +220,45 @@ impl Sim {
             return;
         }
 
+        // Moving platforms go first, carrying a riding ball with them.
+        for e in &mut self.entities {
+            if let EntityKind::Platform(p) = &mut e.kind {
+                p.advance();
+                e.pos = p.top_left();
+            }
+        }
+        let carried_from = self.ball.pos;
+        if let Some(p) = self.riding.and_then(|i| self.platform(i)) {
+            self.ball.pos += p.delta();
+        }
+
         let jump_pressed = self.jump_pressed();
         let bottom = |b: &Ball| b.pos + macroquad::math::vec2(0.0, b.radius);
         let jumped = self.ball.update(input, jump_pressed);
+        // Draw the carried ball moving smoothly with its platform.
+        self.ball.prev_pos = carried_from;
         if jumped {
             self.events.push(Event::Jumped {
                 pos: bottom(&self.ball),
             });
         }
+        let prev_bottom = self.ball.pos.y + self.ball.radius;
         let contacts = physics::move_and_collide(&mut self.ball, &self.level.map);
-        if contacts.impact_speed > LAND_EVENT_MIN_SPEED {
+        let platform_impact = self.collide_platforms(prev_bottom);
+        let impact = contacts.impact_speed.max(platform_impact);
+        if impact > LAND_EVENT_MIN_SPEED {
+            let normal = if platform_impact > contacts.impact_speed {
+                macroquad::math::vec2(0.0, -1.0)
+            } else {
+                contacts.floor_normal
+            };
             self.events.push(Event::Landed {
-                pos: self.ball.pos - contacts.floor_normal * self.ball.radius,
-                speed: contacts.impact_speed,
+                pos: self.ball.pos - normal * self.ball.radius,
+                speed: impact,
             });
         }
         self.ball.update_spin();
-        self.ball.update_squash(contacts.impact_speed, jumped);
+        self.ball.update_squash(impact, jumped);
 
         let was_wet = self.ball.water > 0.0;
         self.ball.water = water::submersion(&self.ball, &self.level.map);
@@ -283,6 +309,38 @@ impl Sim {
         }
     }
 
+    fn platform(&self, i: usize) -> Option<&platforms::Platform> {
+        match &self.entities.get(i)?.kind {
+            EntityKind::Platform(p) => Some(p),
+            _ => None,
+        }
+    }
+
+    /// Keeps the rider on its platform or lands the ball on one. Returns
+    /// the landing impact speed (0 if none).
+    fn collide_platforms(&mut self, prev_bottom: f32) -> f32 {
+        if let Some(i) = self.riding {
+            let p = self.platform(i).expect("riding a platform").clone();
+            if p.keep_rider(&mut self.ball) {
+                return 0.0;
+            }
+            self.riding = None;
+        }
+        // Only a ball moving down can land.
+        for i in 0..self.entities.len() {
+            let Some(p) = self.platform(i).cloned() else {
+                continue;
+            };
+            if let Some(impact) = p.try_land(&mut self.ball, prev_bottom) {
+                if self.ball.grounded {
+                    self.riding = Some(i);
+                }
+                return impact;
+            }
+        }
+        0.0
+    }
+
     /// Destroys the ball; it comes back after `DEATH_TICKS` steps.
     pub fn die(&mut self, cause: Cause) {
         self.events.push(Event::Died {
@@ -293,6 +351,7 @@ impl Sim {
         self.lives = self.lives.saturating_sub(1);
         self.dying = DEATH_TICKS;
         self.ball.vel = Vec2::ZERO;
+        self.riding = None;
     }
 
     fn respawn(&mut self) {
@@ -678,6 +737,122 @@ mod tests {
         }
         let vx = sim.ball.vel.x;
         assert!(vx > 20.0 && vx < 120.0 * 0.75, "vx {vx}");
+    }
+
+    fn platforms_level() -> Sim {
+        Sim::for_level("platforms").unwrap()
+    }
+
+    fn ferry(sim: &Sim) -> &platforms::Platform {
+        sim.entities
+            .iter()
+            .find_map(|e| match &e.kind {
+                EntityKind::Platform(p) if p.path[1].y == p.path[0].y => Some(p),
+                _ => None,
+            })
+            .unwrap()
+    }
+
+    /// Drops the ball onto the ferry and waits until it rides.
+    fn on_ferry() -> Sim {
+        let mut sim = platforms_level();
+        let top = ferry(&sim).top_centre;
+        sim.ball.pos = top - macroquad::math::vec2(0.0, 30.0);
+        // A drop this high bounces once or twice before it settles.
+        for _ in 0..90 {
+            sim.step(InputFrame::NONE);
+            if sim.riding.is_some() {
+                return sim;
+            }
+        }
+        panic!("never settled on the ferry");
+    }
+
+    #[test]
+    fn riding_carries_the_ball() {
+        let mut sim = on_ferry();
+        // A ball dropped straight down slides back a little until friction
+        // matches it to the platform; measure after that.
+        for _ in 0..10 {
+            sim.step(InputFrame::NONE);
+        }
+        let (x0, px0) = (sim.ball.pos.x, ferry(&sim).top_centre.x);
+        for _ in 0..60 {
+            sim.step(InputFrame::NONE);
+            assert!(sim.riding.is_some());
+            let top = ferry(&sim).top_centre.y;
+            assert_eq!(sim.ball.pos.y, top - 8.0, "stays on top");
+        }
+        let moved = sim.ball.pos.x - x0;
+        let plat_moved = ferry(&sim).top_centre.x - px0;
+        assert!(plat_moved > 30.0);
+        assert!((moved - plat_moved).abs() < 0.01, "{moved} vs {plat_moved}");
+    }
+
+    #[test]
+    fn jumping_off_keeps_the_platform_speed() {
+        let mut sim = on_ferry();
+        for _ in 0..10 {
+            sim.step(InputFrame::NONE);
+        }
+        let plat_vx = ferry(&sim).vel.x;
+        assert!(plat_vx > 30.0);
+        sim.step(press("J"));
+        assert!(sim.riding.is_none());
+        assert!(
+            (sim.ball.vel.x - plat_vx).abs() < 2.0,
+            "{} vs {plat_vx}",
+            sim.ball.vel.x
+        );
+    }
+
+    #[test]
+    fn rolling_off_the_end_falls() {
+        let mut sim = on_ferry();
+        let mut fell = false;
+        for _ in 0..90 {
+            sim.step(press("L"));
+            fell |= sim.riding.is_none() && sim.ball.pos.y > ferry(&sim).top_centre.y;
+        }
+        assert!(fell);
+    }
+
+    #[test]
+    fn platforms_are_one_way() {
+        let mut sim = platforms_level();
+        let top = ferry(&sim).top_centre;
+        // Start just below the ferry, moving up fast: passes through.
+        sim.ball.pos = top + macroquad::math::vec2(0.0, 30.0);
+        sim.ball.vel.y = -320.0;
+        let mut landed_on_top = false;
+        for _ in 0..60 {
+            sim.step(InputFrame::NONE);
+            landed_on_top |= sim.riding.is_some();
+        }
+        assert!(landed_on_top, "came up through and landed on it");
+    }
+
+    #[test]
+    fn the_lift_raises_the_ball() {
+        let mut sim = platforms_level();
+        let lift_top = sim
+            .entities
+            .iter()
+            .find_map(|e| match &e.kind {
+                EntityKind::Platform(p) if p.path[1].x == p.path[0].x => Some(p.top_centre),
+                _ => None,
+            })
+            .unwrap();
+        sim.ball.pos = lift_top - macroquad::math::vec2(0.0, 20.0);
+        let mut highest = sim.ball.pos.y;
+        for _ in 0..150 {
+            sim.step(InputFrame::NONE);
+            highest = highest.min(sim.ball.pos.y);
+        }
+        assert!(
+            highest <= lift_top.y - 64.0 - 8.0 + 0.5,
+            "highest {highest}"
+        );
     }
 
     #[test]

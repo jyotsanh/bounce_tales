@@ -78,7 +78,7 @@ Key rules:
 - [x] **13.** **Collectibles & HUD**: eggs/gems, score, bitmap font, HUD.
 - [x] **14.** **Level exit & completion**: exit gate, results screen (eggs found, time), next level.
 - [x] **15.** **Water**: buoyancy, drag, splash particles.
-- [ ] **16.** **Moving platforms**: paths from Tiled polylines, ball rides and inherits velocity.
+- [x] **16.** **Moving platforms**: paths from Tiled polylines, ball rides and inherits velocity.
 - [ ] **17.** **Breakables, switches, doors**: crumbling blocks, cracked walls, switch-linked doors/bridges.
 - [ ] **18.** **Springs, catapults, wind fans**.
 
@@ -273,3 +273,12 @@ Spare capacity: if a step overruns, the next prompt finishes it before moving on
 - Rendering: water cells of non-front layers are skipped in the back pass and drawn **after the ball** (`draw_layer(…, keep)` filter), so a floating ball looks half-submerged and tinted.
 - New ASCII level `water`: pool (x 96..288, 4 deep), gems above it (reachable by hopping), exit on the far bank. Measured: the ball floats with its centre at y 226, swims at 88 px/s, and can jump out at the far bank any time.
 - Tests: submersion fractions, floating settles at ≈1/buoyancy, splash + bob on a drop, splash when rolling in, jump out, slower swimming, no grass under water. Replay `water_cross`.
+
+### Step 16 — Moving platforms (done)
+- Tiled object type `platform` = polyline (back and forth, pausing `wait` s at each end) or polygon (loops). Points are the platform's **top-centre** path. Properties: `width` (tiles, default 3), `speed` (px/s, default 40), `wait` (s, default 0.5). `ObjectSpec.closed` added; `ascii2tmx` writes polyline/polygon objects (round-trip tested).
+- ASCII markers `H` (3 wide from that cell, travels 8 tiles right and back) and `V` (rises 4 tiles and back).
+- `sim::platforms::Platform`: path walking by distance (`point_at`, `advance`), `vel`, `delta`. **One-way** (only landable from above), so nothing can crush the ball.
+- Riding (`Sim.riding: Option<entity index>`, replay field `riding`): platforms advance first; the rider is carried by `delta` (and `prev_pos` is fixed so it's drawn smoothly). The ball's own velocity is **relative** while riding: landing subtracts the platform velocity, leaving (jump / rolling off the end) adds it back. Hard landings bounce (relative impact > min_bounce); soft ones ride. Platform landings feed the same Landed event and squash. Death clears riding.
+- Art: `items.txt` + `plat_l/m/r` wooden plank pieces; drawn interpolated.
+- New ASCII level `platforms`: ferry across a bottomless gap, lift up to the exit ledge, gems over the gap (hop for them). Replay `platforms_route` was **recorded from a small scripted controller** (wait for the ferry, ride, hop onto the lift, steer onto it, ride up) — a reusable trick for long routes.
+- Tests: path back-and-forth with pause, loop, point_at, build with properties, carried exactly with the platform, jump-off keeps platform speed, rolling off the end, one-way from below, lift raises the ball.
