@@ -8,6 +8,7 @@
 
 pub mod ball;
 pub mod camera;
+pub mod crates;
 pub mod entities;
 pub mod hazards;
 pub mod input;
@@ -266,6 +267,7 @@ impl Sim {
                 e.pos = p.top_left();
             }
         }
+        self.update_crates();
         self.ball.wind = self.wind_at(self.ball.pos);
         if !self.hold_in_catapult() {
             self.move_ball(input);
@@ -320,7 +322,13 @@ impl Sim {
             });
         }
         let prev_bottom = self.ball.pos.y + self.ball.radius;
-        let contacts = physics::move_and_collide(&mut self.ball, &self.level.map);
+        let (solid_ids, solids) = self.crate_boxes(None);
+        let contacts = physics::move_and_collide_with(&mut self.ball, &self.level.map, &solids);
+        for &(i, vx) in &contacts.pushes {
+            if let EntityKind::Crate(c) = &mut self.entities[solid_ids[i]].kind {
+                c.push = Some(vx);
+            }
+        }
         let platform_impact = self.collide_platforms(prev_bottom);
         let impact = contacts.impact_speed.max(platform_impact);
         if impact > LAND_EVENT_MIN_SPEED {
@@ -359,6 +367,35 @@ impl Sim {
 
         self.update_blocks(&contacts.hits);
         self.press_switches();
+    }
+
+    /// Boxes of the crates still in play (optionally leaving one out), with
+    /// their entity indices.
+    fn crate_boxes(&self, except: Option<usize>) -> (Vec<usize>, Vec<physics::SolidBox>) {
+        self.entities
+            .iter()
+            .enumerate()
+            .filter(|&(i, e)| {
+                Some(i) != except && matches!(&e.kind, EntityKind::Crate(c) if !c.gone)
+            })
+            .map(|(i, e)| (i, (e.pos, e.pos + e.size)))
+            .unzip()
+    }
+
+    /// Moves every crate one step (in level order, so results never depend
+    /// on anything else).
+    fn update_crates(&mut self) {
+        for i in 0..self.entities.len() {
+            if !matches!(self.entities[i].kind, EntityKind::Crate(_)) {
+                continue;
+            }
+            let (_, others) = self.crate_boxes(Some(i));
+            let e = &mut self.entities[i];
+            let (pos, size) = (e.pos, e.size);
+            if let EntityKind::Crate(c) = &mut e.kind {
+                e.pos = c.advance(pos, size, &self.level.map, &others);
+            }
+        }
     }
 
     /// Sum of the fan forces whose air stream holds the ball's centre.
@@ -1330,6 +1367,89 @@ mod tests {
         sim.held = Some((0, 5));
         sim.die(Cause::Spikes);
         assert!(sim.held.is_none());
+    }
+
+    fn crate_pos(sim: &Sim) -> Vec2 {
+        sim.entities
+            .iter()
+            .find(|e| matches!(e.kind, EntityKind::Crate(_)))
+            .unwrap()
+            .pos
+    }
+
+    #[test]
+    fn the_ball_pushes_a_crate_at_crate_speed() {
+        let mut sim = Sim::for_level("crates").unwrap();
+        for _ in 0..90 {
+            sim.step(press("R"));
+        }
+        let x0 = crate_pos(&sim).x;
+        for _ in 0..60 {
+            sim.step(press("R"));
+        }
+        let moved = crate_pos(&sim).x - x0;
+        assert!(
+            (moved - crates::PUSH_SPEED).abs() < 3.0,
+            "moved {moved} in 1 s"
+        );
+        // The ball keeps pace, pressed against the crate's side.
+        assert!((crate_pos(&sim).x - (sim.ball.pos.x + 8.0)).abs() < 1.0);
+    }
+
+    #[test]
+    fn the_wall_needs_the_crate() {
+        let mut sim = Sim::for_level("crates").unwrap();
+        // Drop the ball between the crate and the wall and try jumping.
+        sim.ball.pos = macroquad::math::vec2(300.0, 200.0);
+        for _ in 0..300 {
+            sim.step(press("RJ"));
+        }
+        assert!(sim.ball.pos.x < 320.0, "got over: {:?}", sim.ball.pos);
+    }
+
+    #[test]
+    fn standing_on_a_crate_over_spikes_is_safe() {
+        let level = Level::from_ascii("o......\n.......\n...^...\n#######").unwrap();
+        let mut sim = Sim::with_level(level);
+        sim.entities.push(
+            entities::build(&crate::level::ObjectSpec {
+                kind: "crate".into(),
+                name: "crate".into(),
+                pos: macroquad::math::vec2(48.0, 0.0),
+                size: Vec2::splat(16.0),
+                points: Vec::new(),
+                closed: false,
+                props: Vec::new(),
+            })
+            .unwrap(),
+        );
+        for _ in 0..30 {
+            sim.step(InputFrame::NONE);
+        }
+        assert_eq!(
+            crate_pos(&sim),
+            macroquad::math::vec2(48.0, 32.0),
+            "rests on the spike cell's floor"
+        );
+        sim.ball.pos = macroquad::math::vec2(56.0, 0.0);
+        for _ in 0..60 {
+            sim.step(InputFrame::NONE);
+        }
+        assert_eq!(sim.deaths, 0);
+        assert!(sim.ball.grounded);
+        assert_eq!(sim.ball.pos.y, 32.0 - 8.0, "on top of the crate");
+    }
+
+    #[test]
+    fn game_over_puts_crates_back() {
+        let mut sim = Sim::for_level("crates").unwrap();
+        let start = crate_pos(&sim);
+        for _ in 0..150 {
+            sim.step(press("R"));
+        }
+        assert_ne!(crate_pos(&sim), start);
+        sim.restart_level();
+        assert_eq!(crate_pos(&sim), start);
     }
 
     #[test]

@@ -9,6 +9,7 @@ use macroquad::math::{Vec2, vec2};
 
 use crate::level::{ObjectSpec, Prop};
 use crate::sim::ball::Ball;
+use crate::sim::crates::Crate;
 use crate::sim::hazards::Cause;
 use crate::sim::platforms::{self, Platform};
 
@@ -113,6 +114,8 @@ pub enum EntityKind {
     },
     /// Wind over its rectangle: accelerates the ball by `force` (px/s²).
     Fan { force: Vec2 },
+    /// Pushable box (moved by `Sim::step`; solid to the ball).
+    Crate(Crate),
 }
 
 /// Steps a catapult holds the ball before firing.
@@ -152,6 +155,7 @@ pub const KNOWN_TYPES: &[&str] = &[
     "spring",
     "catapult",
     "fan",
+    "crate",
 ];
 
 /// Reads a string property with a default.
@@ -254,6 +258,10 @@ pub fn build(spec: &ObjectSpec) -> Result<Entity, String> {
                 switched: false,
                 anim: 0,
             }
+        }
+        "crate" => {
+            need_rect(spec)?;
+            EntityKind::Crate(Crate::new(spec.pos))
         }
         "spring" => {
             need_rect(spec)?;
@@ -388,7 +396,10 @@ impl Entity {
                 }
             }
             // Moved / handled by `Sim::step`.
-            EntityKind::Platform(_) | EntityKind::Switch { .. } | EntityKind::Fan { .. } => {}
+            EntityKind::Platform(_)
+            | EntityKind::Switch { .. }
+            | EntityKind::Fan { .. }
+            | EntityKind::Crate(_) => {}
             EntityKind::Spring { squish, .. } => *squish = squish.saturating_sub(1),
             EntityKind::Catapult {
                 cooldown, fired, ..

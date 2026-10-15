@@ -83,7 +83,7 @@ Key rules:
 - [x] **18.** **Springs, catapults, wind fans**.
 
 ### Phase D — Physics props
-- [ ] **19.** **Pushable boxes** (gravity, ball pushes them, they stack on tiles).
+- [x] **19.** **Pushable boxes** (gravity, ball pushes them, they stack on tiles).
 - [ ] **20.** **Seesaws** (pivot plank, torque from ball weight, ball rolls on the rotated segment).
 - [ ] **21.** **Rotating platforms / wheels & cannons** (ball launched from cannons).
 
@@ -300,3 +300,11 @@ Spare capacity: if a step overruns, the next prompt finishes it before moving on
 - Art: items + `spring_0/1`, `fan_0/1`; objects + `catapult_r/l` and `_fired` (32x32, base in the bottom half). FX: launch puffs, wind streaks flowing through fan zones.
 - **Palette bug found via screenshot**: step 16's plank colours reused the gem palette keys `b`/`B` (and the switch reused the glint `w`), so gems had been drawn orange/brown since step 16. **artgen now rejects duplicate palette keys**; items use `p`/`P`/`v`.
 - New ASCII level `launchers` (spring → ledge, catapult over a pit, fan up to the exit ledge). Replay `launchers_route` (controller-recorded). Tests: property parsing, spring height ±2 px, catapult hold/fire, fan hover range, death releases a held ball.
+
+### Step 19 — Pushable crates (done)
+- `crate` objects (rect, any size; ASCII `X` = 32x32 big crate standing on the cell, `level::CRATE_SIZE`). `EntityKind::Crate(sim::crates::Crate)`: gravity, ground friction, buoyancy 1.5 (floats), axis-separated AABB movement against solid tiles (slopes count as their bounding box: **crates don't slide down slopes**) and other crates (stacking). They ignore moving platforms. Fall out of the level → `gone`. Moved by `Sim::update_crates` each step before the ball, in level order.
+- Ball collision: `physics::move_and_collide_with(ball, map, solids)` (old `move_and_collide` = no solids). Circle vs box (`box_penetration`). Pressing sideways into a box records `Contacts::pushes` and **clamps the ball to `PUSH_SPEED` (70) instead of bouncing**; the crate takes that speed next step. (The first version zeroed the ball's speed on contact, so it re-accelerated every step and pushed at ~25 px/s.) Top contact = normal floor.
+- Crates can rest in a spike cell (spikes have no shape) and cover it safely.
+- Replay fields `crate.x`, `crate.y` (first crate). Art: items `crate` (16), objects `crate_big` (32); drawn interpolated; other sizes drawn as a grid of small crates.
+- New ASCII level `crates`: push the big crate to a 4-tile wall (64 px > 52 px jump), climb it, jump up, hop the spikes, exit. Replay `crates_route` (controller-recorded; re-recorded after the push fix: 643 → 408 ticks).
+- Tests: crate falls/rests, pushed and stopped flush at a wall, friction, stacking, floating, falls out; ball pushes at crate speed and keeps pace; the wall needs the crate; standing on a crate over spikes is safe; game over puts crates back.

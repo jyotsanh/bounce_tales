@@ -1,6 +1,6 @@
 ; Collectibles (16x16): gem shimmer frames, egg, extra-life ball; moving
 ; platform pieces (left end, middle, right end); switch off/on, door and
-; bridge pieces; spring relaxed/compressed; fan frames.
+; bridge pieces; spring relaxed/compressed; fan frames; crate.
 ; Run `cargo run -p artgen` after editing.
 sheet items cell 16x16 columns 8
 palette
@@ -334,4 +334,22 @@ sprite fan_1
 .MMMMMMMMMMMMMM.
 .MMMMMMMMMMMMMM.
 .mmmmmmmmmmmmmm.
+end
+sprite crate
+KKKKKKKKKKKKKKKK
+KPPPPPPPPPPPPPPK
+KPSPPPPPPPPPPSPK
+KPPPPPPPPPPPPPPK
+KPPpPPpppppppPPK
+KPPppPPppppppPPK
+KPPpppPPpppppPPK
+KPPPPPPPPPPPPPPK
+KPPpppppPPpppPPK
+KPPppppppPPppPPK
+KPPpppppppPPpPPK
+KPPPPPPPPPPPPPPK
+KPPpppppppppPPPK
+KPSPPPPPPPPPPSPK
+KPPPPPPPPPPPPPPK
+KKKKKKKKKKKKKKKK
 end

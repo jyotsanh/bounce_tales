@@ -36,7 +36,8 @@
 //! right / 4 tiles up and back, `S` = switch, `D` = door cell, `B` = bridge
 //! cell (ASCII ones are all linked by the name `gate`), `j` = spring, `>` /
 //! `<` = catapult firing right / left (32x16), `F` = fan blowing up (air
-//! stream 32 wide, 128 tall, standing on the cell's floor).
+//! stream 32 wide, 128 tall, standing on the cell's floor), `X` = big
+//! crate (32x32).
 
 use std::io::Cursor;
 use std::path::Path;
@@ -152,6 +153,9 @@ pub const BACKGROUNDS: &[&str] = &["forest"];
 pub const EXIT_SIZE: Vec2 = Vec2::new(32.0, 32.0);
 /// Size of a collectible (gem, egg, extra life), px.
 pub const ITEM_SIZE: Vec2 = Vec2::new(16.0, 16.0);
+/// Size of an ASCII crate (`X`: a big 2x2-tile crate standing on the
+/// cell's floor, centred on it), px. Tiled crates can be any size.
+pub const CRATE_SIZE: Vec2 = Vec2::new(32.0, 32.0);
 /// Size of an ASCII catapult (`>` / `<`), px.
 pub const CATAPULT_SIZE: Vec2 = Vec2::new(32.0, 16.0);
 /// Size of an ASCII fan's air stream (`F`: 2 tiles wide, 8 tall, rising from
@@ -210,6 +214,7 @@ fn ascii_marker(c: char) -> Option<Marker> {
             ..m("catapult", "catapult", CATAPULT_SIZE)
         },
         'F' => m("fan", "fan", FAN_SIZE),
+        'X' => m("crate", "crate", CRATE_SIZE),
         _ => return None,
     })
 }

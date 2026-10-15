@@ -54,6 +54,8 @@ pub const ENTITY_SPRITES: &[&str] = &[
     "catapult_l",
     "catapult_r_fired",
     "catapult_l_fired",
+    "crate",
+    "crate_big",
 ];
 
 /// Roll frames in the ball atlas (`roll_0` … `roll_15`).
@@ -194,6 +196,22 @@ impl Renderer {
                 }
             }
             EntityKind::Pickup { taken: true, .. } => {}
+            EntityKind::Crate(c) if !c.gone => {
+                let pos = c.prev_pos.lerp(e.pos, alpha);
+                if e.size == vec2(32.0, 32.0) {
+                    self.sprites.objects.draw("crate_big", pos);
+                } else {
+                    // Other sizes: a grid of small crates.
+                    let (w, h) = ((e.size.x / TILE) as i32, (e.size.y / TILE) as i32);
+                    for y in 0..h.max(1) {
+                        for x in 0..w.max(1) {
+                            let p = pos + vec2(x as f32, y as f32) * TILE;
+                            self.sprites.items.draw("crate", p);
+                        }
+                    }
+                }
+            }
+            EntityKind::Crate(_) => {}
             EntityKind::Spring { squish, .. } => {
                 let name = if *squish > 0 { "spring_1" } else { "spring_0" };
                 self.sprites.items.draw(name, e.pos);

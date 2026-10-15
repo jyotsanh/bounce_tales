@@ -1,0 +1,18 @@
+# Crates level (recorded from a scripted controller): push the big crate to
+# the 4-tile wall, back off, hop onto the crate, jump up to the ledge, hop
+# the spikes and reach the exit. The wall can't be jumped from the floor.
+level crates
+180 R
+expect crate.x == 288 +- 0.5
+expect crate.y == 208
+1 -
+25 L
+23 R
+1 RJ
+45 R
+1 RJ
+83 R
+1 RJ
+49 R
+expect exit == 1
+expect deaths == 0

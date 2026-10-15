@@ -38,6 +38,8 @@ pub const FIELDS: &[(&str, Probe)] = &[
     ("ball.water", |s| s.ball.water as f64),
     ("riding", |s| s.riding.is_some() as u8 as f64),
     ("held", |s| s.held.is_some() as u8 as f64),
+    ("crate.x", |s| first_crate(s).0 as f64),
+    ("crate.y", |s| first_crate(s).1 as f64),
     ("cam.x", |s| s.camera.pos.x as f64),
     ("cam.y", |s| s.camera.pos.y as f64),
     ("exit", |s| s.exit_reached as u8 as f64),
@@ -52,6 +54,14 @@ pub const FIELDS: &[(&str, Probe)] = &[
     ("gems", |s| s.gems as f64),
     ("eggs", |s| s.eggs as f64),
 ];
+
+/// Position of the level's first crate (0,0 if none), for replay checks.
+fn first_crate(s: &Sim) -> (f32, f32) {
+    s.entities
+        .iter()
+        .find(|e| matches!(e.kind, crate::sim::EntityKind::Crate(_)))
+        .map_or((0.0, 0.0), |e| (e.pos.x, e.pos.y))
+}
 
 pub fn probe(sim: &Sim, field: &str) -> Option<f64> {
     FIELDS

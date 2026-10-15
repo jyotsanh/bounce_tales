@@ -177,11 +177,12 @@ pub struct TileMap {
 }
 
 /// ASCII letters that mark objects (exit, checkpoint, gem, egg, extra
-/// life, moving platforms, switch, door, bridge, spring, catapults, fan);
+/// life, moving platforms, switch, door, bridge, spring, catapults, fan,
+/// crate);
 /// they are empty space
 /// in the collision map. See `level::ascii_marker`.
 pub const OBJECT_MARKERS: &[char] = &[
-    'E', 'C', '*', 'e', '+', 'H', 'V', 'S', 'D', 'B', 'j', '>', '<', 'F',
+    'E', 'C', '*', 'e', '+', 'H', 'V', 'S', 'D', 'B', 'j', '>', '<', 'F', 'X',
 ];
 
 /// Per-cell flag bits from tile properties (used from steps 11 and 15).
@@ -367,6 +368,7 @@ pub fn builtin_text(name: &str) -> Option<&'static str> {
         "platforms" => PLATFORMS_MAP,
         "switches" => SWITCHES_MAP,
         "launchers" => LAUNCHERS_MAP,
+        "crates" => CRATES_MAP,
         _ => return None,
     })
 }
@@ -385,6 +387,7 @@ pub const BUILTIN_NAMES: &[&str] = &[
     "platforms",
     "switches",
     "launchers",
+    "crates",
 ];
 
 /// Test map: one screen with a step block, a low ceiling, a tunnel, a
@@ -595,6 +598,32 @@ const LAUNCHERS_MAP: &str = r"
     #.o...j.........>.................F........#
     ###################......###################
     ###################......###################
+";
+
+/// Crates (40 wide): a big crate (x 136..168) on the floor (top y 240)
+/// and a 4-tile wall (ledge top y 176 from x 320) too high to jump without
+/// standing on the crate; spikes on the ledge, then the exit.
+const CRATES_MAP: &str = r"
+    #......................................#
+    #......................................#
+    #......................................#
+    #......................................#
+    #......................................#
+    #......................................#
+    #......................................#
+    #......................................#
+    #................................*.....#
+    #......................................#
+    #.............................^^...E...#
+    #...................####################
+    #...................####################
+    #...................####################
+    #.o......X..........####################
+    ########################################
+    ########################################
+    ########################################
+    ########################################
+    ########################################
 ";
 
 #[cfg(test)]

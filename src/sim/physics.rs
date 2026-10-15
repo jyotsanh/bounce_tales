@@ -47,11 +47,23 @@ pub struct Contacts {
     pub impact_speed: f32,
     /// Normal of the hardest floor hit (points away from the floor).
     pub floor_normal: Vec2,
+    /// Extra solid boxes (crates) the ball pressed sideways into, with the
+    /// ball's horizontal speed at the time: (index into `solids`, vx).
+    pub pushes: Vec<(usize, f32)>,
 }
+
+/// An axis-aligned solid box other than the tile map (a crate): (min, max).
+pub type SolidBox = (Vec2, Vec2);
 
 /// Moves the ball by its velocity for one step, colliding with the map, then
 /// applies ground-following and landing/bounce rules.
 pub fn move_and_collide(ball: &mut Ball, map: &TileMap) -> Contacts {
+    move_and_collide_with(ball, map, &[])
+}
+
+/// [`move_and_collide`] with extra solid boxes (crates). Pressing sideways
+/// into a box doesn't bounce the ball off; it records a push instead.
+pub fn move_and_collide_with(ball: &mut Ball, map: &TileMap, solids: &[SolidBox]) -> Contacts {
     // An up-draft lifting the ball must not be undone by ground snapping.
     let rolling = ball.grounded && !ball.jumping && ball.wind.y >= 0.0;
     let old_normal = ball.ground_normal;
@@ -65,11 +77,11 @@ pub fn move_and_collide(ball: &mut Ball, map: &TileMap) -> Contacts {
     for _ in 0..substeps {
         // Velocity can change mid-step (wall hit), so re-read it each time.
         ball.pos += ball.vel * (DT / substeps as f32);
-        resolve(ball, map, &mut c);
+        resolve(ball, map, solids, &mut c);
     }
 
     if rolling && !c.floor {
-        snap_to_floor(ball, map, old_normal, &mut c);
+        snap_to_floor(ball, map, solids, old_normal, &mut c);
     }
     if rolling && c.floor {
         // A rolling ball meeting a new floor angle is not a landing: no
@@ -89,9 +101,9 @@ pub fn move_and_collide(ball: &mut Ball, map: &TileMap) -> Contacts {
 }
 
 /// Runs push-out passes until the ball overlaps nothing (or passes run out).
-fn resolve(ball: &mut Ball, map: &TileMap, c: &mut Contacts) {
+fn resolve(ball: &mut Ball, map: &TileMap, solids: &[SolidBox], c: &mut Contacts) {
     for _ in 0..RESOLVE_PASSES {
-        if !resolve_deepest(ball, map, c) {
+        if !resolve_deepest(ball, map, solids, c) {
             break;
         }
     }
@@ -102,11 +114,17 @@ fn resolve(ball: &mut Ball, map: &TileMap, c: &mut Contacts) {
 /// rolling on (`old_normal` reversed), not straight down: at a 45° crest a
 /// straight-down pull lands back on the slope, whose push-out would shove
 /// the ball backwards every step.
-fn snap_to_floor(ball: &mut Ball, map: &TileMap, old_normal: Vec2, c: &mut Contacts) {
+fn snap_to_floor(
+    ball: &mut Ball,
+    map: &TileMap,
+    solids: &[SolidBox],
+    old_normal: Vec2,
+    c: &mut Contacts,
+) {
     let (pos, vel) = (ball.pos, ball.vel);
     ball.pos -= old_normal * SNAP_DISTANCE;
     let mut probe = Contacts::default();
-    resolve(ball, map, &mut probe);
+    resolve(ball, map, solids, &mut probe);
     let moved_into_surface = (ball.pos - pos).dot(old_normal) <= 1e-3;
     if probe.floor && !probe.wall && !probe.ceiling && moved_into_surface {
         c.floor = true;
@@ -120,7 +138,7 @@ fn snap_to_floor(ball: &mut Ball, map: &TileMap, old_normal: Vec2, c: &mut Conta
 
 /// Pushes the ball out of the tile it overlaps most and updates its
 /// velocity. Returns false if it overlaps nothing.
-fn resolve_deepest(ball: &mut Ball, map: &TileMap, c: &mut Contacts) -> bool {
+fn resolve_deepest(ball: &mut Ball, map: &TileMap, solids: &[SolidBox], c: &mut Contacts) -> bool {
     let p = ball.pos;
     let r = ball.radius;
     let (x0, y0) = TileMap::cell_at(p - Vec2::splat(r));
@@ -135,6 +153,30 @@ fn resolve_deepest(ball: &mut Ball, map: &TileMap, c: &mut Contacts) -> bool {
                 best = Some((pen, n, (tx, ty)));
             }
         }
+    }
+    // A solid box overlapped more deeply than any tile wins.
+    let mut best_box: Option<(f32, Vec2, usize)> = None;
+    for (i, &(min, max)) in solids.iter().enumerate() {
+        if let Some((pen, n)) = box_penetration(min, max, p, r)
+            && best.is_none_or(|(b, _, _)| pen > b)
+            && best_box.is_none_or(|(b, _, _)| pen > b)
+        {
+            best_box = Some((pen, n, i));
+        }
+    }
+    if let Some((pen, n, i)) = best_box {
+        ball.pos += n * pen;
+        if n.x.abs() > 0.7 && ball.vel.x * -n.x > 0.0 {
+            c.pushes.push((i, ball.vel.x));
+            c.wall = true;
+            // Keep pressing at crate speed instead of bouncing off, so the
+            // ball and crate travel together.
+            let max = super::crates::PUSH_SPEED;
+            ball.vel.x = ball.vel.x.clamp(-max, max);
+        } else {
+            respond(ball, n, c);
+        }
+        return true;
     }
     let Some((pen, n, (tx, ty))) = best else {
         return false;
@@ -190,6 +232,32 @@ fn penetration(map: &TileMap, tx: i32, ty: i32, p: Vec2, r: f32) -> Option<(f32,
         outward
     };
     Some((r - dist, n))
+}
+
+/// Overlap of a circle at `p` with an axis-aligned box, and the direction
+/// to push it out.
+fn box_penetration(min: Vec2, max: Vec2, p: Vec2, r: f32) -> Option<(f32, Vec2)> {
+    let q = p.clamp(min, max);
+    let d = p - q;
+    let dist = d.length();
+    if dist >= r {
+        return None;
+    }
+    if dist > 1e-4 {
+        return Some((r - dist, d / dist));
+    }
+    // Centre inside the box: leave through the nearest face.
+    let faces = [
+        (p.y - min.y, vec2(0.0, -1.0)),
+        (max.y - p.y, vec2(0.0, 1.0)),
+        (p.x - min.x, vec2(-1.0, 0.0)),
+        (max.x - p.x, vec2(1.0, 0.0)),
+    ];
+    let (depth, n) = faces
+        .into_iter()
+        .min_by(|a, b| a.0.total_cmp(&b.0))
+        .expect("four faces");
+    Some((depth + r, n))
 }
 
 fn closest_on_segment(p: Vec2, a: Vec2, b: Vec2) -> Vec2 {
