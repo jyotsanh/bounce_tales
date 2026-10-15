@@ -4,7 +4,7 @@ use macroquad::prelude::*;
 
 use bounce_tales::cli::{self, CliError, Options};
 use bounce_tales::replay::Replay;
-use bounce_tales::sim::{DEFAULT_LEVEL, FixedStep, InputFrame, Sim, map};
+use bounce_tales::sim::{DEFAULT_LEVEL, FixedStep, InputFrame, Sim};
 use render::{Renderer, SCREEN_H, SCREEN_W};
 
 fn options() -> Options {
@@ -69,11 +69,8 @@ async fn main() {
         .and_then(|r| r.level.clone())
         .or(opts.level.clone())
         .unwrap_or_else(|| DEFAULT_LEVEL.to_owned());
-    let mut sim = Sim::for_level(&level).unwrap_or_else(|| {
-        eprintln!(
-            "error: unknown level '{level}' (known: {})",
-            map::BUILTIN_NAMES.join(", ")
-        );
+    let mut sim = Sim::for_level(&level).unwrap_or_else(|e| {
+        eprintln!("error: {e}");
         std::process::exit(2);
     });
     let mut clock = FixedStep::default();

@@ -1,7 +1,10 @@
 ; Forest tileset. ORDER MATTERS: Tiled levels (step 8) refer to tiles by
 ; position (0 = first sprite, 8 per row). Only append new tiles at the end.
+; `shape=` sets the collision shape a Tiled level gets from the tile
+; (solid, slope45_r, slope45_l, slope2_r_low, slope2_r_high, slope2_l_high,
+; slope2_l_low; no shape = decoration). Later: spike=true, water=true.
 ; Run `cargo run -p artgen` after editing.
-sheet forest cell 16x16 columns 8
+sheet forest cell 16x16 columns 8 tileset
 palette
   G #8be04a   ; grass light
   g #57b030   ; grass
@@ -13,7 +16,7 @@ palette
   S #bdb6aa   ; stone light
   s #7d766c   ; stone dark
 end
-sprite grass_top
+sprite grass_top shape=solid
 GGGGGGGGGGGGGGGG
 GGGGGGGGGGGGGGGG
 gggggggggggggggg
@@ -31,7 +34,7 @@ dddddddddddddddK
 ddddddddddKddddd
 dddddddddddddddd
 end
-sprite grass_left
+sprite grass_left shape=solid
 .GGGGGGGGGGGGGGG
 VgGGGGGGGGGGGGGG
 Vggggggggggggggg
@@ -49,7 +52,7 @@ KddddddddddddddK
 KdddddddddKddddd
 Kddddddddddddddd
 end
-sprite grass_right
+sprite grass_right shape=solid
 GGGGGGGGGGGGGGG.
 GGGGGGGGGGGGGGgV
 gggggggggggggggV
@@ -67,7 +70,7 @@ KddddddddddddddK
 dddddKdddddddddK
 dddddddddddddddK
 end
-sprite grass_platform
+sprite grass_platform shape=solid
 GGGGGGGGGGGGGGGG
 GGGGGGGGGGGGGGGG
 gggggggggggggggg
@@ -85,7 +88,7 @@ dddddddddddddddK
 KKKKKKKKKKKKKKKK
 OOOOOOOOOOOOOOOO
 end
-sprite dirt
+sprite dirt shape=solid
 dddddddddddddddd
 ddDdddDDdddddDdd
 dDdddddddddddDDd
@@ -103,7 +106,7 @@ dddddddddddddddK
 ddddddddddKddddd
 dddddddddddddddd
 end
-sprite dirt_stones
+sprite dirt_stones shape=solid
 dddddddddddddddd
 ddDdddDDdddddDdd
 dDdddddddddddDDd
@@ -121,7 +124,7 @@ dddddddddddddddK
 ddddddddddKddddd
 dddddddddddddddd
 end
-sprite dirt_bottom
+sprite dirt_bottom shape=solid
 dddddddddddddddd
 ddDdddDDdddddDdd
 dDdddddddddddDDd
@@ -139,7 +142,7 @@ dddddddddddddddK
 KKKKKKKKKKKKKKKK
 OOOOOOOOOOOOOOOO
 end
-sprite dirt_roots
+sprite dirt_roots shape=solid
 dddddddddddddddd
 ddDdddDDdddddDdd
 dDdddddddddddDDd
@@ -157,7 +160,7 @@ dddddddddddddddK
 ddddddddddKddddd
 dddddddddddddddd
 end
-sprite slope45_r
+sprite slope45_r shape=slope45_r
 ...............G
 ..............GG
 .............GGG
@@ -175,7 +178,7 @@ sprite slope45_r
 .GGGggVVVdKddddd
 GGGggVVddddddddd
 end
-sprite slope45_l
+sprite slope45_l shape=slope45_l
 G...............
 GG..............
 GGG.............
@@ -193,7 +196,7 @@ ddddVddVVggGGG..
 ddddddddVVggGGG.
 ddddddddVVVggGGG
 end
-sprite slope2_r_low
+sprite slope2_r_low shape=slope2_r_low
 ................
 ................
 ................
@@ -211,7 +214,7 @@ sprite slope2_r_low
 ...GGGGgggVVVVVd
 .GGGGgggVVVVdddd
 end
-sprite slope2_r_high
+sprite slope2_r_high shape=slope2_r_high
 ...............G
 .............GGG
 ...........GGGGg
@@ -229,7 +232,7 @@ dddddddddddddddK
 ddddddddddKddddd
 dddddddddddddddd
 end
-sprite slope2_l_high
+sprite slope2_l_high shape=slope2_l_high
 G...............
 GGG.............
 gGGGG...........
@@ -247,7 +250,7 @@ dddddddddddddddK
 ddddddddddKddddd
 dddddddddddddddd
 end
-sprite slope2_l_low
+sprite slope2_l_low shape=slope2_l_low
 ................
 ................
 ................

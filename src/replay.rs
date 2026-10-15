@@ -192,7 +192,7 @@ impl Replay {
     /// names none).
     pub fn start_sim(&self, default_level: &str) -> Result<Sim, String> {
         let name = self.level.as_deref().unwrap_or(default_level);
-        Sim::for_level(name).ok_or_else(|| format!("unknown level '{name}'"))
+        Sim::for_level(name)
     }
 
     /// Input for the step that starts at `tick` (nothing once the replay ends).

@@ -12,6 +12,7 @@
 //! sprite body          ; exactly cell-height rows of cell-width chars
 //! ....rrrr....
 //! end
+//! sprite rock shape=solid spike=true   ; optional key=value tile properties
 //! spin roll from body frames 16 fill r over shade
 //! ```
 //!
@@ -24,7 +25,11 @@
 //! (for lighting that stays put while the ball turns).
 //!
 //! Output: `<name>.png` and `<name>.idx` (one `name x y w h` line per
-//! sprite, in sheet order).
+//! sprite, in sheet order). A sheet line ending in `tileset`
+//! (`sheet forest cell 16x16 columns 8 tileset`) also writes `<name>.tsx`, a
+//! Tiled tileset over the PNG: tile id = sprite position, each tile gets a
+//! `name` property plus its `key=value` properties (`true`/`false` become
+//! bool properties, everything else strings).
 
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
@@ -36,6 +41,8 @@ pub type Rgba = [u8; 4];
 pub struct Sprite {
     pub name: String,
     pub pixels: Vec<Rgba>,
+    /// `key=value` properties from the sprite line, in order.
+    pub props: Vec<(String, String)>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -44,6 +51,8 @@ pub struct Sheet {
     pub cell_w: usize,
     pub cell_h: usize,
     pub columns: usize,
+    /// Also write a Tiled `.tsx` tileset.
+    pub tileset: bool,
     pub sprites: Vec<Sprite>,
 }
 
@@ -54,6 +63,8 @@ pub struct Atlas {
     pub height: usize,
     pub rgba: Vec<u8>,
     pub index: String,
+    /// Tiled tileset XML, for sheets marked `tileset`.
+    pub tsx: Option<String>,
 }
 
 fn parse_color(s: &str) -> Option<Rgba> {
@@ -82,8 +93,14 @@ pub fn parse(text: &str) -> Result<Sheet, String> {
         let tok: Vec<&str> = line.split_whitespace().collect();
         match tok[0] {
             "sheet" => {
-                let ["sheet", name, "cell", size, "columns", cols] = tok[..] else {
-                    return Err(err("usage: sheet <name> cell <W>x<H> columns <N>"));
+                let (name, size, cols, tileset) = match tok[..] {
+                    ["sheet", n, "cell", s, "columns", c] => (n, s, c, false),
+                    ["sheet", n, "cell", s, "columns", c, "tileset"] => (n, s, c, true),
+                    _ => {
+                        return Err(err(
+                            "usage: sheet <name> cell <W>x<H> columns <N> [tileset]",
+                        ));
+                    }
                 };
                 let (w, h) = size.split_once('x').ok_or_else(|| err("bad cell size"))?;
                 sheet = Some(Sheet {
@@ -91,6 +108,7 @@ pub fn parse(text: &str) -> Result<Sheet, String> {
                     cell_w: w.parse().map_err(|_| err("bad cell width"))?,
                     cell_h: h.parse().map_err(|_| err("bad cell height"))?,
                     columns: cols.parse().map_err(|_| err("bad column count"))?,
+                    tileset,
                     sprites: Vec::new(),
                 });
             }
@@ -125,9 +143,17 @@ pub fn parse(text: &str) -> Result<Sheet, String> {
                 let s = sheet
                     .as_mut()
                     .ok_or_else(|| err("'sheet' line must come first"))?;
-                let [_, name] = tok[..] else {
-                    return Err(err("usage: sprite <name>"));
+                let Some(&name) = tok.get(1) else {
+                    return Err(err("usage: sprite <name> [key=value ...]"));
                 };
+                let mut props = Vec::new();
+                for kv in &tok[2..] {
+                    let (k, v) = kv
+                        .split_once('=')
+                        .filter(|(k, v)| !k.is_empty() && !v.is_empty())
+                        .ok_or_else(|| err(&format!("bad property '{kv}', expected key=value")))?;
+                    props.push((k.to_owned(), v.to_owned()));
+                }
                 let mut pixels = Vec::with_capacity(s.cell_w * s.cell_h);
                 let mut rows = 0;
                 loop {
@@ -165,6 +191,7 @@ pub fn parse(text: &str) -> Result<Sheet, String> {
                     Sprite {
                         name: name.to_owned(),
                         pixels,
+                        props,
                     },
                 )
                 .map_err(|m| err(&m))?;
@@ -215,6 +242,7 @@ pub fn parse(text: &str) -> Result<Sheet, String> {
                         Sprite {
                             name: format!("{prefix}_{k}"),
                             pixels: px,
+                            props: Vec::new(),
                         },
                     )
                     .map_err(|m| err(&m))?;
@@ -300,12 +328,69 @@ pub fn render(sheet: &Sheet) -> Atlas {
             }
         }
     }
+    let tsx = sheet.tileset.then(|| tileset_xml(sheet, width, height));
     Atlas {
         width,
         height,
         rgba,
         index,
+        tsx,
     }
+}
+
+fn xml_escape(s: &str) -> String {
+    s.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+}
+
+/// Tiled tileset (`.tsx`) for a sheet whose PNG sits next to it.
+fn tileset_xml(sheet: &Sheet, width: usize, height: usize) -> String {
+    let mut x = String::new();
+    let _ = writeln!(x, r#"<?xml version="1.0" encoding="UTF-8"?>"#);
+    let _ = writeln!(
+        x,
+        "<!-- Generated by artgen from assets/art/{}.txt. Do not edit. -->",
+        sheet.name
+    );
+    let _ = writeln!(
+        x,
+        r#"<tileset version="1.10" name="{}" tilewidth="{}" tileheight="{}" tilecount="{}" columns="{}">"#,
+        xml_escape(&sheet.name),
+        sheet.cell_w,
+        sheet.cell_h,
+        sheet.sprites.len(),
+        sheet.columns
+    );
+    let _ = writeln!(
+        x,
+        r#" <image source="{}.png" width="{width}" height="{height}"/>"#,
+        xml_escape(&sheet.name)
+    );
+    for (id, sp) in sheet.sprites.iter().enumerate() {
+        let _ = writeln!(x, r#" <tile id="{id}">"#);
+        let _ = writeln!(x, "  <properties>");
+        let props = std::iter::once(("name", sp.name.as_str()))
+            .chain(sp.props.iter().map(|(k, v)| (k.as_str(), v.as_str())));
+        for (k, v) in props {
+            let ty = if v == "true" || v == "false" {
+                r#" type="bool""#
+            } else {
+                ""
+            };
+            let _ = writeln!(
+                x,
+                r#"   <property name="{}"{ty} value="{}"/>"#,
+                xml_escape(k),
+                xml_escape(v)
+            );
+        }
+        let _ = writeln!(x, "  </properties>");
+        let _ = writeln!(x, " </tile>");
+    }
+    let _ = writeln!(x, "</tileset>");
+    x
 }
 
 pub fn encode_png(atlas: &Atlas) -> Vec<u8> {
@@ -364,9 +449,16 @@ pub fn stale_reason(atlas: &Atlas, out_dir: &Path, name: &str) -> Option<String>
         Err(e) => return Some(format!("{}: {e}", png_path.display())),
     }
     match std::fs::read_to_string(&idx_path) {
-        Ok(idx) if idx == atlas.index => None,
-        Ok(_) => Some(format!("{} differs", idx_path.display())),
-        Err(_) => Some(format!("{} missing", idx_path.display())),
+        Ok(idx) if idx == atlas.index => {}
+        Ok(_) => return Some(format!("{} differs", idx_path.display())),
+        Err(_) => return Some(format!("{} missing", idx_path.display())),
+    }
+    let tsx_path = out_dir.join(format!("{name}.tsx"));
+    match (&atlas.tsx, std::fs::read_to_string(&tsx_path)) {
+        (None, _) => None,
+        (Some(want), Ok(have)) if *want == have => None,
+        (Some(_), Ok(_)) => Some(format!("{} differs", tsx_path.display())),
+        (Some(_), Err(_)) => Some(format!("{} missing", tsx_path.display())),
     }
 }
 
@@ -408,6 +500,24 @@ mod tests {
                 .index
                 .starts_with("a 0 0 4 4\nlight 4 0 4 4\ns_0 0 4 4 4\n")
         );
+    }
+
+    #[test]
+    fn tileset_xml_has_properties() {
+        let src = "sheet t cell 1x1 columns 2 tileset\n\
+                   palette\n r #ff0000\nend\n\
+                   sprite a shape=solid spike=true\nr\nend\n\
+                   sprite b\n.\nend\n";
+        let atlas = render(&parse(src).unwrap());
+        let tsx = atlas.tsx.unwrap();
+        assert!(tsx.contains(r#"tilecount="2" columns="2""#));
+        assert!(tsx.contains(r#"<image source="t.png" width="2" height="1"/>"#));
+        assert!(tsx.contains(r#"<tile id="0">"#));
+        assert!(tsx.contains(r#"<property name="name" value="a"/>"#));
+        assert!(tsx.contains(r#"<property name="shape" value="solid"/>"#));
+        assert!(tsx.contains(r#"<property name="spike" type="bool" value="true"/>"#));
+        assert!(tsx.contains(r#"<property name="name" value="b"/>"#));
+        assert!(parse("sheet t cell 1x1 columns 1\nsprite a oops\n.\nend").is_err());
     }
 
     #[test]

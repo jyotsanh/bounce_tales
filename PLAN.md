@@ -68,7 +68,7 @@ Key rules:
 
 ### Phase B — Content pipeline
 - [x] **07.** **Art pipeline**: `tools/artgen` (ASCII + palette → PNG). Ball sprite with roll rotation, first forest tileset.
-- [ ] **08.** **Tiled loader**: load `.tmx` from embedded bytes. Tile properties (`solid`, `slope`, `spike`, `water`) → collision map. Render tile layers.
+- [x] **08.** **Tiled loader**: load `.tmx` from embedded bytes. Tile properties (`solid`, `slope`, `spike`, `water`) → collision map. Render tile layers.
 - [ ] **09.** **Object layers + ascii2tmx**: spawn, exit, decoration objects. Entity list. Level sketch tool.
 - [ ] **10.** **Visual polish base**: parallax backgrounds, ball squash/stretch on landing, simple particles.
 
@@ -198,3 +198,16 @@ Spare capacity: if a step overruns, the next prompt finishes it before moving on
 - Art: `assets/art/ball.txt` (body with seam + mark, shade overlay with highlight/outline, 16 roll frames `roll_0..15`); `assets/art/forest.txt` (14 tiles, **order matters for Tiled, append only**: grass_top, grass_left, grass_right, grass_platform, dirt, dirt_stones, dirt_bottom, dirt_roots, slope45_r, slope45_l, slope2_r_low, slope2_r_high, slope2_l_high, slope2_l_low). First drafts came from a one-off Python script (circle mask, light-based shading, slope grass lines); the `.txt` files are the source of truth now.
 - Game: `src/render/atlas.rs`: `Atlas` (embedded via `include_bytes!`/`include_str!`, nearest filter, `draw(name, pos)` rounds to whole pixels), `Sprites::load()`. Ball frame = `ball_frame(angle)` (nearest of 16). `forest_tile(map, x, y)` auto-tiles ASCII maps from the shape plus open sides (top row of the map counts as closed). Dirt variety comes from a fixed per-cell hash.
 - Screenshots now go to `shots/` (gitignored). Live window verified the right way up with textures.
+
+### Step 08 — Tiled loader (done)
+- `tiled` 0.16 with `default-features = false` (avoids the zstd C dependency; Tiled's default CSV/base64/zlib layers still work).
+- artgen: sprite lines take `key=value` properties; a `sheet … tileset` line also writes `assets/gen/<sheet>.tsx` (tile id = position, `name` property + extras, `true`/`false` → bool). Covered by the up-to-date test. `forest.txt` tiles carry `shape=…`.
+- `src/level.rs` (lib): `Level { map, layers: Vec<TileLayer>, sheets }`, `TileRef { sheet, id }`. `Level::load(name)`: Tiled levels in `TMX_LEVELS` win over ASCII built-ins. **Conventions** (module doc): 16x16 finite maps, no flipped tiles (error), tile layer named `ground` = collision (`shape` property → `Tile::from_shape_name`; `spike`/`water` bools → `map::flags`), layer bool `front=true` → drawn over the ball, object of type `spawn` (point where the ball's bottom rests; Tiled `type` or `class` both work).
+- `EmbeddedReader` serves the map and embedded tilesets by **file name** (so `../gen/forest.tsx` from the editor works).
+- `src/tileset.rs` (lib): forest names/ids from the embedded `.idx`, `autotile()` (moved out of render).
+- `src/bin/ascii2tmx.rs` (pulled forward from step 9): `cargo run --bin ascii2tmx -- builtin:test out.tmx` or a `.txt` file. `Cargo.toml` has `default-run = "bounce_tales"`.
+- `big` is now `assets/levels/big.tmx` (converted; the ASCII copy was deleted). Its screenshot is **pixel-identical** to step 7, and `camera_big` still passes → loader parity. ASCII built-ins: `test`, `flat`, `slopes`.
+- `Sim` holds `level: Level` (was `map`); `Sim::for_level` returns `Result<Sim, String>` with the list of known levels.
+- Render: `draw_layer` per tile layer (back layers, ball, front layers), `Atlas::draw_index(id)`, `Sprites::by_name(tileset)`.
+- Tests: TMX round-trip of every ASCII map (collision + pictures equal), every level loads, every `.tmx` is registered, property → shape/flag parsing with an inline test tileset, front layers, error cases (no ground, no spawn, flipped tile, missing tileset).
+- Editing levels: install Tiled (e.g. `sudo apt install tiled` or Flatpak `org.mapeditor.Tiled`), open `assets/levels/*.tmx`, save, and **add new files to `TMX_LEVELS`** (a test fails if you forget).

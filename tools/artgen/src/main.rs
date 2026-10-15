@@ -43,8 +43,13 @@ fn main() -> ExitCode {
         }
         let png = out_dir.join(format!("{name}.png"));
         let idx = out_dir.join(format!("{name}.idx"));
+        let tsx = out_dir.join(format!("{name}.tsx"));
         if let Err(e) = std::fs::write(&png, artgen::encode_png(&atlas))
             .and_then(|_| std::fs::write(&idx, &atlas.index))
+            .and_then(|_| match &atlas.tsx {
+                Some(x) => std::fs::write(&tsx, x),
+                None => Ok(()),
+            })
         {
             eprintln!("error: writing {name}: {e}");
             failed = true;

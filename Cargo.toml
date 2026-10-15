@@ -2,9 +2,11 @@
 name = "bounce_tales"
 version = "0.1.0"
 edition = "2024"
+default-run = "bounce_tales"
 
 [dependencies]
 macroquad = "0.4"
+tiled = { version = "0.16", default-features = false }
 
 [workspace]
 members = ["tools/artgen"]

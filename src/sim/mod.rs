@@ -17,6 +17,8 @@ pub use ball::Ball;
 pub use camera::Camera;
 pub use input::InputFrame;
 pub use map::TileMap;
+
+use crate::level::Level;
 pub use rng::Rng;
 
 /// Simulation rate. The sim always advances in steps of exactly `DT`.
@@ -35,7 +37,8 @@ const FALL_OUT_MARGIN: f32 = 4.0 * map::TILE;
 pub struct Sim {
     /// Number of steps taken since start.
     pub tick: u64,
-    pub map: TileMap,
+    /// Collision map plus drawable layers (static during play).
+    pub level: Level,
     pub ball: Ball,
     pub camera: Camera,
     pub rng: Rng,
@@ -54,21 +57,21 @@ impl Default for Sim {
 impl Sim {
     /// The default level.
     pub fn new() -> Sim {
-        Sim::for_level(DEFAULT_LEVEL).expect("default level exists")
+        Sim::for_level(DEFAULT_LEVEL).expect("default level loads")
     }
 
-    /// Starts the named level, or `None` if there is no such level.
-    pub fn for_level(name: &str) -> Option<Sim> {
-        map::builtin(name).map(Sim::with_map)
+    /// Starts the named level (see `level::level_names`).
+    pub fn for_level(name: &str) -> Result<Sim, String> {
+        Level::load(name).map(Sim::with_level)
     }
 
-    pub fn with_map(map: TileMap) -> Sim {
-        let ball = Ball::new(map.spawn);
+    pub fn with_level(level: Level) -> Sim {
+        let ball = Ball::new(level.map.spawn);
         Sim {
             tick: 0,
-            camera: Camera::snapped_to(&ball, &map),
+            camera: Camera::snapped_to(&ball, &level.map),
             ball,
-            map,
+            level,
             rng: Rng::new(1),
             input: InputFrame::NONE,
             prev_input: InputFrame::NONE,
@@ -83,14 +86,14 @@ impl Sim {
 
         let jump_pressed = self.jump_pressed();
         self.ball.update(input, jump_pressed);
-        physics::move_and_collide(&mut self.ball, &self.map);
+        physics::move_and_collide(&mut self.ball, &self.level.map);
         self.ball.update_spin();
 
-        if self.ball.pos.y > self.map.pixel_size().y + FALL_OUT_MARGIN {
-            self.ball = Ball::new(self.map.spawn);
-            self.camera = Camera::snapped_to(&self.ball, &self.map);
+        if self.ball.pos.y > self.level.map.pixel_size().y + FALL_OUT_MARGIN {
+            self.ball = Ball::new(self.level.map.spawn);
+            self.camera = Camera::snapped_to(&self.ball, &self.level.map);
         } else {
-            self.camera.update(&self.ball, &self.map);
+            self.camera.update(&self.ball, &self.level.map);
         }
     }
 

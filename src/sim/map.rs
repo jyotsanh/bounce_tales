@@ -80,6 +80,20 @@ impl Tile {
         !matches!(self, Tile::Empty)
     }
 
+    /// Shape names used by the `shape` tile property in Tiled tilesets.
+    pub fn from_shape_name(name: &str) -> Option<Tile> {
+        Some(match name {
+            "solid" => Tile::Solid,
+            "slope45_r" => Tile::Slope45Right,
+            "slope45_l" => Tile::Slope45Left,
+            "slope2_r_low" => Tile::Slope2RightLow,
+            "slope2_r_high" => Tile::Slope2RightHigh,
+            "slope2_l_high" => Tile::Slope2LeftHigh,
+            "slope2_l_low" => Tile::Slope2LeftLow,
+            _ => return None,
+        })
+    }
+
     pub fn from_glyph(c: char) -> Option<Tile> {
         Some(match c {
             '.' => Tile::Empty,
@@ -156,8 +170,18 @@ pub struct TileMap {
     pub height: usize,
     /// Row-major, `width * height` entries.
     tiles: Vec<Tile>,
+    /// Row-major [`flags`] per cell (hazards, water…).
+    flags: Vec<u8>,
     /// Where the ball starts (centre, pixels).
     pub spawn: Vec2,
+}
+
+/// Per-cell flag bits from tile properties (used from steps 11 and 15).
+pub mod flags {
+    /// `spike=true`: touching it kills the ball.
+    pub const SPIKE: u8 = 1;
+    /// `water=true`: the ball floats in it.
+    pub const WATER: u8 = 2;
 }
 
 impl TileMap {
@@ -199,12 +223,44 @@ impl TileMap {
                 });
             }
         }
+        TileMap::from_parts(
+            width,
+            height,
+            tiles,
+            vec![0; width * height],
+            spawn.ok_or("map has no 'o' spawn")?,
+        )
+    }
+
+    /// Builds a map from row-major cell data (used by the Tiled loader).
+    pub fn from_parts(
+        width: usize,
+        height: usize,
+        tiles: Vec<Tile>,
+        flags: Vec<u8>,
+        spawn: Vec2,
+    ) -> Result<TileMap, String> {
+        if width == 0 || height == 0 {
+            return Err("empty map".into());
+        }
+        if tiles.len() != width * height || flags.len() != width * height {
+            return Err("cell data does not match map size".into());
+        }
         Ok(TileMap {
             width,
             height,
             tiles,
-            spawn: spawn.ok_or("map has no 'o' spawn")?,
+            flags,
+            spawn,
         })
+    }
+
+    /// Flag bits of a cell (0 outside the map). See [`flags`].
+    pub fn flags(&self, x: i32, y: i32) -> u8 {
+        if x < 0 || y < 0 || x >= self.width as i32 || y >= self.height as i32 {
+            return 0;
+        }
+        self.flags[y as usize * self.width + x as usize]
     }
 
     /// Map size in pixels.
@@ -249,19 +305,23 @@ impl TileMap {
     }
 }
 
-/// Built-in maps, by name. Tiled levels join these in step 8.
-pub fn builtin(name: &str) -> Option<TileMap> {
-    let text = match name {
+/// ASCII text of a built-in map (small test maps; real levels are Tiled
+/// files, see `level`).
+pub fn builtin_text(name: &str) -> Option<&'static str> {
+    Some(match name {
         "test" => TEST_MAP,
         "flat" => FLAT_MAP,
         "slopes" => SLOPES_MAP,
-        "big" => BIG_MAP,
         _ => return None,
-    };
-    Some(TileMap::from_ascii(text).expect("built-in maps are valid"))
+    })
 }
 
-pub const BUILTIN_NAMES: &[&str] = &["big", "test", "flat", "slopes"];
+/// A built-in map by name.
+pub fn builtin(name: &str) -> Option<TileMap> {
+    builtin_text(name).map(|t| TileMap::from_ascii(t).expect("built-in maps are valid"))
+}
+
+pub const BUILTIN_NAMES: &[&str] = &["test", "flat", "slopes"];
 
 /// Default map: one screen with a step block, a low ceiling, a tunnel, a
 /// staircase of platforms, a 45° ramp and a gentle 1:2 hill.
@@ -338,52 +398,6 @@ const SLOPES_MAP: &str = r"
     ##############################
 ";
 
-/// Scrolling playground (64 x 40 tiles): along the ground a step, a 45°
-/// ramp to a plateau, a 1:2 slope down and a 3-tile pit; then a zigzag tower
-/// of platforms up to a long ledge that runs back left along the top.
-const BIG_MAP: &str = r"
-    #..............................................................#
-    #..............................................................#
-    #..............................................................#
-    #..............................................................#
-    #..............................................................#
-    #..............................................................#
-    #..............................................................#
-    #..............................................................#
-    #..............................................................#
-    #..............................................................#
-    #..............................................................#
-    #............./#\..............................................#
-    ################################...............................#
-    #..............................................................#
-    #..................................####........................#
-    #..............................................................#
-    #........................................####..................#
-    #..............................................................#
-    #..............................................####............#
-    #..............................................................#
-    #....................................................####......#
-    #..............................................................#
-    #..............................................####............#
-    #..............................................................#
-    #........................................####..................#
-    #..............................................................#
-    #..............................................####............#
-    #..............................................................#
-    #....................................................####......#
-    #..............................................................#
-    #..........................................................#####
-    #..............................................................#
-    #.....................................................####.....#
-    #..............................................................#
-    #...............................................####...........#
-    #............./#####Ll.........................................#
-    #............/########Ll..................####.................#
-    #..o....#.../###########Ll.....................................#
-    #############################...################################
-    #############################...################################
-";
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -398,6 +412,27 @@ mod tests {
             );
         }
         assert!(builtin("nope").is_none());
+    }
+
+    #[test]
+    fn shape_names() {
+        assert_eq!(Tile::from_shape_name("solid"), Some(Tile::Solid));
+        assert_eq!(
+            Tile::from_shape_name("slope2_l_low"),
+            Some(Tile::Slope2LeftLow)
+        );
+        assert_eq!(Tile::from_shape_name("round"), None);
+    }
+
+    #[test]
+    fn flags_and_parts() {
+        let mut f = vec![0; 4];
+        f[3] = flags::SPIKE | flags::WATER;
+        let m = TileMap::from_parts(2, 2, vec![Tile::Empty; 4], f, Vec2::ZERO).unwrap();
+        assert_eq!(m.flags(1, 1), flags::SPIKE | flags::WATER);
+        assert_eq!(m.flags(0, 0), 0);
+        assert_eq!(m.flags(5, 5), 0);
+        assert!(TileMap::from_parts(2, 2, vec![], vec![], Vec2::ZERO).is_err());
     }
 
     #[test]

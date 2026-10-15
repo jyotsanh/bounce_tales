@@ -5,9 +5,10 @@ use std::collections::HashMap;
 
 use macroquad::prelude::*;
 
-/// Parses an artgen `.idx` file (`name x y w h` per line).
-pub fn parse_index(text: &str) -> Result<HashMap<String, Rect>, String> {
-    let mut map = HashMap::new();
+/// Parses an artgen `.idx` file (`name x y w h` per line), keeping sheet
+/// order (the position is the tile id).
+pub fn parse_index(text: &str) -> Result<Vec<(String, Rect)>, String> {
+    let mut list = Vec::new();
     for (i, line) in text.lines().enumerate() {
         if line.trim().is_empty() {
             continue;
@@ -20,17 +21,19 @@ pub fn parse_index(text: &str) -> Result<HashMap<String, Rect>, String> {
             s.parse::<f32>()
                 .map_err(|_| format!("index line {}: bad number '{s}'", i + 1))
         };
-        map.insert(
+        list.push((
             name.to_owned(),
             Rect::new(num(x)?, num(y)?, num(w)?, num(h)?),
-        );
+        ));
     }
-    Ok(map)
+    Ok(list)
 }
 
 pub struct Atlas {
     pub texture: Texture2D,
-    rects: HashMap<String, Rect>,
+    /// In sheet order (index = tile id).
+    rects: Vec<Rect>,
+    by_name: HashMap<String, usize>,
 }
 
 impl Atlas {
@@ -39,22 +42,45 @@ impl Atlas {
     pub fn from_bytes(name: &str, png: &[u8], index: &str) -> Atlas {
         let texture = Texture2D::from_file_with_format(png, Some(ImageFormat::Png));
         texture.set_filter(FilterMode::Nearest);
-        let rects = parse_index(index).unwrap_or_else(|e| panic!("atlas {name}: {e}"));
-        Atlas { texture, rects }
+        let list = parse_index(index).unwrap_or_else(|e| panic!("atlas {name}: {e}"));
+        let by_name = list
+            .iter()
+            .enumerate()
+            .map(|(i, (n, _))| (n.clone(), i))
+            .collect();
+        let rects = list.into_iter().map(|(_, r)| r).collect();
+        Atlas {
+            texture,
+            rects,
+            by_name,
+        }
     }
 
     /// Source rectangle of a sprite. Panics if the name is unknown (a typo
     /// in code, caught the first time that sprite is drawn).
     pub fn rect(&self, sprite: &str) -> Rect {
-        *self
-            .rects
+        let i = *self
+            .by_name
             .get(sprite)
-            .unwrap_or_else(|| panic!("no sprite named '{sprite}'"))
+            .unwrap_or_else(|| panic!("no sprite named '{sprite}'"));
+        self.rects[i]
     }
 
     /// Draws a sprite with its top-left corner at `pos` (rounded to whole
     /// pixels so pixel art stays crisp).
     pub fn draw(&self, sprite: &str, pos: Vec2) {
+        self.draw_rect(self.rect(sprite), pos);
+    }
+
+    /// Draws the sprite at a sheet position (Tiled tile id). Out-of-range
+    /// ids are skipped (the level loader and tests guard against them).
+    pub fn draw_index(&self, id: usize, pos: Vec2) {
+        if let Some(&r) = self.rects.get(id) {
+            self.draw_rect(r, pos);
+        }
+    }
+
+    fn draw_rect(&self, source: Rect, pos: Vec2) {
         let pos = pos.round();
         draw_texture_ex(
             &self.texture,
@@ -62,7 +88,7 @@ impl Atlas {
             pos.y,
             WHITE,
             DrawTextureParams {
-                source: Some(self.rect(sprite)),
+                source: Some(source),
                 ..Default::default()
             },
         );
@@ -92,6 +118,16 @@ impl Sprites {
             forest: embedded_atlas!("forest"),
         }
     }
+
+    /// Atlas for a Tiled tileset name. Panics on an unknown tileset (levels
+    /// are checked by `level` tests to use only known tilesets).
+    pub fn by_name(&self, name: &str) -> &Atlas {
+        match name {
+            "ball" => &self.ball,
+            "forest" => &self.forest,
+            _ => panic!("no atlas named '{name}'"),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -102,20 +138,19 @@ mod tests {
     fn parses_index() {
         let m = parse_index("a 0 0 16 16\nb 16 0 16 16\n\n").unwrap();
         assert_eq!(m.len(), 2);
-        assert_eq!(m["b"], Rect::new(16.0, 0.0, 16.0, 16.0));
+        assert_eq!(m[1], ("b".to_owned(), Rect::new(16.0, 0.0, 16.0, 16.0)));
         assert!(parse_index("a 0 0 16").is_err());
         assert!(parse_index("a 0 0 16 x").is_err());
     }
 
     #[test]
-    fn embedded_indexes_have_the_sprites_code_uses() {
+    fn embedded_ball_index_has_every_roll_frame() {
         let ball = parse_index(include_str!("../../assets/gen/ball.idx")).unwrap();
         for k in 0..super::super::BALL_FRAMES {
-            assert!(ball.contains_key(&format!("roll_{k}")), "roll_{k}");
-        }
-        let forest = parse_index(include_str!("../../assets/gen/forest.idx")).unwrap();
-        for name in super::super::FOREST_TILES {
-            assert!(forest.contains_key(*name), "{name}");
+            assert!(
+                ball.iter().any(|(n, _)| *n == format!("roll_{k}")),
+                "roll_{k}"
+            );
         }
     }
 }
