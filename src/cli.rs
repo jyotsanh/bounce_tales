@@ -15,6 +15,10 @@ pub struct Options {
     pub replay: Option<PathBuf>,
     /// Save the 240x320 game image to this PNG when the run ends.
     pub screenshot: Option<PathBuf>,
+    /// Record live keyboard input to this replay file on exit.
+    pub record: Option<PathBuf>,
+    /// Start with the debug overlay shown (F1 toggles it).
+    pub debug: bool,
     /// Initial window scale factor (window = 240*scale x 320*scale).
     pub scale: u32,
 }
@@ -28,7 +32,10 @@ Options:
   --level <name>       Start in the given level
   --frames <N>         Run N simulation frames, then exit
   --replay <file>      Drive input from a replay file
-  --screenshot <png>   Save the game screen to a PNG on exit (needs --frames)
+  --screenshot <png>   Save the game screen to a PNG on exit
+                       (needs --frames or --replay)
+  --record <file>      Record keyboard input to a replay file on exit
+  --debug              Start with the debug overlay on (F1 toggles)
   --scale <N>          Window scale factor (default 2)
   -h, --help           Show this help";
 
@@ -60,6 +67,8 @@ impl Options {
                 "--frames" => opts.frames = Some(parse_num("--frames", &value("--frames")?)?),
                 "--replay" => opts.replay = Some(value("--replay")?.into()),
                 "--screenshot" => opts.screenshot = Some(value("--screenshot")?.into()),
+                "--record" => opts.record = Some(value("--record")?.into()),
+                "--debug" => opts.debug = true,
                 "--scale" => {
                     let s = parse_num("--scale", &value("--scale")?)?;
                     if !(1..=8).contains(&s) {
@@ -70,8 +79,15 @@ impl Options {
                 other => return Err(CliError::Message(format!("unknown argument: {other}"))),
             }
         }
-        if opts.screenshot.is_some() && opts.frames.is_none() {
-            return Err(CliError::Message("--screenshot requires --frames".into()));
+        if opts.screenshot.is_some() && opts.frames.is_none() && opts.replay.is_none() {
+            return Err(CliError::Message(
+                "--screenshot requires --frames or --replay".into(),
+            ));
+        }
+        if opts.record.is_some() && opts.replay.is_some() {
+            return Err(CliError::Message(
+                "--record cannot be combined with --replay".into(),
+            ));
         }
         Ok(opts)
     }
@@ -117,6 +133,13 @@ mod tests {
         assert_eq!(o.replay, Some("r.txt".into()));
         assert_eq!(o.screenshot, Some("s.png".into()));
         assert_eq!(o.scale, 3);
+    }
+
+    #[test]
+    fn screenshot_with_replay_only() {
+        let o = parse(&["--replay", "r", "--screenshot", "s.png"]).unwrap();
+        assert_eq!(o.frames, None);
+        assert!(o.screenshot.is_some());
     }
 
     #[test]

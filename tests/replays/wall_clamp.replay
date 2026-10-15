@@ -1,0 +1,5 @@
+# Holding left for 3 seconds must stop at the left screen edge.
+180 L
+expect ball.x == 8
+LR
+expect ball.vx == 0

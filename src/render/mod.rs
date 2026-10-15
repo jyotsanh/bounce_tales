@@ -4,7 +4,7 @@
 
 use macroquad::prelude::*;
 
-use crate::sim::Sim;
+use bounce_tales::sim::{GROUND_Y, Sim};
 
 pub const SCREEN_W: u32 = 240;
 pub const SCREEN_H: u32 = 320;
@@ -46,25 +46,45 @@ impl Renderer {
         Renderer { target, camera }
     }
 
-    /// Draws the game into the 240x320 target. `alpha` is the fixed-step blend
-    /// factor (unused until things move smoothly in step 3).
-    pub fn draw_game(&self, sim: &Sim, _alpha: f32) {
+    /// Draws the game into the 240x320 target. `alpha` blends moving things
+    /// between the last two sim steps so motion stays smooth at any FPS.
+    pub fn draw_game(&self, sim: &Sim, alpha: f32) {
         set_camera(&self.camera);
         clear_background(SKY);
 
-        let ground_y = 260.0;
-        draw_rectangle(0.0, ground_y, SCREEN_W as f32, 6.0, GRASS);
-        draw_rectangle(0.0, ground_y + 6.0, SCREEN_W as f32, SCREEN_H as f32, DIRT);
+        draw_rectangle(0.0, GROUND_Y, SCREEN_W as f32, 6.0, GRASS);
+        draw_rectangle(0.0, GROUND_Y + 6.0, SCREEN_W as f32, SCREEN_H as f32, DIRT);
 
-        // Placeholder ball sliding back and forth so a running sim is visible.
-        let t = sim.tick as f32 / 60.0;
-        let r = 8.0;
-        let x = SCREEN_W as f32 / 2.0 + (t * 1.5).sin() * 80.0;
-        draw_circle(x, ground_y - r, r, BALL_RED);
-        draw_circle(x - 3.0, ground_y - r - 3.0, 2.0, WHITE);
+        // Placeholder ball; real sprite in step 7.
+        let p = sim.ball.render_pos(alpha);
+        let r = sim.ball.radius;
+        draw_circle(p.x, p.y, r, BALL_RED);
+        draw_circle(p.x - 3.0, p.y - 3.0, 2.0, WHITE);
 
-        draw_text(format!("tick {}", sim.tick), 4.0, 14.0, 16.0, BLACK);
         draw_text("BOUNCE TALES", 60.0, 120.0, 24.0, BALL_RED);
+    }
+
+    /// F1 overlay: frame rate, tick, ball state and held input.
+    pub fn draw_debug(&self, sim: &Sim, fps: i32) {
+        set_camera(&self.camera);
+        let b = &sim.ball;
+        let lines = [
+            format!("fps {fps:3}  tick {}", sim.tick),
+            format!("pos {:7.2} {:7.2}", b.pos.x, b.pos.y),
+            format!("vel {:7.2} {:7.2}", b.vel.x, b.vel.y),
+            format!("in  {}", sim.input.to_code()),
+        ];
+        let line_h = 10.0;
+        draw_rectangle(
+            0.0,
+            0.0,
+            130.0,
+            lines.len() as f32 * line_h + 4.0,
+            Color::new(0.0, 0.0, 0.0, 0.6),
+        );
+        for (i, line) in lines.iter().enumerate() {
+            draw_text(line, 3.0, 10.0 + i as f32 * line_h, 14.0, WHITE);
+        }
     }
 
     /// Scales the game target onto the window.

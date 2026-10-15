@@ -60,7 +60,7 @@ Key rules:
 
 ### Phase A — Foundation
 - [x] **01.** **Bootstrap**: (you run `git branch -m master main`). Add macroquad. Module skeleton, `PLAN.md`, `scripts/check.sh`. Fixed-timestep loop, 240×320 target integer-scaled to the window, CLI flags + screenshot capture.
-- [ ] **02.** **Headless sim + replays**: `Sim`/`InputFrame`, deterministic stepping, replay file format, test harness in `tests/replays`, F1 debug overlay (FPS, ball pos/vel).
+- [x] **02.** **Headless sim + replays**: `Sim`/`InputFrame`, deterministic stepping, replay file format, test harness in `tests/replays`, F1 debug overlay (FPS, ball pos/vel).
 - [ ] **03.** **Ball on flat ground**: gravity, rolling acceleration, friction, max speed, jump, bounce restitution. Tests for jump height and speed cap.
 - [ ] **04.** **Tile collisions**: hardcoded test grid, circle-vs-AABB resolution (floor, walls, ceiling, corners), no tunneling at high speed (sub-stepping).
 - [ ] **05.** **Slopes**: 45° and 22.5° tiles, circle-vs-segment, rolling down/up slopes, smooth hand-off between slope and flat tiles.
@@ -138,3 +138,13 @@ Spare capacity: if a step overruns, the next prompt finishes it before moving on
 - Placeholder scene: sky, grass, sliding red ball, tick counter. Replaced in step 3.
 - No Xvfb on this machine; a real display (`DISPLAY=:1`) is used for screenshot runs.
 - Branch is still `master`; user to run `git branch -m master main`.
+
+### Step 02 — Headless sim + replays (done)
+- Crate is now lib + bin: `src/lib.rs` exports `cli`, `replay`, `sim`; `render` stays in the binary (`src/main.rs`).
+- `sim::InputFrame` {left,right,jump} = buttons held for one step; edges derived in sim (`Sim::jump_pressed`). `sim::Ball` has `pos/prev_pos/vel/radius`; `render_pos(alpha)` interpolates. `sim::Rng` = seeded xorshift32 (never use global RNG in sim).
+- **Determinism rule** (documented in `sim/mod.rs`): `step` depends only on state + input. `Sim: PartialEq` so tests compare whole states.
+- Replay format (`src/replay.rs` doc comment): `<count> <LRJ|->`, `level <name>`, `expect <field> <op> <value> [+- tol]`. Checkable fields live in `replay::FIELDS`; **add new fields there** as features arrive (lives, eggs, form…).
+- `tests/replays.rs` runs every `tests/replays/*.replay` (each must have ≥1 expect) and checks determinism. New regression test = new `.replay` file.
+- CLI: `--replay` drives input, prints check failures, exits 1 on failure, runs to end if no `--frames`. `--record <file>` saves live input on exit (Esc or window close; `prevent_quit` used). `--debug` / F1 overlay: fps, tick, pos, vel, held input.
+- Placeholder movement (constant 90 px/s, flat floor `GROUND_Y`=260, clamped to 240 px wide). **Step 3 must rewrite `placeholder_roll.replay` and `wall_clamp.replay`.**
+- No xdotool on this machine, so live keyboard recording was tested by hand only; the write path was verified with `--frames 30 --record`.
