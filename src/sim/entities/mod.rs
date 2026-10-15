@@ -45,6 +45,10 @@ pub enum Event {
     /// The ball changed form at `pos` (by a transformer, or a timed form
     /// running out).
     Transformed { form: Form, pos: Vec2 },
+    /// A shooter fired a pellet from `pos`.
+    Shot { pos: Vec2 },
+    /// A pellet shattered on the stone ball at `pos`.
+    ShotBlocked { pos: Vec2 },
     /// An enemy was freed (stomped, or crushed by the stone) at `pos`.
     EnemyFreed { pos: Vec2 },
     /// A spring or catapult launched the ball from `pos`.
@@ -214,6 +218,9 @@ pub const KNOWN_TYPES: &[&str] = &[
     "cannon",
     "transformer",
     "walker",
+    "flyer",
+    "jumper",
+    "shooter",
 ];
 
 /// Reads a string property with a default.
@@ -255,6 +262,10 @@ fn num_prop(spec: &ObjectSpec, key: &str, default: f32) -> Result<f32, String> {
             spec.kind, spec.name
         )),
     }
+}
+
+fn seconds_to_ticks(s: f32) -> u32 {
+    (s * crate::sim::TICKS_PER_SECOND as f32).round().max(0.0) as u32
 }
 
 fn need_rect(spec: &ObjectSpec) -> Result<(), String> {
@@ -350,6 +361,63 @@ pub fn build(spec: &ObjectSpec) -> Result<Entity, String> {
             };
             let speed = num_prop(spec, "speed", enemies::WALKER_SPEED)?;
             EntityKind::Enemy(Enemy::walker(spec.pos, dir, speed))
+        }
+        "flyer" => {
+            need_rect(spec)?;
+            let axis = match str_prop(spec, "axis", "x")? {
+                "x" => vec2(1.0, 0.0),
+                "y" => vec2(0.0, 1.0),
+                other => {
+                    return Err(format!(
+                        "flyer '{}': axis must be x or y, got '{other}'",
+                        spec.name
+                    ));
+                }
+            };
+            let range = num_prop(spec, "range", 4.0)? * crate::sim::map::TILE;
+            let speed = num_prop(spec, "speed", 40.0)?;
+            if range <= 0.0 || speed <= 0.0 {
+                return Err(format!(
+                    "flyer '{}': range and speed must be > 0",
+                    spec.name
+                ));
+            }
+            EntityKind::Enemy(Enemy::flyer(spec.pos, axis, range, speed))
+        }
+        "jumper" => {
+            need_rect(spec)?;
+            let period = num_prop(spec, "period", 1.25)?;
+            EntityKind::Enemy(Enemy::jumper(spec.pos, seconds_to_ticks(period).max(10)))
+        }
+        "shooter" => {
+            need_rect(spec)?;
+            let dir = match str_prop(spec, "dir", "left")? {
+                "left" => -1.0,
+                "right" => 1.0,
+                other => {
+                    return Err(format!(
+                        "shooter '{}': dir must be left or right, got '{other}'",
+                        spec.name
+                    ));
+                }
+            };
+            let period = num_prop(spec, "period", 2.0)?;
+            let aim = match spec.prop("aim") {
+                None => false,
+                Some(Prop::Bool(b)) => *b,
+                Some(other) => {
+                    return Err(format!(
+                        "shooter '{}': aim must be a bool, got {other:?}",
+                        spec.name
+                    ));
+                }
+            };
+            EntityKind::Enemy(Enemy::shooter(
+                spec.pos,
+                dir,
+                seconds_to_ticks(period).max(20),
+                aim,
+            ))
         }
         "transformer" => {
             need_rect(spec)?;

@@ -1,0 +1,15 @@
+# Beasts level (recorded from a reactive controller): jump the pit under the
+# gliding flyer, hop past the jumper, jump the shooter's pellets and the
+# shooter itself, reach the exit.
+level beasts
+48 R
+1 RJ
+79 R
+1 RJ
+58 R
+1 RJ
+58 R
+1 RJ
+69 R
+expect exit == 1
+expect deaths == 0

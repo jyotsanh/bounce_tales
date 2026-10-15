@@ -21,3 +21,10 @@ hub 48 32 16 16
 walker_0 64 32 16 16
 walker_1 80 32 16 16
 walker_freed 96 32 16 16
+flyer_0 112 32 16 16
+flyer_1 0 48 16 16
+jumper_0 16 48 16 16
+jumper_1 32 48 16 16
+shooter_0 48 48 16 16
+shooter_1 64 48 16 16
+shot 80 48 16 16

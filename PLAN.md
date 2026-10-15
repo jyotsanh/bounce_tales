@@ -94,7 +94,7 @@ Key rules:
 
 ### Phase F — Enemies & boss
 - [x] **25.** **Enemy framework + walkers** (hypnotized creatures): patrol, damage vs stomp rules.
-- [ ] **26.** **Flyers, jumpers, shooters**, projectiles.
+- [x] **26.** **Flyers, jumpers, shooters**, projectiles.
 - [ ] **27.** **Hypno Cube boss**: arena, attack patterns, phases, win condition.
 
 ### Phase G — Audio
@@ -356,3 +356,10 @@ Spare capacity: if a step overruns, the next prompt finishes it before moving on
 - Art: items `walker_0/1` (purple dazed critter, 2 walk frames), `walker_freed` (pink, happy eyes); drawn facing their direction (`Atlas::draw_flipped`). FX: pink sparkles + "+100".
 - New ASCII level `enemies` (penned walker, step to a platform walker, pit, walker by the exit). Replays: `enemies_route` (reactive controller jumping over everything) and `enemy_stomp` (timing found by brute-force search). Mid-air steering onto oncoming critters didn't work for a controller (they pass under at combined speed) — stomp coverage is unit tests + the searched replay.
 - Tests: walls, ledges, stomp/hurt/crush rules, stomp frees + bounces + scores, walking into one kills, stone crushes, platform walker stays up, game over restores.
+
+### Step 26 — Flyers, jumpers, shooters (done)
+- `EnemyKind` now carries per-kind state: `Walker`; `Flyer { origin, axis, range, phase }` (eased back-and-forth with (1−cos)/2, no gravity); `Jumper { period, timer }` (hops 330 px/s ≈ 60 px when grounded, faces the ball); `Shooter { period, timer, aim }` (fires only when the ball is within `SHOOT_RANGE` 240; straight ahead, or at the ball if `aim`). `Enemy::advance(…, ball)` takes the ball's position. Only walkers (speed > 0) turn at walls and ledges — stationary enemies keep their facing.
+- `enemies::Projectile` (140 px/s, radius 3, 4 s life, stops at solid tiles) in `Sim.projectiles`; `Enemy.fire` hands a new pellet to the sim. A pellet hitting the ball kills it (`Cause::Enemy`), **except the stone ball, which shatters it** (`Event::ShotBlocked`). `Event::Shot` on firing. All kinds can be stomped/freed.
+- Objects: `flyer` (`axis` x|y, `range` tiles 4, `speed` 40), `jumper` (`period` s 1.25), `shooter` (`dir` left|right, `period` s 2, `aim` bool). ASCII `y` / `Y` flyer horizontal/vertical, `J` jumper, `G` / `g` shooter left/right.
+- Art (items): `flyer_0/1` (bat wings), `jumper_0/1` (crouched/stretched), `shooter_0/1` (mouth closed/open around a shot), `shot`. Freed enemies of every kind use `walker_freed`. FX: puffs on firing, stone chips when a pellet shatters.
+- New ASCII level `beasts` (flyer over a pit, jumper, floor shooter, exit). Replay `beasts_route` (reactive controller: jumps gaps, grounded enemies ahead and incoming pellets). Tests: flyer range/no gravity, jumper hop rate and height, shooter rate + range + pellets stop at walls, pellets kill / shatter on stone, flyer and shooter can be stomped.

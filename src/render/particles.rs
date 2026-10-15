@@ -137,6 +137,8 @@ impl Particles {
                 Event::Switched { pos } => self.sparkle(pos, LIFE_GREEN),
                 Event::GateMoved { pos } => self.puffs(pos, 8, 50.0),
                 Event::Launched { pos } => self.puffs(pos, 8, 70.0),
+                Event::Shot { pos } => self.puffs(pos, 3, 25.0),
+                Event::ShotBlocked { pos } => self.debris(pos, &STONE, 6, 60.0),
                 Event::EnemyFreed { pos } => {
                     self.sparkle(pos, FREED_PINK);
                     self.popups.push(Popup {

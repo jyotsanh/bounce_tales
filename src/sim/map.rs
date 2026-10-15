@@ -178,12 +178,12 @@ pub struct TileMap {
 
 /// ASCII letters that mark objects (exit, checkpoint, gem, egg, extra
 /// life, moving platforms, switch, door, bridge, spring, catapults, fan,
-/// crate, seesaw, wheel, spinner, cannons, transformers, walker);
+/// crate, seesaw, wheel, spinner, cannons, transformers, enemies);
 /// they are empty space
 /// in the collision map. See `level::ascii_marker`.
 pub const OBJECT_MARKERS: &[char] = &[
     'E', 'C', '*', 'e', '+', 'H', 'V', 'S', 'D', 'B', 'j', '>', '<', 'F', 'X', 'W', 'O', 'Z', 'K',
-    'Q', '0', '1', '2', 'w',
+    'Q', '0', '1', '2', 'w', 'y', 'Y', 'J', 'G', 'g',
 ];
 
 /// Per-cell flag bits from tile properties (used from steps 11 and 15).
@@ -376,6 +376,7 @@ pub fn builtin_text(name: &str) -> Option<&'static str> {
         "stone" => STONE_MAP,
         "balloon" => BALLOON_MAP,
         "enemies" => ENEMIES_MAP,
+        "beasts" => BEASTS_MAP,
         _ => return None,
     })
 }
@@ -401,6 +402,7 @@ pub const BUILTIN_NAMES: &[&str] = &[
     "stone",
     "balloon",
     "enemies",
+    "beasts",
 ];
 
 /// Test map: one screen with a step block, a low ceiling, a tunnel, a
@@ -816,6 +818,32 @@ const ENEMIES_MAP: &str = r"
     #############################...########
     #############################...########
     #############################...########
+";
+
+/// More enemies (44 wide): a flyer gliding over a 4-tile pit (x 144..208),
+/// a jumper hopping in the path (x 304), a shooter on the floor (x 528)
+/// firing pellets left along the ground, then the exit.
+const BEASTS_MAP: &str = r"
+    #..........................................#
+    #..........................................#
+    #..........................................#
+    #..........................................#
+    #..........................................#
+    #..........................................#
+    #..........................................#
+    #..........................................#
+    #..........................................#
+    #..........................................#
+    #.......y..................................#
+    #..........................................#
+    #..........................................#
+    #..........................................#
+    #.o................J.............G.......E.#
+    #########....###############################
+    #########....###############################
+    #########....###############################
+    #########....###############################
+    #########....###############################
 ";
 
 #[cfg(test)]

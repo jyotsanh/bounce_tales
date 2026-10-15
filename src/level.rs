@@ -41,7 +41,9 @@
 //! wheel (4 cars, radius 48, centred on the cell), `Z` = spinner (4-tile
 //! plank turning about the cell's centre), `K` = cannon firing up-right by
 //! itself, `Q` = swinging cannon that fires on jump, `1` / `2` / `0` =
-//! transformer to stone / balloon / normal, `w` = walker (heading left).
+//! transformer to stone / balloon / normal, `w` = walker (heading left),
+//! `y` / `Y` = flyer gliding 4 tiles right / down and back, `J` = jumper,
+//! `G` / `g` = shooter facing left / right.
 
 use std::io::Cursor;
 use std::path::Path;
@@ -260,6 +262,17 @@ fn ascii_marker(c: char) -> Option<Marker> {
             ..m("transformer", "transformer", TRANSFORMER_SIZE)
         },
         'w' => m("walker", "walker", ITEM_SIZE),
+        'y' => m("flyer", "flyer", ITEM_SIZE),
+        'Y' => Marker {
+            props: vec![("axis".into(), Prop::Str("y".into()))],
+            ..m("flyer", "flyer", ITEM_SIZE)
+        },
+        'J' => m("jumper", "jumper", ITEM_SIZE),
+        'G' => m("shooter", "shooter", ITEM_SIZE),
+        'g' => Marker {
+            props: vec![("dir".into(), Prop::Str("right".into()))],
+            ..m("shooter", "shooter", ITEM_SIZE)
+        },
         'K' => Marker {
             props: vec![
                 ("angle".into(), Prop::Int(-60)),

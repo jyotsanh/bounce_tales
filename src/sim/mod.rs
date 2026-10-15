@@ -141,6 +141,8 @@ pub struct Sim {
     pub deaths: u32,
     /// Enemies freed this level.
     pub enemies_freed: u32,
+    /// Shooters' pellets in flight.
+    pub projectiles: Vec<enemies::Projectile>,
     /// Balls left, including the one in play. Losing the last one is game
     /// over.
     pub lives: u32,
@@ -228,6 +230,7 @@ impl Sim {
             on_seesaw: None,
             deaths: 0,
             enemies_freed: 0,
+            projectiles: Vec::new(),
             lives: carry.lives,
             game_over: 0,
             restarts: 0,
@@ -297,7 +300,7 @@ impl Sim {
             self.move_ball(input);
             self.use_launchers();
             self.use_transformers();
-            if self.touch_enemies() {
+            if self.touch_enemies() || self.touch_projectiles() {
                 return;
             }
         }
@@ -424,12 +427,43 @@ impl Sim {
     /// Moves every enemy one step (crates block them).
     fn update_enemies(&mut self) {
         let (_, crates) = self.crate_boxes(None);
+        let ball = self.ball.pos;
         for e in &mut self.entities {
             let (pos, size) = (e.pos, e.size);
             if let EntityKind::Enemy(en) = &mut e.kind {
-                e.pos = en.advance(pos, size, &self.level.map, &crates);
+                e.pos = en.advance(pos, size, &self.level.map, &crates, ball);
+                if let Some(shot) = en.fire.take() {
+                    self.events.push(Event::Shot { pos: shot.pos });
+                    self.projectiles.push(shot);
+                }
             }
         }
+        let map = &self.level.map;
+        self.projectiles.retain_mut(|p| p.advance(map));
+    }
+
+    /// Pellets that reach the ball kill it; they shatter harmlessly on a
+    /// stone. Returns true if the ball died.
+    fn touch_projectiles(&mut self) -> bool {
+        let mut hurt = false;
+        let stone = self.ball.form == ball::Form::Stone;
+        let ball = &self.ball;
+        let events = &mut self.events;
+        self.projectiles.retain(|p| {
+            if !p.hits(ball) {
+                return true;
+            }
+            if stone {
+                events.push(Event::ShotBlocked { pos: p.pos });
+            } else {
+                hurt = true;
+            }
+            false
+        });
+        if hurt {
+            self.die(Cause::Enemy);
+        }
+        hurt
     }
 
     /// Ball against enemies: a stomp frees one and bounces the ball (higher
@@ -2192,6 +2226,73 @@ mod tests {
         sim.restart_level();
         assert!(first_enemy(&sim).1.active());
         assert_eq!(sim.enemies_freed, 0);
+    }
+
+    fn beasts() -> Sim {
+        Sim::for_level("beasts").unwrap()
+    }
+
+    fn enemy_where(sim: &Sim, pred: impl Fn(&enemies::EnemyKind) -> bool) -> usize {
+        sim.entities
+            .iter()
+            .position(|e| matches!(&e.kind, EntityKind::Enemy(en) if pred(&en.kind)))
+            .unwrap()
+    }
+
+    #[test]
+    fn shooter_pellets_kill_a_ball_in_the_line_of_fire() {
+        let mut sim = beasts();
+        sim.ball.pos = macroquad::math::vec2(440.0, 232.0); // 4 tiles left of it
+        let mut cause = None;
+        for _ in 0..240 {
+            sim.step(InputFrame::NONE);
+            if let Some(Event::Died { cause: c, .. }) = sim.events.first() {
+                cause = Some(*c);
+                break;
+            }
+        }
+        assert_eq!(cause, Some(Cause::Enemy));
+    }
+
+    #[test]
+    fn pellets_shatter_on_stone() {
+        let mut sim = beasts();
+        sim.ball = Ball::with_form(macroquad::math::vec2(440.0, 232.0), ball::Form::Stone);
+        let mut blocked = 0;
+        for _ in 0..300 {
+            sim.step(InputFrame::NONE);
+            blocked += sim
+                .events
+                .iter()
+                .filter(|e| matches!(e, Event::ShotBlocked { .. }))
+                .count();
+        }
+        assert_eq!(sim.deaths, 0);
+        assert!(blocked >= 2, "blocked {blocked}");
+    }
+
+    #[test]
+    fn flyer_and_shooter_can_be_stomped() {
+        for pick in [0, 1] {
+            let mut sim = beasts();
+            let i = enemy_where(&sim, |k| match pick {
+                0 => matches!(k, enemies::EnemyKind::Flyer { .. }),
+                _ => matches!(k, enemies::EnemyKind::Shooter { .. }),
+            });
+            sim.ball.pos = sim.entities[i].centre() - macroquad::math::vec2(0.0, 30.0);
+            let mut freed = false;
+            for _ in 0..40 {
+                // Follow the enemy from above.
+                sim.ball.pos.x = sim.entities[i].centre().x;
+                sim.step(InputFrame::NONE);
+                freed |= sim
+                    .events
+                    .iter()
+                    .any(|e| matches!(e, Event::EnemyFreed { .. }));
+            }
+            assert!(freed, "enemy {pick} not freed");
+            assert_eq!(sim.deaths, 0);
+        }
     }
 
     #[test]

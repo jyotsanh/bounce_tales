@@ -18,6 +18,7 @@ use bounce_tales::level::{Decoration, TileLayer};
 use bounce_tales::sim::Sim;
 use bounce_tales::sim::ball::Form;
 use bounce_tales::sim::camera::{VIEW_H, VIEW_W};
+use bounce_tales::sim::enemies::EnemyKind;
 use bounce_tales::sim::entities::GATE_ANIM_TICKS;
 use bounce_tales::sim::map::{TILE, TileMap, flags};
 use bounce_tales::sim::seesaw;
@@ -70,6 +71,13 @@ pub const ENTITY_SPRITES: &[&str] = &[
     "walker_0",
     "walker_1",
     "walker_freed",
+    "flyer_0",
+    "flyer_1",
+    "jumper_0",
+    "jumper_1",
+    "shooter_0",
+    "shooter_1",
+    "shot",
 ];
 
 /// Stone landings faster than this shake the screen, px/s.
@@ -188,6 +196,10 @@ impl Renderer {
         }
 
         self.particles.draw();
+        for p in &sim.projectiles {
+            let at = p.prev_pos.lerp(p.pos, alpha);
+            self.sprites.items.draw("shot", at - vec2(8.0, 8.0));
+        }
 
         // Squash/stretch keeps the ball's bottom on the ground. Hidden while
         // dying or game over (the burst shows instead); grows in after a
@@ -316,7 +328,17 @@ impl Renderer {
                 let name = if en.freed.is_some() {
                     "walker_freed".to_owned()
                 } else {
-                    format!("walker_{}", (tick / 10) % 2)
+                    match en.kind {
+                        EnemyKind::Walker => format!("walker_{}", (tick / 10) % 2),
+                        EnemyKind::Flyer { .. } => format!("flyer_{}", (tick / 6) % 2),
+                        EnemyKind::Jumper { .. } => {
+                            format!("jumper_{}", if en.grounded { 0 } else { 1 })
+                        }
+                        EnemyKind::Shooter { timer, .. } => {
+                            // Mouth opens just before and after a shot.
+                            format!("shooter_{}", if timer < 10 { 1 } else { 0 })
+                        }
+                    }
                 };
                 // Face the way it walks (the art faces right).
                 let flip = en.dir < 0.0;
