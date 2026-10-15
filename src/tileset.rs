@@ -49,6 +49,14 @@ pub fn autotile(map: &TileMap, x: i32, y: i32) -> Option<&'static str> {
     if f & flags::SPIKE_DOWN != 0 {
         return Some("spikes_down");
     }
+    if f & flags::WATER != 0 {
+        let water_above = map.flags(x, y - 1) & flags::WATER != 0;
+        return Some(if water_above || map.get(x, y - 1).is_solid() {
+            "water"
+        } else {
+            "water_top"
+        });
+    }
     Some(match map.get(x, y) {
         Tile::Empty => return None,
         Tile::Slope45Right => "slope45_r",
@@ -58,8 +66,10 @@ pub fn autotile(map: &TileMap, x: i32, y: i32) -> Option<&'static str> {
         Tile::Slope2LeftHigh => "slope2_l_high",
         Tile::Slope2LeftLow => "slope2_l_low",
         Tile::Solid => {
-            // The map's top row is the edge of the world, not open sky.
-            let top = y > 0 && side_open(map, x, y, Side::Top);
+            // The map's top row is the edge of the world, not open sky, and
+            // no grass grows under water.
+            let under_water = map.flags(x, y - 1) & flags::WATER != 0;
+            let top = y > 0 && !under_water && side_open(map, x, y, Side::Top);
             let bottom = side_open(map, x, y, Side::Bottom);
             let left = side_open(map, x, y, Side::Left);
             let right = side_open(map, x, y, Side::Right);
@@ -132,6 +142,12 @@ mod tests {
         let m = TileMap::from_ascii("o.....\n..##..\n..##..").unwrap();
         assert_eq!(autotile(&m, 2, 1), Some("grass_left"));
         assert_eq!(autotile(&m, 3, 1), Some("grass_right"));
+        let pool = TileMap::from_ascii("o~.\n###").unwrap();
+        assert!(
+            autotile(&pool, 1, 1).unwrap().starts_with("dirt"),
+            "no grass under water"
+        );
+        assert_eq!(autotile(&pool, 1, 0), Some("water_top"));
         let walls = TileMap::from_ascii("#o#\n#.#\n###").unwrap();
         assert!(
             autotile(&walls, 0, 0).unwrap().starts_with("dirt"),

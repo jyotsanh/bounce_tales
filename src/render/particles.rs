@@ -47,6 +47,7 @@ const CONFETTI: [Color; 5] = [
     Color::new(0.34, 0.69, 0.19, 1.0),
     Color::new(0.30, 0.55, 0.95, 1.0),
 ];
+const WATER_DROP: Color = Color::new(0.62, 0.84, 1.0, 1.0);
 const GOLD_SPARK: Color = Color::new(1.0, 0.85, 0.25, 1.0);
 const GEM_SPARK: Color = Color::new(0.62, 0.89, 1.0, 1.0);
 const LIFE_GREEN: Color = Color::new(0.3, 0.82, 0.24, 1.0);
@@ -98,6 +99,7 @@ impl Particles {
                     self.sparkle(respawn - vec2(-6.0, 22.0), GOLD_SPARK)
                 }
                 Event::GameOver => {}
+                Event::Splash { pos, speed } => self.splash(pos, speed),
                 Event::Collected { item, pos } => {
                     let (color, text) = match item {
                         Item::Gem => (GEM_SPARK, format!("+{}", item.points())),
@@ -158,6 +160,27 @@ impl Particles {
                 color: DUST,
                 size: self.rng.range(1.5, 2.5),
                 gravity: 150.0,
+            });
+        }
+    }
+
+    /// Droplets thrown up from the water line; more for a harder hit.
+    fn splash(&mut self, at: Vec2, speed: f32) {
+        let n = (speed / 18.0).clamp(7.0, 16.0) as usize;
+        for i in 0..n {
+            let life = self.rng.range(0.35, 0.6);
+            let side = if i % 2 == 0 { 1.0 } else { -1.0 };
+            self.list.push(Particle {
+                pos: at + vec2(side * self.rng.range(1.0, 6.0), 0.0),
+                vel: vec2(
+                    side * self.rng.range(15.0, 70.0),
+                    -self.rng.range(speed * 0.5, speed * 0.9).clamp(70.0, 230.0),
+                ),
+                life,
+                max_life: life,
+                color: if i % 3 == 0 { WHITE } else { WATER_DROP },
+                size: self.rng.range(1.5, 2.5),
+                gravity: 600.0,
             });
         }
     }

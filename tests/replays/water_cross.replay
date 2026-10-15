@@ -1,0 +1,14 @@
+# Water level: roll into the pool, float (about 62% under, centre y 226),
+# swim right at 75% speed to the far bank, jump out and reach the exit.
+level water
+60 R
+expect ball.water > 0.5
+expect ball.water < 0.8
+100 R
+expect ball.y < 230
+expect ball.y > 222
+expect ball.vx < 90
+RJ
+60 R
+expect exit == 1
+expect deaths == 0

@@ -17,7 +17,7 @@ use bounce_tales::game::{self, Game, Mode, REVEAL_STEP};
 use bounce_tales::level::{Decoration, TileLayer};
 use bounce_tales::sim::Sim;
 use bounce_tales::sim::camera::{VIEW_H, VIEW_W};
-use bounce_tales::sim::map::{TILE, TileMap};
+use bounce_tales::sim::map::{TILE, TileMap, flags};
 use bounce_tales::sim::{Entity, EntityKind, Item, RESPAWN_ANIM_TICKS};
 
 pub const SCREEN_W: u32 = VIEW_W as u32;
@@ -101,8 +101,9 @@ impl Renderer {
         set_camera(&target_camera(&self.target, view));
 
         let level = &sim.level;
+        let map = &level.map;
         for layer in level.layers.iter().filter(|l| !l.front) {
-            self.draw_layer(layer, &level.sheets, view);
+            self.draw_layer(layer, &level.sheets, view, |x, y| !is_water(map, x, y));
         }
         self.draw_decorations(&level.decorations, &level.sheets, false);
         for e in &sim.entities {
@@ -127,8 +128,13 @@ impl Renderer {
                 .draw_scaled(&format!("roll_{frame}"), top_left, size);
         }
 
+        // Water goes over the ball so it looks submerged (the tiles are
+        // see-through), then front layers.
+        for layer in level.layers.iter().filter(|l| !l.front) {
+            self.draw_layer(layer, &level.sheets, view, |x, y| is_water(map, x, y));
+        }
         for layer in level.layers.iter().filter(|l| l.front) {
-            self.draw_layer(layer, &level.sheets, view);
+            self.draw_layer(layer, &level.sheets, view, |_, _| true);
         }
         self.draw_decorations(&level.decorations, &level.sheets, true);
         self.particles.draw_popups(&self.sprites.font);
@@ -170,12 +176,22 @@ impl Renderer {
         }
     }
 
-    /// Draws the part of a tile layer inside the view.
-    fn draw_layer(&self, layer: &TileLayer, sheets: &[String], view: Vec2) {
+    /// Draws the part of a tile layer inside the view, only the cells
+    /// `keep(x, y)` accepts.
+    fn draw_layer(
+        &self,
+        layer: &TileLayer,
+        sheets: &[String],
+        view: Vec2,
+        keep: impl Fn(i32, i32) -> bool,
+    ) {
         let (x0, y0) = TileMap::cell_at(view);
         let (x1, y1) = TileMap::cell_at(view + vec2(VIEW_W, VIEW_H));
         for ty in y0.max(0)..=y1.min(layer.height as i32 - 1) {
             for tx in x0.max(0)..=x1.min(layer.width as i32 - 1) {
+                if !keep(tx, ty) {
+                    continue;
+                }
                 if let Some(t) = layer.get(tx, ty) {
                     let atlas = self.sprites.by_name(&sheets[t.sheet as usize]);
                     atlas.draw_index(t.id as usize, vec2(tx as f32, ty as f32) * TILE);
@@ -356,6 +372,11 @@ fn target_camera(target: &RenderTarget, view: Vec2) -> Camera2D {
     let mut cam = Camera2D::from_display_rect(Rect::new(view.x, view.y, VIEW_W, VIEW_H));
     cam.render_target = Some(target.clone());
     cam
+}
+
+/// Water cells are drawn in front of the ball.
+fn is_water(map: &TileMap, x: i32, y: i32) -> bool {
+    map.flags(x, y) & flags::WATER != 0
 }
 
 /// Roll frame for a ball angle (radians, clockwise): nearest of

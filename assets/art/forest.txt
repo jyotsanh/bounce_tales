@@ -19,6 +19,10 @@ palette
   M #e4eaee   ; metal light
   m #9aa6ae   ; metal
   N #565e66   ; metal dark
+  A #3a8ee899 ; water (see-through)
+  a #2f7fd8a8 ; water deep
+  T #bfe8ffd8 ; water surface foam
+  t #79c0f4b8 ; water surface
 end
 sprite grass_top shape=solid
 GGGGGGGGGGGGGGGG
@@ -307,4 +311,40 @@ NMMMmmmNNMMMmmmN
 ................
 ................
 ................
+end
+sprite water_top water=true
+TT...TTTTT...TTT
+ttTTTtttttTTTttt
+tttttttttttttttt
+AAtttAAAAAtttAAA
+AAAaAAAAAAaAAAAA
+AAaAAAAAAaAAAAAA
+AaAAAAAAaAAAAAAa
+aAAAAAAaAAAAAAaA
+AAAAAAaAAAAAAaAA
+AAAAAaAAAAAAaAAA
+AAAAaAAAAAAaAAAA
+AAAaAAAAAAaAAAAA
+AAaAAAAAAaAAAAAA
+AaAAAAAAaAAAAAAa
+aAAAAAAaAAAAAAaA
+AAAAAAaAAAAAAaAA
+end
+sprite water water=true
+aAAAAAAaAAAAAAaA
+AAAAAAaAAAAAAaAA
+AAAAAaAAAAAAaAAA
+AAAAaAAAAAAaAAAA
+AAAaAAAAAAaAAAAA
+AAaAAAAAAaAAAAAA
+AaAAAAAAaAAAAAAa
+aAAAAAAaAAAAAAaA
+AAAAAAaAAAAAAaAA
+AAAAAaAAAAAAaAAA
+AAAAaAAAAAAaAAAA
+AAAaAAAAAAaAAAAA
+AAaAAAAAAaAAAAAA
+AaAAAAAAaAAAAAAa
+aAAAAAAaAAAAAAaA
+AAAAAAaAAAAAAaAA
 end

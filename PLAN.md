@@ -77,7 +77,7 @@ Key rules:
 - [x] **12.** **Lives & checkpoints**: checkpoint objects, lives counter, game over → level restart.
 - [x] **13.** **Collectibles & HUD**: eggs/gems, score, bitmap font, HUD.
 - [x] **14.** **Level exit & completion**: exit gate, results screen (eggs found, time), next level.
-- [ ] **15.** **Water**: buoyancy, drag, splash particles.
+- [x] **15.** **Water**: buoyancy, drag, splash particles.
 - [ ] **16.** **Moving platforms**: paths from Tiled polylines, ball rides and inherits velocity.
 - [ ] **17.** **Breakables, switches, doors**: crumbling blocks, cracked walls, switch-linked doors/bridges.
 - [ ] **18.** **Springs, catapults, wind fans**.
@@ -264,3 +264,12 @@ Spare capacity: if a step overruns, the next prompt finishes it before moving on
 - Level map property `par` (int seconds, default 120; ASCII maps 60).
 - main: drives `Game`; uses its own `step_count` for frame limits and replay input (the sim tick pauses on Finished, which would loop a scripted run forever). Renderer `draw_flow(&game)`: results panel and finished screen in the pixel font, blinking PRESS JUMP.
 - Tests: results + bonuses, held jump doesn't skip, carry of lives (lost lives stay lost) and score into the next level, Finished → fresh start, campaign levels load, par property, exit freeze + clock stop, game-over returns to the carried values.
+
+### Step 15 — Water (done)
+- Water = `flags::WATER` cells (no shape); ASCII `~`; forest tiles 16 `water_top`, 17 `water` (see-through, `water=true`). Auto-tile: `water_top` where the cell above is neither water nor solid; **no grass on blocks under water** (it looked wrong in the first screenshot).
+- `sim::water::submersion(ball, map)` = share (0..1) of the ball's height inside water cells in the column under its centre. Stored as `Ball.water` after each move (replay field `ball.water`).
+- `BallParams`: `buoyancy` 1.6 (floats at 1/1.6 ≈ 62% under; **the stone ball in step 23 sets < 1 to sink**), `water_drag` (2.5, 6.0)/s × depth, `water_speed` 0.75 × max speed, `water_jump` 0.9. In `Ball::update` buoyancy applies even when grounded (lifts the ball off the floor); you can jump at the surface (0.15 < depth < 0.9, not already rising fast).
+- `Event::Splash { pos, speed }` when the ball enters or leaves water above 60 px/s of **total** speed (vertical-only missed rolling in). FX: droplets (blue/white, more for harder hits).
+- Rendering: water cells of non-front layers are skipped in the back pass and drawn **after the ball** (`draw_layer(…, keep)` filter), so a floating ball looks half-submerged and tinted.
+- New ASCII level `water`: pool (x 96..288, 4 deep), gems above it (reachable by hopping), exit on the far bank. Measured: the ball floats with its centre at y 226, swims at 88 px/s, and can jump out at the far bank any time.
+- Tests: submersion fractions, floating settles at ≈1/buoyancy, splash + bob on a drop, splash when rolling in, jump out, slower swimming, no grass under water. Replay `water_cross`.

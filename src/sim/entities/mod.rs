@@ -28,6 +28,8 @@ pub enum Event {
     /// A checkpoint was touched for the first time; `respawn` is where the
     /// ball will come back from now on (ball centre).
     CheckpointReached { respawn: Vec2 },
+    /// The ball went into or out of water at `pos` moving at `speed` px/s.
+    Splash { pos: Vec2, speed: f32 },
     /// A collectible was picked up at `pos` (its centre).
     Collected { item: Item, pos: Vec2 },
     /// The last life was lost; the level restarts after a pause.

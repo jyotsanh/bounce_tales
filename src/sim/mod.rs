@@ -14,6 +14,7 @@ pub mod input;
 pub mod map;
 pub mod physics;
 pub mod rng;
+pub mod water;
 
 pub use ball::Ball;
 pub use camera::Camera;
@@ -30,6 +31,9 @@ pub use rng::Rng;
 /// Simulation rate. The sim always advances in steps of exactly `DT`.
 pub const TICKS_PER_SECOND: u32 = 60;
 pub const DT: f32 = 1.0 / TICKS_PER_SECOND as f32;
+
+/// Entering/leaving water slower than this makes no `Splash`, px/s.
+pub const SPLASH_MIN_SPEED: f32 = 60.0;
 
 /// Landings slower than this don't produce a `Landed` event, px/s.
 pub const LAND_EVENT_MIN_SPEED: f32 = 100.0;
@@ -229,6 +233,26 @@ impl Sim {
         }
         self.ball.update_spin();
         self.ball.update_squash(contacts.impact_speed, jumped);
+
+        let was_wet = self.ball.water > 0.0;
+        self.ball.water = water::submersion(&self.ball, &self.level.map);
+        let speed = self.ball.vel.length();
+        if (self.ball.water > 0.0) != was_wet && speed > SPLASH_MIN_SPEED {
+            // At the water line under the ball's centre.
+            let col_top = (self.ball.pos.y / map::TILE).floor() * map::TILE;
+            let surface = if self.ball.water > 0.0 {
+                col_top + map::TILE
+            } else {
+                col_top
+            };
+            self.events.push(Event::Splash {
+                pos: macroquad::math::vec2(
+                    self.ball.pos.x,
+                    surface.min(self.ball.pos.y + self.ball.radius),
+                ),
+                speed,
+            });
+        }
 
         self.camera.update(&self.ball, &self.level.map);
         if let Some(cause) = hazards::check(&self.ball, &self.level.map) {
@@ -575,6 +599,85 @@ mod tests {
             (tick as f32) / 60.0,
             "but the level clock stopped"
         );
+    }
+
+    fn pool_drop() -> Sim {
+        let mut sim = Sim::for_level("water").unwrap();
+        sim.ball.pos = macroquad::math::vec2(192.0, 150.0);
+        sim
+    }
+
+    #[test]
+    fn the_ball_floats_and_settles() {
+        let mut sim = pool_drop();
+        for _ in 0..240 {
+            sim.step(InputFrame::NONE);
+        }
+        let w = sim.ball.water;
+        // Equilibrium: 1 / buoyancy of the ball under water.
+        assert!((w - 1.0 / 1.6).abs() < 0.08, "submersion {w}");
+        assert!(
+            sim.ball.vel.y.abs() < 5.0,
+            "still bobbing: {}",
+            sim.ball.vel.y
+        );
+        assert_eq!(sim.deaths, 0);
+    }
+
+    #[test]
+    fn landing_in_water_splashes_and_bobs() {
+        let mut sim = pool_drop();
+        let mut splash = false;
+        let mut lowest: f32 = 0.0;
+        for _ in 0..120 {
+            sim.step(InputFrame::NONE);
+            splash |= sim.events.iter().any(|e| matches!(e, Event::Splash { .. }));
+            lowest = lowest.max(sim.ball.pos.y);
+        }
+        assert!(splash);
+        assert!(
+            lowest > 230.0,
+            "sank in a little before bobbing up: {lowest}"
+        );
+    }
+
+    #[test]
+    fn rolling_into_the_pool_splashes() {
+        let mut sim = Sim::for_level("water").unwrap();
+        let mut splash = false;
+        for _ in 0..60 {
+            sim.step(press("R"));
+            splash |= sim.events.iter().any(|e| matches!(e, Event::Splash { .. }));
+        }
+        assert!(splash);
+    }
+
+    #[test]
+    fn can_jump_out_of_the_water() {
+        let mut sim = pool_drop();
+        for _ in 0..240 {
+            sim.step(InputFrame::NONE);
+        }
+        sim.step(press("J"));
+        let mut left_water = false;
+        for _ in 0..30 {
+            sim.step(InputFrame::NONE);
+            left_water |= sim.ball.water == 0.0 && sim.ball.pos.y < 200.0;
+        }
+        assert!(left_water);
+    }
+
+    #[test]
+    fn swimming_is_slower() {
+        let mut sim = pool_drop();
+        for _ in 0..240 {
+            sim.step(InputFrame::NONE);
+        }
+        for _ in 0..60 {
+            sim.step(press("R"));
+        }
+        let vx = sim.ball.vel.x;
+        assert!(vx > 20.0 && vx < 120.0 * 0.75, "vx {vx}");
     }
 
     #[test]

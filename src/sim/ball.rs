@@ -44,6 +44,15 @@ pub struct BallParams {
     pub uphill_gravity: f32,
     /// Fastest the ball can roll along the ground (downhill), px/s.
     pub max_roll_speed: f32,
+    /// Upward push when fully under water, as a multiple of gravity. Above
+    /// 1 floats (at 1/buoyancy submerged), below 1 sinks.
+    pub buoyancy: f32,
+    /// Water drag per second when fully under water (horizontal, vertical).
+    pub water_drag: (f32, f32),
+    /// Top speed in water as a share of `max_speed`.
+    pub water_speed: f32,
+    /// Jump strength from the water surface as a share of a normal jump.
+    pub water_jump: f32,
 }
 
 impl BallParams {
@@ -66,6 +75,10 @@ impl BallParams {
         jump_buffer_ticks: 8,
         uphill_gravity: 0.5,
         max_roll_speed: 260.0,
+        buoyancy: 1.6,
+        water_drag: (2.5, 6.0),
+        water_speed: 0.75,
+        water_jump: 0.9,
     };
 
     /// Take-off speed that reaches `jump_height` under `gravity` with the
@@ -101,6 +114,9 @@ pub struct Ball {
     pub angle: f32,
     /// Rotation speed, radians per second.
     pub spin: f32,
+    /// How much of the ball is under water (0..1), measured after the last
+    /// move (`water::submersion`).
+    pub water: f32,
     /// Visual squash (> 0 flattened, < 0 stretched tall), springs back to 0.
     /// Drawing only; never affects collision.
     pub squash: f32,
@@ -124,6 +140,7 @@ impl Ball {
             jumping: false,
             angle: 0.0,
             spin: 0.0,
+            water: 0.0,
             squash: 0.0,
             squash_vel: 0.0,
         }
@@ -143,10 +160,16 @@ impl Ball {
         self.prev_pos = self.pos;
 
         let axis = input.axis();
+        let wet = self.water;
         if self.grounded {
             self.roll(axis);
         } else {
-            self.vel.x = drive(self.vel.x, axis, p.air_accel, p.air_drag, p.max_speed);
+            let max = if wet > 0.0 {
+                p.max_speed * p.water_speed
+            } else {
+                p.max_speed
+            };
+            self.vel.x = drive(self.vel.x, axis, p.air_accel, p.air_drag, max);
         }
 
         // Jump: a press is buffered for a few steps; holding jump keeps
@@ -155,10 +178,19 @@ impl Ball {
         if jump_pressed {
             self.jump_buffer = p.jump_buffer_ticks;
         }
-        let can_jump = self.grounded || (!self.jumping && self.air_ticks <= p.coyote_ticks);
+        // Floating at the surface (not deep under, not already rising fast)
+        // also allows a jump.
+        let at_surface = wet > 0.15 && wet < 0.9 && self.vel.y > -100.0;
+        let can_jump =
+            self.grounded || at_surface || (!self.jumping && self.air_ticks <= p.coyote_ticks);
         let jumped = can_jump && (self.jump_buffer > 0 || input.jump);
         if jumped {
-            self.vel.y = -p.jump_speed();
+            let strength = if wet > 0.0 && !self.grounded {
+                p.water_jump
+            } else {
+                1.0
+            };
+            self.vel.y = -p.jump_speed() * strength;
             self.grounded = false;
             self.jumping = true;
             self.jump_buffer = 0;
@@ -168,6 +200,12 @@ impl Ball {
 
         if !self.grounded {
             self.vel.y = (self.vel.y + p.gravity * DT).min(p.max_fall);
+        }
+        if wet > 0.0 {
+            // Buoyancy lifts even a grounded ball (it then leaves the floor).
+            self.vel.y -= p.gravity * p.buoyancy * wet * DT;
+            self.vel.x *= 1.0 - p.water_drag.0 * wet * DT;
+            self.vel.y *= 1.0 - p.water_drag.1 * wet * DT;
         }
         jumped
     }

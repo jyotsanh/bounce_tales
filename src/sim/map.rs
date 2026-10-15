@@ -195,8 +195,8 @@ pub mod flags {
 impl TileMap {
     /// Parses a map drawn in text, one row per line. Tile glyphs are listed
     /// on [`Tile`]; `o` marks the ball start (an empty tile, ball resting on
-    /// the tile's bottom edge). `^` / `v` are spikes pointing up / down
-    /// (no collision shape). All rows must be the same length. Object
+    /// the tile's bottom edge). `^` / `v` are spikes pointing up / down,
+    /// `~` is water (no collision shape). All rows must be the same length. Object
     /// markers ([`OBJECT_MARKERS`]) are empty space here;
     /// `level::Level::from_ascii` turns them into objects.
     pub fn from_ascii(text: &str) -> Result<TileMap, String> {
@@ -237,6 +237,10 @@ impl TileMap {
                     }
                     'v' => {
                         cell_flags[y * width + x] = flags::SPIKE_DOWN;
+                        Tile::Empty
+                    }
+                    '~' => {
+                        cell_flags[y * width + x] = flags::WATER;
                         Tile::Empty
                     }
                     other => Tile::from_glyph(other)
@@ -334,6 +338,7 @@ pub fn builtin_text(name: &str) -> Option<&'static str> {
         "flat" => FLAT_MAP,
         "slopes" => SLOPES_MAP,
         "hazards" => HAZARDS_MAP,
+        "water" => WATER_MAP,
         _ => return None,
     })
 }
@@ -343,7 +348,7 @@ pub fn builtin(name: &str) -> Option<TileMap> {
     builtin_text(name).map(|t| TileMap::from_ascii(t).expect("built-in maps are valid"))
 }
 
-pub const BUILTIN_NAMES: &[&str] = &["test", "flat", "slopes", "hazards"];
+pub const BUILTIN_NAMES: &[&str] = &["test", "flat", "slopes", "hazards", "water"];
 
 /// Test map: one screen with a step block, a low ceiling, a tunnel, a
 /// staircase of platforms up to an exit, a 45° ramp and a gentle 1:2 hill.
@@ -447,6 +452,32 @@ const HAZARDS_MAP: &str = r"
     #..o...^^.C...........E#
     #################..#####
     #################..#####
+";
+
+/// Pool level (24 wide): land at y 224 on both sides, a 4-deep pool at
+/// x 96..288 (surface y 224, bottom y 288), gems over the water, exit on the
+/// far bank.
+const WATER_MAP: &str = r"
+    #......................#
+    #......................#
+    #......................#
+    #......................#
+    #......................#
+    #......................#
+    #......................#
+    #......................#
+    #......................#
+    #......................#
+    #......................#
+    #......................#
+    #.......*.*.*.*........#
+    #.o..................E.#
+    ######~~~~~~~~~~~~######
+    ######~~~~~~~~~~~~######
+    ######~~~~~~~~~~~~######
+    ######~~~~~~~~~~~~######
+    ########################
+    ########################
 ";
 
 #[cfg(test)]
