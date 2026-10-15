@@ -4,6 +4,7 @@
 
 mod atlas;
 mod background;
+mod font;
 mod particles;
 
 use macroquad::prelude::*;
@@ -16,14 +17,27 @@ use bounce_tales::level::{Decoration, TileLayer};
 use bounce_tales::sim::Sim;
 use bounce_tales::sim::camera::{VIEW_H, VIEW_W};
 use bounce_tales::sim::map::{TILE, TileMap};
-use bounce_tales::sim::{Entity, EntityKind, RESPAWN_ANIM_TICKS};
+use bounce_tales::sim::{Entity, EntityKind, Item, RESPAWN_ANIM_TICKS};
 
 pub const SCREEN_W: u32 = VIEW_W as u32;
 pub const SCREEN_H: u32 = VIEW_H as u32;
 
 /// Sprites in the `objects` atlas that entities use (checked in tests).
 #[cfg(test)]
-pub const ENTITY_SPRITES: &[&str] = &["exit", "checkpoint_off", "checkpoint_on"];
+pub const ENTITY_SPRITES: &[&str] = &[
+    "exit",
+    "checkpoint_off",
+    "checkpoint_on",
+    "gem_0",
+    "gem_1",
+    "gem_2",
+    "gem_3",
+    "egg",
+    "life",
+    "icon_ball",
+    "icon_gem",
+    "icon_egg",
+];
 
 /// Roll frames in the ball atlas (`roll_0` … `roll_15`).
 pub const BALL_FRAMES: usize = 16;
@@ -91,7 +105,7 @@ impl Renderer {
         }
         self.draw_decorations(&level.decorations, &level.sheets, false);
         for e in &sim.entities {
-            self.draw_entity(e);
+            self.draw_entity(e, sim.tick);
         }
 
         self.particles.draw();
@@ -116,6 +130,7 @@ impl Renderer {
             self.draw_layer(layer, &level.sheets, view);
         }
         self.draw_decorations(&level.decorations, &level.sheets, true);
+        self.particles.draw_popups(&self.sprites.font);
     }
 
     fn draw_decorations(&self, decorations: &[Decoration], sheets: &[String], front: bool) {
@@ -125,8 +140,23 @@ impl Renderer {
         }
     }
 
-    fn draw_entity(&self, e: &Entity) {
+    fn draw_entity(&self, e: &Entity, tick: u64) {
         match e.kind {
+            EntityKind::Pickup { taken: true, .. } => {}
+            EntityKind::Pickup { item, .. } => {
+                // Gentle bob, out of step between items so rows ripple.
+                let phase = e.pos.x * 0.15;
+                let bob = ((tick as f32 * 0.08 + phase).sin() * 1.5).round();
+                let pos = e.pos + vec2(0.0, bob);
+                match item {
+                    Item::Gem => {
+                        let frame = (tick / 8 + (e.pos.x / 16.0) as u64) % 4;
+                        self.sprites.items.draw(&format!("gem_{frame}"), pos);
+                    }
+                    Item::Egg => self.sprites.items.draw("egg", pos),
+                    Item::Life => self.sprites.items.draw("life", pos),
+                }
+            }
             EntityKind::Exit { .. } => self.sprites.objects.draw("exit", e.pos),
             EntityKind::Checkpoint { active } => {
                 let name = if active {
@@ -153,29 +183,40 @@ impl Renderer {
         }
     }
 
-    /// Heads-up display in screen space: lives as mini balls, and the
-    /// game-over banner. (Score, eggs and a bitmap font come in step 13.)
+    /// Heads-up display in screen space: lives, gems, eggs (if the level
+    /// has any) along the top left; score at the top right; the game-over
+    /// banner.
     pub fn draw_hud(&self, sim: &Sim) {
         set_camera(&self.screen_camera);
-        for i in 0..sim.lives {
-            self.sprites.ball.draw_scaled(
-                "roll_0",
-                vec2(4.0 + i as f32 * 12.0, 4.0),
-                vec2(10.0, 10.0),
-            );
+        let font_atlas = &self.sprites.font;
+        let icons = &self.sprites.icons;
+        let text = |t: &str, x: f32| font::draw(font_atlas, t, vec2(x, 5.0), 1.0, WHITE, true);
+
+        let mut x = 4.0;
+        let mut item = |icon: &str, label: String| {
+            icons.draw(icon, vec2(x, 4.0));
+            text(&label, x + 10.0);
+            x += 10.0 + font::width(&label, 1.0) + 8.0;
+        };
+        item("icon_ball", format!("*{}", sim.lives));
+        item("icon_gem", sim.gems.to_string());
+        if sim.eggs_total > 0 {
+            item("icon_egg", format!("{}/{}", sim.eggs, sim.eggs_total));
         }
+
+        let score = format!("{:06}", sim.score);
+        text(&score, VIEW_W - 4.0 - font::width(&score, 1.0));
+
         if sim.game_over > 0 {
-            let (w, h) = (160.0, 36.0);
-            let (x, y) = ((VIEW_W - w) / 2.0, (VIEW_H - h) / 2.0);
-            draw_rectangle(x, y, w, h, Color::new(0.0, 0.0, 0.0, 0.7));
-            let text = "GAME OVER";
-            let size = 24.0;
-            let dims = measure_text(text, None, size as u16, 1.0);
-            draw_text(
-                text,
-                ((VIEW_W - dims.width) / 2.0).round(),
-                (y + h / 2.0 + dims.height / 2.0).round(),
-                size,
+            let (w, h) = (170.0, 40.0);
+            let (bx, by) = ((VIEW_W - w) / 2.0, (VIEW_H - h) / 2.0);
+            draw_rectangle(bx, by, w, h, Color::new(0.0, 0.0, 0.0, 0.7));
+            font::draw_centred(
+                font_atlas,
+                "GAME OVER",
+                VIEW_W / 2.0,
+                by + (h - font::HEIGHT * 2.0) / 2.0,
+                2.0,
                 Color::new(1.0, 0.85, 0.25, 1.0),
             );
         }

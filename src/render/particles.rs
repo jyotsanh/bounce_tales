@@ -6,7 +6,10 @@
 use macroquad::prelude::*;
 
 use bounce_tales::sim::hazards::Cause;
-use bounce_tales::sim::{DT, Event, Rng, Sim};
+use bounce_tales::sim::{DT, Event, Item, Rng, Sim};
+
+use super::atlas::Atlas;
+use super::font;
 
 struct Particle {
     pos: Vec2,
@@ -20,8 +23,19 @@ struct Particle {
     gravity: f32,
 }
 
+/// Floating text such as "+10" that rises and fades.
+struct Popup {
+    text: String,
+    pos: Vec2,
+    life: f32,
+    color: Color,
+}
+
+const POPUP_LIFE: f32 = 0.8;
+
 pub struct Particles {
     list: Vec<Particle>,
+    popups: Vec<Popup>,
     rng: Rng,
 }
 
@@ -34,6 +48,8 @@ const CONFETTI: [Color; 5] = [
     Color::new(0.30, 0.55, 0.95, 1.0),
 ];
 const GOLD_SPARK: Color = Color::new(1.0, 0.85, 0.25, 1.0);
+const GEM_SPARK: Color = Color::new(0.62, 0.89, 1.0, 1.0);
+const LIFE_GREEN: Color = Color::new(0.3, 0.82, 0.24, 1.0);
 /// Colours of the ball's fragments when it pops.
 const BALL_BITS: [Color; 3] = [
     Color::new(0.89, 0.14, 0.11, 1.0),
@@ -49,6 +65,7 @@ impl Particles {
     pub fn new() -> Particles {
         Particles {
             list: Vec::new(),
+            popups: Vec::new(),
             rng: Rng::new(0xD057),
         }
     }
@@ -81,6 +98,20 @@ impl Particles {
                     self.sparkle(respawn - vec2(-6.0, 22.0), GOLD_SPARK)
                 }
                 Event::GameOver => {}
+                Event::Collected { item, pos } => {
+                    let (color, text) = match item {
+                        Item::Gem => (GEM_SPARK, format!("+{}", item.points())),
+                        Item::Egg => (WHITE, format!("+{}", item.points())),
+                        Item::Life => (LIFE_GREEN, "1UP".to_owned()),
+                    };
+                    self.sparkle(pos, color);
+                    self.popups.push(Popup {
+                        text,
+                        pos: pos - vec2(0.0, 10.0),
+                        life: POPUP_LIFE,
+                        color,
+                    });
+                }
             }
         }
         let b = &sim.ball;
@@ -99,6 +130,11 @@ impl Particles {
             p.life -= DT;
         }
         self.list.retain(|p| p.life > 0.0);
+        for p in &mut self.popups {
+            p.pos.y -= 30.0 * DT;
+            p.life -= DT;
+        }
+        self.popups.retain(|p| p.life > 0.0);
         if self.list.len() > MAX_PARTICLES {
             let extra = self.list.len() - MAX_PARTICLES;
             self.list.drain(..extra);
@@ -179,6 +215,16 @@ impl Particles {
         }
     }
 
+    /// Draws score popups (world coordinates), fading out at the end.
+    pub fn draw_popups(&self, font_atlas: &Atlas) {
+        for p in &self.popups {
+            let mut c = p.color;
+            c.a = (p.life / (POPUP_LIFE * 0.4)).min(1.0);
+            let x = p.pos.x - font::width(&p.text, 1.0) / 2.0;
+            font::draw(font_atlas, &p.text, vec2(x, p.pos.y), 1.0, c, true);
+        }
+    }
+
     /// Draws in world coordinates (call with the level camera set). Each
     /// particle shrinks and fades over its last part of life.
     pub fn draw(&self) {
@@ -254,6 +300,25 @@ mod tests {
             }
         }
         assert!(burst >= 12, "burst {burst}");
+    }
+
+    #[test]
+    fn collecting_shows_a_popup() {
+        let level = bounce_tales::level::Level::from_ascii("o*..\n####").unwrap();
+        let mut sim = Sim::with_level(level);
+        let mut fx = Particles::new();
+        let mut seen = false;
+        for _ in 0..40 {
+            sim.step(InputFrame::from_code("R").unwrap());
+            fx.on_step(&sim);
+            seen |= fx.popups.iter().any(|p| p.text == "+10");
+        }
+        assert!(seen);
+        for _ in 0..60 {
+            sim.step(InputFrame::NONE);
+            fx.on_step(&sim);
+        }
+        assert!(fx.popups.is_empty(), "popups fade away");
     }
 
     #[test]

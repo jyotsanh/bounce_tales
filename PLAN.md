@@ -75,7 +75,7 @@ Key rules:
 ### Phase C — Core gameplay
 - [x] **11.** **Hazards & death**: spikes, bottomless pits, death animation, respawn.
 - [x] **12.** **Lives & checkpoints**: checkpoint objects, lives counter, game over → level restart.
-- [ ] **13.** **Collectibles & HUD**: eggs/gems, score, bitmap font, HUD.
+- [x] **13.** **Collectibles & HUD**: eggs/gems, score, bitmap font, HUD.
 - [ ] **14.** **Level exit & completion**: exit gate, results screen (eggs found, time), next level.
 - [ ] **15.** **Water**: buoyancy, drag, splash particles.
 - [ ] **16.** **Moving platforms**: paths from Tiled polylines, ball rides and inherits velocity.
@@ -246,3 +246,12 @@ Spare capacity: if a step overruns, the next prompt finishes it before moving on
 - Art: `objects.txt` + `checkpoint_off` (limp grey flag), `checkpoint_on` (red flag, gold star). FX: gold sparkles on activation, white sparkle on restart.
 - Maps: `hazards` has a checkpoint after the floor spikes (respawn x 168); `big.tmx` has 3 (plateau, tower foot, top ledge start).
 - Replay fields `lives`, `game_over`, `restarts`, `respawn.x/y`. Replays: `hazards_pit` (now respawns at the checkpoint), `game_over`. Unit tests: checkpoint activation/respawn spot, full game-over → restart cycle, respawn at checkpoint after a pit death.
+
+### Step 13 — Collectibles & HUD (done)
+- Object types `gem`, `egg`, `life` (Tiled rect → centred on its middle, or a point → centred on it; always a 16x16 entity). ASCII markers `*`, `e`, `+`. `EntityKind::Pickup { item: Item, taken }`; picked up when the ball centre is within radius + `PICKUP_RADIUS` (6) of the item centre → `Event::Collected { item, pos }`.
+- `Item::points()`: gem 10, egg 500, life 100. `Sim`: `score`, `gems`/`gems_total`, `eggs`/`eggs_total` (totals counted at level start), life → `lives + 1` capped at `MAX_LIVES` (9). Items stay taken after a death; a game-over restart resets them (fresh Sim). Replay fields `score`, `gems`, `eggs`.
+- Art: `assets/art/font.txt` (5x7 pixel font in 6x8 cells: 0-9, A-Z and named symbols), `items.txt` (`gem_0..3` shimmer frames, `egg`, `life`), `icons.txt` (8x8 HUD icons). The first egg looked like a cookie; it was reshaped into a taller oval.
+- `src/render/font.rs`: `glyph_name` (lowercase → capitals, `*` draws ×, unknown → `?`), `width`, `draw` (tint + 1 px shadow), `draw_centred`, any integer `scale`. `Atlas::draw_tinted`.
+- HUD: `icon_ball ×N`, gem count, `eggs/total` (only if the level has eggs), 6-digit score at the top right; GAME OVER now in the pixel font at 2x. Items bob (±1.5 px, phase by x) and gems animate (8 ticks per frame). Pickups emit sparkles plus a floating popup ("+10", "+500", "1UP").
+- Content: `hazards` has 3 gems after the spikes and an egg at the pit-jump apex (placed by tracing the jump path; the first guess was too low). `big.tmx` has 34 items: gem trails (step, plateau, pit arc, every tower platform, top ledge), 3 eggs (behind the tower on the floor, the top-right tower platform, above the ledge start), 1 extra life. The plateau checkpoint moved left so it doesn't overlap the gem row.
+- Replay `hazards_collect` (clean run = 3 gems + egg = 530). Tests: pickup build from rect/point, collect-once radius, scoring/counting, lives cap, popups, every glyph in the font index.

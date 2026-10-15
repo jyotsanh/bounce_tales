@@ -17,7 +17,7 @@ pub mod rng;
 
 pub use ball::Ball;
 pub use camera::Camera;
-pub use entities::{Entity, EntityKind, Event};
+pub use entities::{Entity, EntityKind, Event, Item};
 pub use input::InputFrame;
 pub use map::TileMap;
 
@@ -41,6 +41,8 @@ pub const DEFAULT_LEVEL: &str = "big";
 pub const DEATH_TICKS: u32 = 60;
 /// Lives at the start of a level (and after a game over).
 pub const START_LIVES: u32 = 3;
+/// Most balls you can hold.
+pub const MAX_LIVES: u32 = 9;
 /// Steps the "game over" pause lasts before the level restarts.
 pub const GAME_OVER_TICKS: u32 = 150;
 /// Steps of the grow-in effect after respawning (drawing only).
@@ -78,6 +80,12 @@ pub struct Sim {
     pub game_over: u32,
     /// How many times the level was restarted after a game over.
     pub restarts: u32,
+    pub score: u32,
+    /// Gems and eggs collected this level, and how many the level has.
+    pub gems: u32,
+    pub gems_total: u32,
+    pub eggs: u32,
+    pub eggs_total: u32,
     pub rng: Rng,
     /// Input used in the most recent step.
     pub input: InputFrame,
@@ -106,6 +114,13 @@ impl Sim {
         let ball = Ball::new(level.map.spawn);
         let entities =
             entities::build_all(&level.objects).expect("objects are validated when loading");
+        let count = |want: Item| {
+            entities
+                .iter()
+                .filter(|e| matches!(e.kind, EntityKind::Pickup { item, .. } if item == want))
+                .count() as u32
+        };
+        let (gems_total, eggs_total) = (count(Item::Gem), count(Item::Egg));
         Sim {
             tick: 0,
             entities,
@@ -118,6 +133,11 @@ impl Sim {
             lives: START_LIVES,
             game_over: 0,
             restarts: 0,
+            score: 0,
+            gems: 0,
+            gems_total,
+            eggs: 0,
+            eggs_total,
             camera: Camera::snapped_to(&ball, &level.map),
             ball,
             level,
@@ -186,6 +206,14 @@ impl Sim {
             match *e {
                 Event::ExitReached => self.exit_reached = true,
                 Event::CheckpointReached { respawn } => self.respawn_point = respawn,
+                Event::Collected { item, .. } => {
+                    self.score += item.points();
+                    match item {
+                        Item::Gem => self.gems += 1,
+                        Item::Egg => self.eggs += 1,
+                        Item::Life => self.lives = (self.lives + 1).min(MAX_LIVES),
+                    }
+                }
                 _ => {}
             }
         }
@@ -451,6 +479,27 @@ mod tests {
         until_death(&mut sim, "R", 300); // into the pit
         wait(&mut sim, DEATH_TICKS);
         assert_eq!(sim.ball.pos, cp);
+    }
+
+    #[test]
+    fn collecting_scores_and_counts() {
+        let mut sim = Sim::with_level(Level::from_ascii("o*e+.\n#####").unwrap());
+        assert_eq!((sim.gems_total, sim.eggs_total), (1, 1));
+        for _ in 0..90 {
+            sim.step(press("R"));
+        }
+        assert_eq!((sim.gems, sim.eggs), (1, 1));
+        assert_eq!(sim.lives, START_LIVES + 1);
+        assert_eq!(sim.score, 10 + 500 + 100);
+    }
+
+    #[test]
+    fn lives_are_capped() {
+        let mut sim = Sim::with_level(Level::from_ascii("o+++++++++.\n###########").unwrap());
+        for _ in 0..200 {
+            sim.step(press("R"));
+        }
+        assert_eq!(sim.lives, MAX_LIVES);
     }
 
     #[test]

@@ -28,7 +28,8 @@
 //!   [`BACKGROUNDS`] (default `forest`).
 //!
 //! ASCII maps can mark objects too: `E` = exit, `C` = checkpoint (both
-//! 32x32, standing on the floor of that cell, centred on it).
+//! 32x32, standing on the floor of that cell, centred on it), `*` = gem,
+//! `e` = egg, `+` = extra life (16x16, filling the cell).
 
 use std::io::Cursor;
 use std::path::Path;
@@ -133,6 +134,8 @@ pub const BACKGROUNDS: &[&str] = &["forest"];
 
 /// Size of the exit gate, px.
 pub const EXIT_SIZE: Vec2 = Vec2::new(32.0, 32.0);
+/// Size of a collectible (gem, egg, extra life), px.
+pub const ITEM_SIZE: Vec2 = Vec2::new(16.0, 16.0);
 /// Size of a checkpoint post, px.
 pub const CHECKPOINT_SIZE: Vec2 = Vec2::new(32.0, 32.0);
 
@@ -141,6 +144,9 @@ fn ascii_marker(c: char) -> Option<(&'static str, Vec2)> {
     match c {
         'E' => Some(("exit", EXIT_SIZE)),
         'C' => Some(("checkpoint", CHECKPOINT_SIZE)),
+        '*' => Some(("gem", ITEM_SIZE)),
+        'e' => Some(("egg", ITEM_SIZE)),
+        '+' => Some(("life", ITEM_SIZE)),
         _ => None,
     }
 }

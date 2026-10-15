@@ -28,11 +28,41 @@ pub enum Event {
     /// A checkpoint was touched for the first time; `respawn` is where the
     /// ball will come back from now on (ball centre).
     CheckpointReached { respawn: Vec2 },
+    /// A collectible was picked up at `pos` (its centre).
+    Collected { item: Item, pos: Vec2 },
     /// The last life was lost; the level restarts after a pause.
     GameOver,
     /// The level started over (after game over).
     LevelRestarted,
 }
+
+/// Collectible kinds.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Item {
+    /// Common sparkly gem: a few points.
+    Gem,
+    /// Rare hidden egg: many points; counted per level.
+    Egg,
+    /// Extra ball.
+    Life,
+}
+
+impl Item {
+    /// Points for picking it up.
+    pub fn points(self) -> u32 {
+        match self {
+            Item::Gem => 10,
+            Item::Egg => 500,
+            Item::Life => 100,
+        }
+    }
+}
+
+/// How close (beyond the ball's radius) the ball's centre must come to an
+/// item's centre to pick it up, px.
+pub const PICKUP_RADIUS: f32 = 6.0;
+/// Side of an item's box, px.
+pub const ITEM_SIZE: f32 = 16.0;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum EntityKind {
@@ -41,6 +71,8 @@ pub enum EntityKind {
     Exit { reached: bool },
     /// Touching it moves the respawn point here (once).
     Checkpoint { active: bool },
+    /// Collectible; stays collected after a death (not after a game over).
+    Pickup { item: Item, taken: bool },
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -52,7 +84,7 @@ pub struct Entity {
 }
 
 /// Object types that `build` understands.
-pub const KNOWN_TYPES: &[&str] = &["exit", "checkpoint"];
+pub const KNOWN_TYPES: &[&str] = &["exit", "checkpoint", "gem", "egg", "life"];
 
 /// Turns a level object into an entity, or explains what is wrong with it.
 pub fn build(spec: &ObjectSpec) -> Result<Entity, String> {
@@ -71,6 +103,20 @@ pub fn build(spec: &ObjectSpec) -> Result<Entity, String> {
                 ));
             }
             EntityKind::Checkpoint { active: false }
+        }
+        kind @ ("gem" | "egg" | "life") => {
+            let item = match kind {
+                "gem" => Item::Gem,
+                "egg" => Item::Egg,
+                _ => Item::Life,
+            };
+            // Rectangles are centred on their middle, points on themselves.
+            let centre = spec.pos + spec.size / 2.0;
+            return Ok(Entity {
+                pos: centre - Vec2::splat(ITEM_SIZE / 2.0),
+                size: Vec2::splat(ITEM_SIZE),
+                kind: EntityKind::Pickup { item, taken: false },
+            });
         }
         other => {
             return Err(format!(
@@ -104,9 +150,14 @@ impl Entity {
             && p.y <= self.pos.y + self.size.y
     }
 
+    pub fn centre(&self) -> Vec2 {
+        self.pos + self.size / 2.0
+    }
+
     /// Runs one step of this entity's behaviour.
     pub fn update(&mut self, ball: &Ball, events: &mut Vec<Event>) {
         let inside = self.contains_ball(ball);
+        let centre = self.centre();
         match &mut self.kind {
             EntityKind::Exit { reached } => {
                 if !*reached && inside {
@@ -123,6 +174,15 @@ impl Entity {
                         self.pos.y + self.size.y - ball.radius,
                     );
                     events.push(Event::CheckpointReached { respawn });
+                }
+            }
+            EntityKind::Pickup { item, taken } => {
+                if !*taken && ball.pos.distance(centre) < ball.radius + PICKUP_RADIUS {
+                    *taken = true;
+                    events.push(Event::Collected {
+                        item: *item,
+                        pos: centre,
+                    });
                 }
             }
         }
@@ -164,6 +224,38 @@ mod tests {
             }]
         );
         assert_eq!(c.kind, EntityKind::Checkpoint { active: true });
+    }
+
+    #[test]
+    fn pickups_from_rects_and_points() {
+        let rect = build(&spec("gem", vec2(16.0, 16.0))).unwrap();
+        assert_eq!(rect.centre(), vec2(108.0, 108.0));
+        let point = build(&spec("egg", Vec2::ZERO)).unwrap();
+        assert_eq!(point.centre(), vec2(100.0, 100.0));
+        assert!(matches!(
+            point.kind,
+            EntityKind::Pickup {
+                item: Item::Egg,
+                taken: false
+            }
+        ));
+    }
+
+    #[test]
+    fn pickup_is_collected_once_when_touched() {
+        let mut gem = build(&spec("gem", Vec2::ZERO)).unwrap();
+        let mut events = Vec::new();
+        gem.update(&ball_at(100.0 + 8.0 + 6.5, 100.0), &mut events);
+        assert!(events.is_empty(), "just out of reach");
+        gem.update(&ball_at(100.0 + 13.0, 100.0), &mut events);
+        gem.update(&ball_at(100.0, 100.0), &mut events);
+        assert_eq!(
+            events,
+            vec![Event::Collected {
+                item: Item::Gem,
+                pos: vec2(100.0, 100.0)
+            }]
+        );
     }
 
     #[test]

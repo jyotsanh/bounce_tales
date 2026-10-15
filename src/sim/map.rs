@@ -176,9 +176,10 @@ pub struct TileMap {
     pub spawn: Vec2,
 }
 
-/// ASCII letters that mark objects (exit, checkpoint); they are empty space
+/// ASCII letters that mark objects (exit, checkpoint, gem, egg, extra
+/// life); they are empty space
 /// in the collision map. See `level::ascii_marker`.
-pub const OBJECT_MARKERS: &[char] = &['E', 'C'];
+pub const OBJECT_MARKERS: &[char] = &['E', 'C', '*', 'e', '+'];
 
 /// Per-cell flag bits from tile properties (used from steps 11 and 15).
 pub mod flags {
@@ -423,7 +424,8 @@ const SLOPES_MAP: &str = r"
 /// Hazard course (24 wide): floor spikes at x 112..144, a checkpoint
 /// (x 152..184, respawn at x 168), a low ceiling with
 /// hanging spikes at x 192..240 (bottom of the spikes at y 240), a 2-tile
-/// bottomless pit at x 272..304, then an exit.
+/// bottomless pit at x 272..304 with an egg in the jump arc, then an exit.
+/// Gems after the spikes.
 const HAZARDS_MAP: &str = r"
     #......................#
     #......................#
@@ -439,9 +441,9 @@ const HAZARDS_MAP: &str = r"
     #......................#
     #......................#
     #...........###........#
-    #...........vvv........#
+    #...........vvv..e.....#
     #......................#
-    #......................#
+    #........***...........#
     #..o...^^.C...........E#
     #################..#####
     #################..#####

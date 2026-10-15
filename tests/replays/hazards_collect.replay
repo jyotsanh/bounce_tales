@@ -1,0 +1,12 @@
+# The clean hazards run also sweeps the three gems after the spikes and the
+# egg in the pit-jump arc: 3 x 10 + 500 = 530 points.
+level hazards
+20 R
+RJ
+75 R
+RJ
+60 R
+expect exit == 1
+expect gems == 3
+expect eggs == 1
+expect score == 530

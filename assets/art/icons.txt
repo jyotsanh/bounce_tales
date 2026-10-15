@@ -1,0 +1,42 @@
+; 8x8 HUD icons. Run `cargo run -p artgen` after editing.
+sheet icons cell 8x8 columns 4
+palette
+  r #e3241b
+  R #a8150f
+  w #ffffff
+  b #3aa8e8
+  B #9ee4ff
+  d #1f6fb8
+  e #f0e2c4
+  o #b89c6c
+end
+sprite icon_ball
+..rrrr..
+.rwrrrr.
+rwrrrrrR
+rrrrrrrR
+rrrrrrrR
+rrrrrrRR
+.rrrrRR.
+..RRRR..
+end
+sprite icon_gem
+........
+.BBBBbb.
+BBBBbbbb
+.bbbddd.
+..bbdd..
+...bd...
+........
+........
+end
+sprite icon_egg
+...oo...
+..oeeo..
+.oweeeo.
+.oeeeeo.
+oeeeeeeo
+oeeeeeeo
+.oeeeeo.
+..oooo..
+end

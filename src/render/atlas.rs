@@ -80,6 +80,22 @@ impl Atlas {
         }
     }
 
+    /// Draws a sprite stretched to `size`, tinted (multiplied) by `color`.
+    pub fn draw_tinted(&self, sprite: &str, pos: Vec2, size: Vec2, color: Color) {
+        let pos = pos.round();
+        draw_texture_ex(
+            &self.texture,
+            pos.x,
+            pos.y,
+            color,
+            DrawTextureParams {
+                source: Some(self.rect(sprite)),
+                dest_size: Some(size.round()),
+                ..Default::default()
+            },
+        );
+    }
+
     /// Draws a sprite stretched to `size` (whole pixels).
     pub fn draw_scaled(&self, sprite: &str, pos: Vec2, size: Vec2) {
         let pos = pos.round();
@@ -117,6 +133,9 @@ pub struct Sprites {
     pub forest: Atlas,
     pub deco: Atlas,
     pub objects: Atlas,
+    pub items: Atlas,
+    pub icons: Atlas,
+    pub font: Atlas,
 }
 
 macro_rules! embedded_atlas {
@@ -136,6 +155,9 @@ impl Sprites {
             forest: embedded_atlas!("forest"),
             deco: embedded_atlas!("deco"),
             objects: embedded_atlas!("objects"),
+            items: embedded_atlas!("items"),
+            icons: embedded_atlas!("icons"),
+            font: embedded_atlas!("font"),
         }
     }
 
@@ -147,6 +169,9 @@ impl Sprites {
             "forest" => &self.forest,
             "deco" => &self.deco,
             "objects" => &self.objects,
+            "items" => &self.items,
+            "icons" => &self.icons,
+            "font" => &self.font,
             _ => panic!("no atlas named '{name}'"),
         }
     }
@@ -167,9 +192,16 @@ mod tests {
 
     #[test]
     fn embedded_objects_index_has_entity_sprites() {
-        let objects = parse_index(include_str!("../../assets/gen/objects.idx")).unwrap();
+        let mut names = Vec::new();
+        for idx in [
+            include_str!("../../assets/gen/objects.idx"),
+            include_str!("../../assets/gen/items.idx"),
+            include_str!("../../assets/gen/icons.idx"),
+        ] {
+            names.extend(parse_index(idx).unwrap().into_iter().map(|(n, _)| n));
+        }
         for name in super::super::ENTITY_SPRITES {
-            assert!(objects.iter().any(|(n, _)| n == name), "{name}");
+            assert!(names.iter().any(|n| n == name), "{name}");
         }
     }
 

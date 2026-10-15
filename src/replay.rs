@@ -45,6 +45,9 @@ pub const FIELDS: &[(&str, Probe)] = &[
     ("restarts", |s| s.restarts as f64),
     ("respawn.x", |s| s.respawn_point.x as f64),
     ("respawn.y", |s| s.respawn_point.y as f64),
+    ("score", |s| s.score as f64),
+    ("gems", |s| s.gems as f64),
+    ("eggs", |s| s.eggs as f64),
 ];
 
 pub fn probe(sim: &Sim, field: &str) -> Option<f64> {
