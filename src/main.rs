@@ -185,14 +185,14 @@ async fn main() {
             app.step(input, std::mem::replace(&mut pending, MenuKeys::NONE));
             step_count += 1;
             for e in &app.ui_events {
-                sounds.play(
-                    match e {
-                        UiEvent::Move => Sfx::MenuMove,
-                        UiEvent::Select => Sfx::MenuSelect,
-                        UiEvent::Back => Sfx::MenuBack,
-                    },
-                    1.0,
-                );
+                let (sfx, volume) = match e {
+                    // A soft typewriter tick.
+                    UiEvent::Type => (Sfx::MenuMove, 0.25),
+                    UiEvent::Move => (Sfx::MenuMove, 1.0),
+                    UiEvent::Select => (Sfx::MenuSelect, 1.0),
+                    UiEvent::Back => (Sfx::MenuBack, 1.0),
+                };
+                sounds.play(sfx, volume);
             }
             let Some(game) = app.game.as_ref().filter(|_| app.stepped) else {
                 continue;

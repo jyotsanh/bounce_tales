@@ -105,7 +105,7 @@ Key rules:
 - [x] **30.** **Game state machine & menus**: title, main menu, pause, game over, screen transitions.
 - [x] **31.** **Level select / world map** with locks, egg counts, best times.
 - [x] **32.** **Save & options**: progress, eggs, settings (volume, scale, fullscreen) saved to an XDG path.
-- [ ] **33.** **Cutscene engine**: comic panels + text boxes. Intro, between-level and ending scenes.
+- [x] **33.** **Cutscene engine**: comic panels + text boxes. Intro, between-level and ending scenes.
 
 ### Phase I — Levels (you share references before each one)
 - [ ] **34.** **Levels 1–2** (forest) + tileset.
@@ -418,3 +418,11 @@ Spare capacity: if a step overruns, the next prompt finishes it before moving on
 - Settings now live in `App.settings`; hotkeys moved into `App::hotkey` (M, -/=, [/], and new **F11** fullscreen), `Sounds::set_volume` mirrors them. Fullscreen applied with `set_fullscreen` on change and at start.
 - Font gained `<`.
 - Tests: save text round trip, unlock_all not saved, defaults for missing fields + bad text error, file store/load/missing/garbage, default path; options volumes/fullscreen/back, reset asks first (NO keeps, YES clears), options from pause (game shown, level music, no reset), hotkeys.
+
+### Step 33 — Cutscene engine (done)
+- `src/cutscene.rs` (lib): scenes are lists of `Panel { picture: Picture, caption }`. Own story (not the original's words): the Hypno Cube spellbinds the land's creatures; Bounce, too busy bouncing to look, sets off to free them. Scenes: `intro` (4 panels), `world_cave` (2), `world_castle` (1), `world_boss` (2, includes the how-to-beat-it hint), `ending` (3 + credits card).
+- `cutscene::Player`: typewriter captions (1 letter/step, wrapped to 32 chars so words never jump lines while typing); Space/Enter/jump shows the whole caption, then turns the page (14-step black wipe, page changes at its middle, keys ignored meanwhile); Esc skips the scene. `Beat::Typed` every 3 letters → soft tick sound.
+- When: the intro on the first PLAY; after finishing a level, `after_level` picks the next world's opening when the next campaign level's music changes (cave / castle / boss), or the ending after the last level. Each plays by itself once: `Progress.seen` (saved) records scenes shown (also when skipped).
+- App: `Screen::Cutscene`, `Action::PlayScene(name)` then `after_scene` (the map). Music: title for intro/ending, the world's tune for world openings.
+- Render (`src/render/cutscenes.rs`): framed 208x156 picture drawn from shapes + game sprites (meadow with friends, night sky and descending cube with rings, spellbound creatures before pulsing rings, Bounce rolling off along the path, cave with stalactites/drips/glowing gems, castle with the spiral in its tower, showdown with rays and a shaking cube, shatter sparkles with flash, celebration with confetti, credits logo); everything spilling out of the frame is masked; caption on cream paper; page count, blinking NEXT > / END >, ESC SKIP.
+- Tests: wrapping, every caption fits 4 lines, typing → reveal → turn → done, wipe timing, auto-typing never turns, Esc skip, which scene follows which level; app: intro once, Esc skips to the map, beating the last level plays the ending then the map.

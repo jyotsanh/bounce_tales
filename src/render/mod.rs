@@ -4,6 +4,7 @@
 
 mod atlas;
 mod background;
+mod cutscenes;
 mod font;
 mod particles;
 mod screens;

@@ -4,6 +4,7 @@
 pub mod app;
 pub mod audio;
 pub mod cli;
+pub mod cutscene;
 pub mod game;
 pub mod level;
 pub mod progress;

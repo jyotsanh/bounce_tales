@@ -52,6 +52,11 @@ impl Renderer {
             }
             Screen::Map { sel } => self.draw_map(app, sel),
             Screen::Playing => {}
+            Screen::Cutscene => {
+                if let Some(p) = &app.cutscene {
+                    self.draw_cutscene(p, t);
+                }
+            }
             Screen::Options { sel, from_pause } => {
                 if from_pause {
                     draw_rectangle(0.0, 0.0, VIEW_W, VIEW_H, DIM);

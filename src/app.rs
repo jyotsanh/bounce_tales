@@ -8,6 +8,7 @@
 use macroquad::math::{Vec2, vec2};
 
 use crate::audio::Volume;
+use crate::cutscene::{self, Beat};
 use crate::game::{self, CAMPAIGN, Game, Mode};
 use crate::level::Level;
 use crate::progress::Progress;
@@ -76,6 +77,8 @@ pub enum Screen {
         sel: usize,
         from_pause: bool,
     },
+    /// A story scene (`App::cutscene`).
+    Cutscene,
     /// "Erase all progress?" NO / YES.
     ConfirmReset {
         sel: usize,
@@ -118,6 +121,8 @@ pub enum Hotkey {
 /// What happens at the dark midpoint of a fade.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Action {
+    /// Show a story scene, then do `App::after_scene`.
+    PlayScene(&'static str),
     /// Play one campaign level from the map.
     StartLevel(usize),
     /// Restart the current level as it began (lives and score included).
@@ -127,9 +132,11 @@ pub enum Action {
     Quit,
 }
 
-/// Feedback for sound: menu cursor moved, item chosen, back / refused.
+/// Feedback for sound: menu cursor moved, item chosen, back / refused,
+/// a cutscene letter typed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UiEvent {
+    Type,
     Move,
     Select,
     Back,
@@ -200,6 +207,10 @@ pub struct App {
     /// This level's result is already in `progress`.
     result_recorded: bool,
     prev_jump: bool,
+    /// The scene playing on `Screen::Cutscene`.
+    pub cutscene: Option<cutscene::Player>,
+    /// Where to go once the scene ends.
+    after_scene: Action,
     pub settings: Settings,
     /// Progress or settings changed since the last save.
     pub dirty: bool,
@@ -230,6 +241,8 @@ impl App {
             prev_jump: false,
             settings: Settings::default(),
             dirty: false,
+            cutscene: None,
+            after_scene: Action::ToMap,
         }
     }
 
@@ -296,6 +309,12 @@ impl App {
                 _,
             ) => Some("title"),
             (Screen::GameOver { .. }, _) => None,
+            (Screen::Cutscene, _) => match self.cutscene.as_ref().map(|c| c.name) {
+                Some("world_cave") => Some("cave"),
+                Some("world_castle") => Some("castle"),
+                Some("world_boss") => Some("boss"),
+                _ => Some("title"),
+            },
             (_, Some(g)) => crate::audio::music::for_game(g),
             (_, None) => None,
         }
@@ -356,7 +375,7 @@ impl App {
                     match MAIN_MENU[sel] {
                         "PLAY" => {
                             self.map_sel = self.progress.next_level(&self.names());
-                            self.start_fade(Action::ToMap);
+                            self.play_scene_once("intro", Action::ToMap);
                         }
                         "HOW TO PLAY" => self.go(Screen::Help),
                         "OPTIONS" => self.go(Screen::Options {
@@ -402,6 +421,7 @@ impl App {
                 }
             }
             Screen::Map { sel } => self.step_map(sel, keys),
+            Screen::Cutscene => self.step_cutscene(keys.confirm || jump_pressed, keys.back),
             Screen::Playing => {
                 if keys.back && !self.scripted {
                     self.ui_events.push(UiEvent::Back);
@@ -608,8 +628,41 @@ impl App {
             return false;
         }
         self.ui_events.push(UiEvent::Select);
-        self.start_fade(Action::ToMap);
+        let scene = self
+            .level_index(&g.level_name)
+            .and_then(|i| cutscene::after_level(&self.levels, i));
+        match scene {
+            Some(scene) => self.play_scene_once(scene, Action::ToMap),
+            None => self.start_fade(Action::ToMap),
+        }
         true
+    }
+
+    /// Fades into `scene` if it was never shown, else straight to `then`.
+    fn play_scene_once(&mut self, scene: &'static str, then: Action) {
+        if self.progress.seen.contains(scene) {
+            self.start_fade(then);
+        } else {
+            self.after_scene = then;
+            self.start_fade(Action::PlayScene(scene));
+        }
+    }
+
+    fn step_cutscene(&mut self, next: bool, skip: bool) {
+        let Some(player) = &mut self.cutscene else {
+            self.start_fade(self.after_scene.clone());
+            return;
+        };
+        match player.step(next, skip) {
+            Beat::Typed => self.ui_events.push(UiEvent::Type),
+            Beat::Turned => self.ui_events.push(UiEvent::Move),
+            Beat::None => {}
+        }
+        if player.done {
+            self.ui_events
+                .push(if skip { UiEvent::Back } else { UiEvent::Select });
+            self.start_fade(self.after_scene.clone());
+        }
     }
 
     /// Puts a just-finished level's result into the progress, once.
@@ -681,6 +734,13 @@ impl App {
                 self.result_recorded = false;
                 self.go(Screen::Playing);
             }
+            Action::PlayScene(name) => {
+                self.cutscene = cutscene::Player::new(name);
+                self.progress.seen.insert(name.to_owned());
+                self.dirty = true;
+                self.game = None;
+                self.go(Screen::Cutscene);
+            }
             Action::ToMap => {
                 self.game = None;
                 self.go(Screen::Map { sel: self.map_sel });
@@ -734,6 +794,7 @@ mod tests {
     #[test]
     fn title_menu_map_play_fades_into_the_first_level() {
         let mut app = App::new();
+        app.progress.seen.insert("intro".into());
         assert_eq!(app.music(), Some("title"));
         press(&mut app, CONFIRM);
         assert_eq!(app.screen, Screen::Menu { sel: 0 });
@@ -1050,6 +1111,66 @@ mod tests {
         assert!(!app.settings.volume.muted);
         assert_eq!(app.hotkey(Hotkey::Fullscreen), "FULLSCREEN ON");
         assert!(app.dirty);
+    }
+
+    /// Plays a cutscene to its end by pressing Space repeatedly.
+    fn finish_scene(app: &mut App) {
+        for _ in 0..400 {
+            if app.screen != Screen::Cutscene || app.fade.is_some() {
+                break;
+            }
+            press(app, CONFIRM);
+            idle(app, cutscene::TURN);
+        }
+    }
+
+    #[test]
+    fn the_intro_plays_on_the_first_play_only() {
+        let mut app = App::new();
+        press(&mut app, CONFIRM);
+        press(&mut app, CONFIRM); // PLAY
+        idle(&mut app, 2 * FADE);
+        assert_eq!(app.screen, Screen::Cutscene);
+        assert_eq!(app.cutscene.as_ref().unwrap().name, "intro");
+        assert!(app.progress.seen.contains("intro"));
+        assert!(app.dirty);
+        finish_scene(&mut app);
+        idle(&mut app, 2 * FADE);
+        assert_eq!(app.screen, Screen::Map { sel: 0 });
+        press(&mut app, BACK);
+        press(&mut app, CONFIRM);
+        idle(&mut app, 2 * FADE);
+        assert_eq!(app.screen, Screen::Map { sel: 0 }, "not again");
+    }
+
+    #[test]
+    fn esc_skips_a_scene() {
+        let mut app = App::new();
+        app.after_scene = Action::ToMap;
+        app.perform(Action::PlayScene("ending"));
+        press(&mut app, BACK);
+        idle(&mut app, 2 * FADE);
+        assert!(matches!(app.screen, Screen::Map { .. }));
+    }
+
+    #[test]
+    fn beating_the_last_level_plays_the_ending_then_the_map() {
+        let mut app = on_map(&["flat"]);
+        press(&mut app, CONFIRM);
+        idle(&mut app, 2 * FADE);
+        let roll = InputFrame::from_code("R").unwrap();
+        for _ in 0..200 {
+            app.step(roll, MenuKeys::NONE);
+        }
+        idle(&mut app, game::COMPLETE_DELAY + game::CONTINUE_AFTER);
+        press(&mut app, CONFIRM);
+        idle(&mut app, 2 * FADE);
+        assert_eq!(app.screen, Screen::Cutscene);
+        assert_eq!(app.cutscene.as_ref().unwrap().name, "ending");
+        assert_eq!(app.music(), Some("title"));
+        finish_scene(&mut app);
+        idle(&mut app, 2 * FADE);
+        assert!(matches!(app.screen, Screen::Map { .. }));
     }
 
     #[test]

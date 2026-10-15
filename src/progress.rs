@@ -2,7 +2,7 @@
 //! score, eggs and time. Levels unlock in campaign order. Saved to disk
 //! from step 32 on.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use serde::{Deserialize, Serialize};
 
@@ -24,6 +24,8 @@ pub struct LevelRecord {
 pub struct Progress {
     /// By level name.
     pub records: BTreeMap<String, LevelRecord>,
+    /// Cutscenes already shown (each plays by itself once).
+    pub seen: BTreeSet<String>,
     /// Every level playable (`--unlock-all`, for testing; never saved).
     #[serde(skip)]
     pub unlock_all: bool,
