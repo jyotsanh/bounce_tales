@@ -23,6 +23,9 @@
 //!   [`Decoration`]s: pictures placed anywhere, no collision. They are drawn
 //!   in front of the ball if the object or its layer has `front = true`.
 //!
+//! - Map property `background` (string) picks the parallax backdrop; one of
+//!   [`BACKGROUNDS`] (default `forest`).
+//!
 //! ASCII maps can mark objects too: `E` = exit (32x32, standing on the
 //! floor of that cell, centred on it).
 
@@ -120,7 +123,12 @@ pub struct Level {
     /// Typed objects, in file order.
     pub objects: Vec<ObjectSpec>,
     pub decorations: Vec<Decoration>,
+    /// Parallax backdrop name (one of [`BACKGROUNDS`]).
+    pub background: String,
 }
+
+/// Parallax backdrops the renderer knows.
+pub const BACKGROUNDS: &[&str] = &["forest"];
 
 /// Size of the exit gate, px.
 pub const EXIT_SIZE: Vec2 = Vec2::new(32.0, 32.0);
@@ -226,6 +234,7 @@ impl Level {
             sheets: vec!["forest".into()],
             objects,
             decorations: Vec::new(),
+            background: BACKGROUNDS[0].into(),
         })
     }
 
@@ -419,6 +428,18 @@ impl Level {
             return Err("no tile layer named 'ground'".into());
         }
         let spawn = spawn.ok_or("no object of type 'spawn'")?;
+        let background = match tm.properties.get("background") {
+            None => BACKGROUNDS[0].to_owned(),
+            Some(tiled::PropertyValue::StringValue(b)) if BACKGROUNDS.contains(&b.as_str()) => {
+                b.clone()
+            }
+            Some(other) => {
+                return Err(format!(
+                    "map property 'background' = {other:?}; known: {}",
+                    BACKGROUNDS.join(", ")
+                ));
+            }
+        };
         // Catch unknown object types and bad properties at load time.
         crate::sim::entities::build_all(&objects)?;
         Ok(Level {
@@ -427,6 +448,7 @@ impl Level {
             sheets,
             objects,
             decorations,
+            background,
         })
     }
 }
@@ -669,6 +691,29 @@ mod tests {
             Level::from_tmx("t", &untyped)
                 .unwrap_err()
                 .contains("no type")
+        );
+    }
+
+    #[test]
+    fn background_property() {
+        let tmx = ascii_to_tmx("o.\n##").unwrap();
+        assert_eq!(Level::from_tmx("t", &tmx).unwrap().background, "forest");
+        let with = |v: &str| {
+            tmx.replace(
+                "<tileset firstgid",
+                &format!(
+                    "<properties><property name=\"background\" value=\"{v}\"/></properties>\n <tileset firstgid"
+                ),
+            )
+        };
+        assert_eq!(
+            Level::from_tmx("t", &with("forest")).unwrap().background,
+            "forest"
+        );
+        assert!(
+            Level::from_tmx("t", &with("moon"))
+                .unwrap_err()
+                .contains("background")
         );
     }
 

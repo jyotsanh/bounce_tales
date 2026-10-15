@@ -11,10 +11,15 @@ use crate::level::ObjectSpec;
 use crate::sim::ball::Ball;
 
 /// Something that happened during a step, for sound/effects/UI to react to.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Event {
     /// The ball reached the level exit (fires once).
     ExitReached,
+    /// The ball took off; `pos` is the contact point under it.
+    Jumped { pos: Vec2 },
+    /// The ball hit the floor from the air at `speed` px/s (only hard
+    /// enough landings, not rolling bumps); `pos` is the contact point.
+    Landed { pos: Vec2, speed: f32 },
 }
 
 #[derive(Debug, Clone, PartialEq)]

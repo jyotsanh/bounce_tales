@@ -80,6 +80,22 @@ impl Atlas {
         }
     }
 
+    /// Draws a sprite stretched to `size` (whole pixels).
+    pub fn draw_scaled(&self, sprite: &str, pos: Vec2, size: Vec2) {
+        let pos = pos.round();
+        draw_texture_ex(
+            &self.texture,
+            pos.x,
+            pos.y,
+            WHITE,
+            DrawTextureParams {
+                source: Some(self.rect(sprite)),
+                dest_size: Some(size.round()),
+                ..Default::default()
+            },
+        );
+    }
+
     fn draw_rect(&self, source: Rect, pos: Vec2) {
         let pos = pos.round();
         draw_texture_ex(

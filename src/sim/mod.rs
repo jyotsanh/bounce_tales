@@ -27,6 +27,9 @@ pub use rng::Rng;
 pub const TICKS_PER_SECOND: u32 = 60;
 pub const DT: f32 = 1.0 / TICKS_PER_SECOND as f32;
 
+/// Landings slower than this don't produce a `Landed` event, px/s.
+pub const LAND_EVENT_MIN_SPEED: f32 = 100.0;
+
 /// Level loaded when none is given.
 pub const DEFAULT_LEVEL: &str = "big";
 
@@ -99,9 +102,22 @@ impl Sim {
         self.events.clear();
 
         let jump_pressed = self.jump_pressed();
-        self.ball.update(input, jump_pressed);
-        physics::move_and_collide(&mut self.ball, &self.level.map);
+        let bottom = |b: &Ball| b.pos + macroquad::math::vec2(0.0, b.radius);
+        let jumped = self.ball.update(input, jump_pressed);
+        if jumped {
+            self.events.push(Event::Jumped {
+                pos: bottom(&self.ball),
+            });
+        }
+        let contacts = physics::move_and_collide(&mut self.ball, &self.level.map);
+        if contacts.impact_speed > LAND_EVENT_MIN_SPEED {
+            self.events.push(Event::Landed {
+                pos: self.ball.pos - contacts.floor_normal * self.ball.radius,
+                speed: contacts.impact_speed,
+            });
+        }
         self.ball.update_spin();
+        self.ball.update_squash(contacts.impact_speed, jumped);
 
         if self.ball.pos.y > self.level.map.pixel_size().y + FALL_OUT_MARGIN {
             self.ball = Ball::new(self.level.map.spawn);
@@ -232,5 +248,74 @@ mod tests {
             sim
         };
         assert_eq!(run(), run());
+    }
+
+    fn flat() -> Sim {
+        let mut sim = Sim::for_level("flat").unwrap();
+        for _ in 0..5 {
+            sim.step(InputFrame::NONE);
+        }
+        sim
+    }
+
+    #[test]
+    fn hard_landing_emits_event_and_squashes() {
+        let mut sim = flat();
+        sim.ball.pos.y -= 120.0;
+        sim.ball.grounded = false;
+        let mut landed = None;
+        for _ in 0..60 {
+            sim.step(InputFrame::NONE);
+            if let Some(Event::Landed { pos, speed }) = sim.events.first().copied() {
+                landed = Some((pos, speed, sim.ball.squash));
+                break;
+            }
+        }
+        let (pos, speed, squash) = landed.expect("no Landed event");
+        assert!(speed > 300.0, "speed {speed}");
+        assert_eq!(pos.y, 288.0, "contact point is on the floor");
+        assert!(squash > 0.2, "squash {squash}");
+        for _ in 0..120 {
+            sim.step(InputFrame::NONE);
+        }
+        assert_eq!(sim.ball.squash, 0.0, "springs back to round");
+    }
+
+    #[test]
+    fn squash_wobbles_past_round() {
+        let mut sim = flat();
+        sim.ball.pos.y -= 120.0;
+        sim.ball.grounded = false;
+        let mut min_squash: f32 = 0.0;
+        for _ in 0..90 {
+            sim.step(InputFrame::NONE);
+            min_squash = min_squash.min(sim.ball.squash);
+        }
+        assert!(min_squash < -0.02, "no rebound stretch: {min_squash}");
+    }
+
+    #[test]
+    fn jump_emits_event_and_stretches() {
+        let mut sim = flat();
+        sim.step(press("J"));
+        assert!(
+            matches!(sim.events[..], [Event::Jumped { .. }]),
+            "{:?}",
+            sim.events
+        );
+        assert!(sim.ball.squash < -0.1, "squash {}", sim.ball.squash);
+    }
+
+    #[test]
+    fn rolling_emits_no_landings() {
+        let mut sim = Sim::for_level("slopes").unwrap();
+        for _ in 0..300 {
+            sim.step(press("R"));
+            assert!(
+                !sim.events.iter().any(|e| matches!(e, Event::Landed { .. })),
+                "landing while rolling at x={}",
+                sim.ball.pos.x
+            );
+        }
     }
 }

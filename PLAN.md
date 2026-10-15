@@ -70,7 +70,7 @@ Key rules:
 - [x] **07.** **Art pipeline**: `tools/artgen` (ASCII + palette → PNG). Ball sprite with roll rotation, first forest tileset.
 - [x] **08.** **Tiled loader**: load `.tmx` from embedded bytes. Tile properties (`solid`, `slope`, `spike`, `water`) → collision map. Render tile layers.
 - [x] **09.** **Object layers + ascii2tmx**: spawn, exit, decoration objects. Entity list. Level sketch tool.
-- [ ] **10.** **Visual polish base**: parallax backgrounds, ball squash/stretch on landing, simple particles.
+- [x] **10.** **Visual polish base**: parallax backgrounds, ball squash/stretch on landing, simple particles.
 
 ### Phase C — Core gameplay
 - [ ] **11.** **Hazards & death**: spikes, bottomless pits, death animation, respawn.
@@ -221,3 +221,11 @@ Spare capacity: if a step overruns, the next prompt finishes it before moving on
 - `big.tmx`: deco tileset (firstgid 15), 20 decorations + 4 front tufts, exit at the left end of the top ledge (24,160).
 - Draw order: back tile layers → back decorations → entities → ball → front tile layers → front decorations.
 - Tests: entity build/validate/trigger, ASCII exit marker, TMX decorations/front/props/typed objects, unknown/untyped object errors, round trip now compares objects. Replay `exit_flat`.
+
+### Step 10 — Visual polish base (done)
+- **Squash/stretch** in the sim (deterministic, replay field `ball.squash`): `Ball::update_squash(impact, jumped)`. A landing > 60 px/s sets squash = impact/1200 (max 0.35); a jump sets −0.15 (stretch); an under-damped spring (stiffness 450, damping 13; ≈21 rad/s, ζ≈0.3) wobbles it back to round. Rendering scales the sprite (1+s, 1−s), keeping the bottom on the ground (`Atlas::draw_scaled`). The first tuning (stiffness 800) was too quick to see (~2 frames); softened after checking screenshots.
+- **Events**: `Event::Jumped { pos }` and `Event::Landed { pos, speed }` (only from the air, impact > `LAND_EVENT_MIN_SPEED` = 100; rolling over bends never emits). `Event` is now `PartialEq` only (has Vec2). `Ball::update` returns `jumped`.
+- **Particles** (`src/render/particles.rs`, cosmetic, render-side): advanced once per sim step via `Renderer::on_step(&sim)` (called in main after every `sim.step`), own seeded `Rng` → repeatable screenshots. Dust on land (count ∝ speed), jump, fast rolling (every 6 ticks above 110 px/s); 36-piece confetti on `ExitReached`. Puffs alternate sides and fly outward (the first version clumped into a white block under the ball). Capped at 400.
+- **Parallax** (`src/render/background.rs`): 6 sky bands, clouds (x factor 0.08 + drift), far hills (0.2), near hills with round trees (0.45). Textures are generated at start-up from sines with whole-number periods per 256 px (seamless, tested). Layers sink as the camera climbs (`climb` = how far above the level's lowest camera position; y factors 0.05/0.1/0.25). Drawn in screen space before the world.
+- Map property `background` (default `forest`; must be in `level::BACKGROUNDS`, else load error).
+- Tests: squash on landing + return to round, rebound wobble, jump stretch + event, no landings while rolling across slopes, dust appears and dies, effects repeatable, exit confetti, hill tiling/fit, background property.

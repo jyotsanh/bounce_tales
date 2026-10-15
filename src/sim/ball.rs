@@ -101,6 +101,11 @@ pub struct Ball {
     pub angle: f32,
     /// Rotation speed, radians per second.
     pub spin: f32,
+    /// Visual squash (> 0 flattened, < 0 stretched tall), springs back to 0.
+    /// Drawing only; never affects collision.
+    pub squash: f32,
+    /// Rate of change of `squash`, per second.
+    pub squash_vel: f32,
 }
 
 impl Ball {
@@ -119,6 +124,8 @@ impl Ball {
             jumping: false,
             angle: 0.0,
             spin: 0.0,
+            squash: 0.0,
+            squash_vel: 0.0,
         }
     }
 
@@ -129,8 +136,9 @@ impl Ball {
 
     /// Applies input, gravity and jumping for one step (velocity only).
     /// `physics::move_and_collide` then moves the ball, and
-    /// [`Ball::update_spin`] runs last.
-    pub fn update(&mut self, input: InputFrame, jump_pressed: bool) {
+    /// [`Ball::update_spin`] / [`Ball::update_squash`] run last. Returns true
+    /// if the ball jumped this step.
+    pub fn update(&mut self, input: InputFrame, jump_pressed: bool) -> bool {
         let p = self.params;
         self.prev_pos = self.pos;
 
@@ -148,7 +156,8 @@ impl Ball {
             self.jump_buffer = p.jump_buffer_ticks;
         }
         let can_jump = self.grounded || (!self.jumping && self.air_ticks <= p.coyote_ticks);
-        if can_jump && (self.jump_buffer > 0 || input.jump) {
+        let jumped = can_jump && (self.jump_buffer > 0 || input.jump);
+        if jumped {
             self.vel.y = -p.jump_speed();
             self.grounded = false;
             self.jumping = true;
@@ -159,6 +168,28 @@ impl Ball {
 
         if !self.grounded {
             self.vel.y = (self.vel.y + p.gravity * DT).min(p.max_fall);
+        }
+        jumped
+    }
+
+    /// Squash-and-stretch spring. A landing at `impact` px/s flattens the
+    /// ball (harder = flatter, up to `SQUASH_MAX`); a jump stretches it. The
+    /// spring is under-damped, so it wobbles past round once or twice.
+    pub fn update_squash(&mut self, impact: f32, jumped: bool) {
+        if impact > SQUASH_MIN_IMPACT {
+            self.squash = self.squash.max((impact / SQUASH_PER_SPEED).min(SQUASH_MAX));
+            self.squash_vel = 0.0;
+        }
+        if jumped {
+            self.squash = -SQUASH_JUMP;
+            self.squash_vel = 0.0;
+        }
+        let accel = -SQUASH_STIFFNESS * self.squash - SQUASH_DAMPING * self.squash_vel;
+        self.squash_vel += accel * DT;
+        self.squash = (self.squash + self.squash_vel * DT).clamp(-SQUASH_MAX, SQUASH_MAX);
+        if self.squash.abs() < 0.002 && self.squash_vel.abs() < 0.05 {
+            self.squash = 0.0;
+            self.squash_vel = 0.0;
         }
     }
 
@@ -205,6 +236,18 @@ impl Ball {
 }
 
 const COS_45: f32 = std::f32::consts::FRAC_1_SQRT_2;
+
+/// Landings slower than this don't squash the ball, px/s.
+const SQUASH_MIN_IMPACT: f32 = 60.0;
+/// Impact speed per unit of squash (420 px/s → ~0.35).
+const SQUASH_PER_SPEED: f32 = 1200.0;
+/// Most squash or stretch (fraction of the ball's size).
+pub const SQUASH_MAX: f32 = 0.35;
+/// Stretch at take-off.
+const SQUASH_JUMP: f32 = 0.15;
+/// Spring stiffness (ω² for ω ≈ 21 rad/s) and damping (ζ ≈ 0.3).
+const SQUASH_STIFFNESS: f32 = 450.0;
+const SQUASH_DAMPING: f32 = 13.0;
 
 /// One axis of input-driven speed: accelerate toward `axis` (faster when
 /// reversing), otherwise slow down by `friction`. Input alone cannot push

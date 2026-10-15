@@ -62,7 +62,7 @@ async fn main() {
     });
 
     prevent_quit();
-    let renderer = Renderer::new();
+    let mut renderer = Renderer::new();
     // A replay's own `level` line wins over --level.
     let level = replay
         .as_ref()
@@ -108,6 +108,7 @@ async fn main() {
                 None => live,
             };
             sim.step(input);
+            renderer.on_step(&sim);
             if opts.record.is_some() {
                 recorded.inputs.push(input);
             }

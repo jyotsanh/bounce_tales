@@ -3,10 +3,14 @@
 //! window so pixels stay crisp.
 
 mod atlas;
+mod background;
+mod particles;
 
 use macroquad::prelude::*;
 
 use atlas::Sprites;
+use background::Background;
+use particles::Particles;
 
 use bounce_tales::level::{Decoration, TileLayer};
 use bounce_tales::sim::Sim;
@@ -16,8 +20,6 @@ use bounce_tales::sim::{Entity, EntityKind};
 
 pub const SCREEN_W: u32 = VIEW_W as u32;
 pub const SCREEN_H: u32 = VIEW_H as u32;
-
-const SKY: Color = Color::new(0.55, 0.80, 0.95, 1.0);
 
 /// Sprites in the `objects` atlas that entities use (checked in tests).
 #[cfg(test)]
@@ -47,6 +49,8 @@ pub fn letterbox(window_w: f32, window_h: f32) -> (f32, f32, f32) {
 pub struct Renderer {
     target: RenderTarget,
     sprites: Sprites,
+    background: Background,
+    particles: Particles,
     /// Fixed camera for screen-space drawing (HUD, debug overlay).
     screen_camera: Camera2D,
 }
@@ -59,16 +63,27 @@ impl Renderer {
         Renderer {
             target,
             sprites: Sprites::load(),
+            background: Background::new(),
+            particles: Particles::new(),
             screen_camera,
         }
     }
 
     /// Draws the game into the 240x320 target. `alpha` blends moving things
     /// between the last two sim steps so motion stays smooth at any FPS.
+    /// Call after every sim step: spawns and advances visual effects.
+    pub fn on_step(&mut self, sim: &Sim) {
+        self.particles.on_step(sim);
+    }
+
     pub fn draw_game(&self, sim: &Sim, alpha: f32) {
         let view = sim.camera.render_pos(alpha);
+        let level_h = sim.level.map.pixel_size().y;
+        set_camera(&self.screen_camera);
+        self.background
+            .draw(view, (level_h - VIEW_H).max(0.0), sim.tick);
+
         set_camera(&target_camera(&self.target, view));
-        clear_background(SKY);
 
         let level = &sim.level;
         for layer in level.layers.iter().filter(|l| !l.front) {
@@ -79,12 +94,18 @@ impl Renderer {
             self.draw_entity(e);
         }
 
+        self.particles.draw();
+
+        // Squash/stretch keeps the ball's bottom on the ground.
         let b = &sim.ball;
         let p = b.render_pos(alpha);
+        let d = b.radius * 2.0;
+        let size = vec2(d * (1.0 + b.squash), d * (1.0 - b.squash)).round();
+        let top_left = vec2(p.x - size.x / 2.0, p.y + b.radius - size.y);
         let frame = ball_frame(b.angle);
         self.sprites
             .ball
-            .draw(&format!("roll_{frame}"), p - Vec2::splat(b.radius));
+            .draw_scaled(&format!("roll_{frame}"), top_left, size);
 
         for layer in level.layers.iter().filter(|l| l.front) {
             self.draw_layer(layer, &level.sheets, view);
