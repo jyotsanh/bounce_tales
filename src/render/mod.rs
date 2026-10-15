@@ -22,7 +22,7 @@ use bounce_tales::sim::entities::GATE_ANIM_TICKS;
 use bounce_tales::sim::map::{TILE, TileMap, flags};
 use bounce_tales::sim::seesaw;
 use bounce_tales::sim::{
-    Entity, EntityKind, FORM_WARNING_TICKS, Item, RESPAWN_ANIM_TICKS, TRANSFORM_ANIM_TICKS,
+    Entity, EntityKind, Event, FORM_WARNING_TICKS, Item, RESPAWN_ANIM_TICKS, TRANSFORM_ANIM_TICKS,
     cells_of,
 };
 
@@ -69,6 +69,11 @@ pub const ENTITY_SPRITES: &[&str] = &[
     "transformer_normal",
 ];
 
+/// Stone landings faster than this shake the screen, px/s.
+const HEAVY_LANDING: f32 = 200.0;
+/// How long a landing shake lasts, steps.
+const SHAKE_TICKS: u32 = 10;
+
 /// Roll frames in the ball atlas (`roll_0` … `roll_15`).
 pub const BALL_FRAMES: usize = 16;
 
@@ -95,6 +100,8 @@ pub struct Renderer {
     sprites: Sprites,
     background: Background,
     particles: Particles,
+    /// Steps of screen shake left (a heavy stone landing).
+    shake: u32,
     /// Fixed camera for screen-space drawing (HUD, debug overlay).
     screen_camera: Camera2D,
 }
@@ -109,6 +116,7 @@ impl Renderer {
             sprites: Sprites::load(),
             background: Background::new(),
             particles: Particles::new(),
+            shake: 0,
             screen_camera,
         }
     }
@@ -118,10 +126,34 @@ impl Renderer {
     /// Call after every sim step: spawns and advances visual effects.
     pub fn on_step(&mut self, sim: &Sim) {
         self.particles.on_step(sim);
+        self.shake = self.shake.saturating_sub(1);
+        let heavy = sim.ball.form == Form::Stone;
+        if heavy
+            && sim
+                .events
+                .iter()
+                .any(|e| matches!(e, Event::Landed { speed, .. } if *speed > HEAVY_LANDING))
+        {
+            self.shake = SHAKE_TICKS;
+        }
     }
 
     pub fn draw_game(&self, sim: &Sim, alpha: f32) {
-        let view = sim.camera.render_pos(alpha);
+        // A heavy landing shakes the view up and down, fading out.
+        let shake = if self.shake > 0 {
+            let side = if self.shake.is_multiple_of(2) {
+                1.0
+            } else {
+                -1.0
+            };
+            vec2(
+                0.0,
+                side * (2.0 * self.shake as f32 / SHAKE_TICKS as f32).ceil(),
+            )
+        } else {
+            Vec2::ZERO
+        };
+        let view = sim.camera.render_pos(alpha) + shake;
         let level_h = sim.level.map.pixel_size().y;
         set_camera(&self.screen_camera);
         self.background

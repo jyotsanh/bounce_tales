@@ -472,15 +472,19 @@ impl Sim {
         }
     }
 
-    /// Sum of the fan forces whose air stream holds the ball's centre.
+    /// Fan push on the ball at `p`: the forces whose air stream holds it.
+    /// Heavier forms are pushed less (force / mass): stone barely moves in
+    /// an updraft, a balloon shoots up.
     fn wind_at(&self, p: Vec2) -> Vec2 {
-        self.entities
+        let force: Vec2 = self
+            .entities
             .iter()
             .filter_map(|e| match e.kind {
                 EntityKind::Fan { force } if inside(e, p) => Some(force),
                 _ => None,
             })
-            .sum()
+            .sum();
+        force / self.ball.params.mass
     }
 
     /// While a catapult holds the ball, keep it in the cup; fire when the
@@ -1872,6 +1876,88 @@ mod tests {
                 sim.ball.pos
             );
         }
+    }
+
+    fn stone_at(sim: &mut Sim, x: f32, y: f32) {
+        sim.ball = Ball::with_form(macroquad::math::vec2(x, y), ball::Form::Stone);
+    }
+
+    #[test]
+    fn stone_sinks_to_the_bottom_and_rolls_slower_there() {
+        let mut sim = Sim::for_level("stone").unwrap();
+        stone_at(&mut sim, 340.0, 200.0); // over the pool (bed top y 288)
+        for _ in 0..120 {
+            sim.step(InputFrame::NONE);
+        }
+        assert_eq!(sim.ball.pos.y, 280.0, "on the bed");
+        assert!(sim.ball.grounded);
+        // A short roll (the pool's normal transformer is further right).
+        for _ in 0..25 {
+            sim.step(press("R"));
+        }
+        assert_eq!(sim.ball.form, ball::Form::Stone);
+        let under_water = sim.ball.vel.x;
+        assert!(under_water > 20.0 && under_water < 90.0, "vx {under_water}");
+    }
+
+    #[test]
+    fn normal_ball_floats_up_from_a_pool_bed() {
+        let mut sim = Sim::for_level("stone").unwrap();
+        sim.ball.pos = macroquad::math::vec2(340.0, 280.0);
+        sim.ball.grounded = true;
+        for _ in 0..120 {
+            sim.step(InputFrame::NONE);
+        }
+        assert!(sim.ball.pos.y < 236.0, "floated up to y {}", sim.ball.pos.y);
+    }
+
+    #[test]
+    fn fans_barely_move_a_stone() {
+        let mut sim = Sim::for_level("stone").unwrap();
+        stone_at(&mut sim, 488.0, 216.0); // standing in the fan's stream
+        let mut highest = f32::MAX;
+        for _ in 0..120 {
+            sim.step(InputFrame::NONE);
+            highest = highest.min(sim.ball.pos.y);
+        }
+        assert!(highest > 200.0, "lifted to {highest}");
+    }
+
+    #[test]
+    fn rolling_over_cracked_floor_keeps_it_landing_breaks_it() {
+        let mut sim = Sim::for_level("stone").unwrap();
+        stone_at(&mut sim, 120.0, 216.0);
+        for _ in 0..90 {
+            sim.step(press("R"));
+        }
+        assert!(
+            (9..=11).all(|x| sim.level.map.is_solid(x, 14)),
+            "rolling broke it"
+        );
+        stone_at(&mut sim, 168.0, 150.0); // drop onto the middle cell
+        for _ in 0..40 {
+            sim.step(InputFrame::NONE);
+        }
+        assert!(!sim.level.map.is_solid(10, 14), "landing should break it");
+    }
+
+    #[test]
+    fn stone_bounces_less_and_cannot_jump_two_tiles() {
+        let bounce = |form| {
+            let mut sim = Sim::for_level("flat").unwrap();
+            sim.ball = Ball::with_form(macroquad::math::vec2(120.0, 180.0), form);
+            let mut peak_after = f32::MAX;
+            let mut landed = false;
+            for _ in 0..90 {
+                sim.step(InputFrame::NONE);
+                landed |= sim.ball.pos.y >= 279.0;
+                if landed {
+                    peak_after = peak_after.min(sim.ball.pos.y);
+                }
+            }
+            280.0 - peak_after
+        };
+        assert!(bounce(ball::Form::Stone) < bounce(ball::Form::Normal) / 3.0);
     }
 
     #[test]

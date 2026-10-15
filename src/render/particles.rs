@@ -92,8 +92,14 @@ impl Particles {
         for e in &sim.events {
             match *e {
                 Event::Landed { pos, speed } => {
-                    let n = (speed / 60.0).clamp(3.0, 10.0) as usize;
-                    self.puffs(pos, n, 70.0);
+                    // A heavy stone throws up twice the dust.
+                    let heavy = if sim.ball.form == Form::Stone {
+                        2.0
+                    } else {
+                        1.0
+                    };
+                    let n = (speed / 60.0 * heavy).clamp(3.0, 16.0) as usize;
+                    self.puffs(pos, n, 70.0 * heavy.sqrt());
                 }
                 Event::Jumped { pos } => self.puffs(pos, 4, 40.0),
                 Event::ExitReached => self.confetti(sim.ball.pos),

@@ -136,6 +136,10 @@ impl BallParams {
 const _: () = assert!(BallParams::STONE.mass > BallParams::NORMAL.mass);
 const _: () = assert!(BallParams::STONE.buoyancy < 1.0, "stone sinks");
 const _: () = assert!(BallParams::BALLOON.max_fall < BallParams::NORMAL.max_fall);
+const _: () = assert!(
+    BallParams::STONE.jump_height < 2.0 * super::map::TILE,
+    "stone can't jump 2 tiles"
+);
 
 /// What the ball currently is. Each form has its own [`BallParams`] and
 /// look; transformers switch between them.
@@ -361,13 +365,13 @@ impl Ball {
         if axis * pull < 0.0 {
             pull *= p.uphill_gravity;
         }
-        s = drive(
-            s,
-            axis,
-            p.ground_accel,
-            p.ground_friction * grip,
-            p.max_speed,
-        );
+        // Rolling along a pool bed is slowed like swimming.
+        let max = if self.water > 0.0 {
+            p.max_speed * p.water_speed
+        } else {
+            p.max_speed
+        };
+        s = drive(s, axis, p.ground_accel, p.ground_friction * grip, max);
         s = (s + pull * DT).clamp(-p.max_roll_speed, p.max_roll_speed);
 
         let press = p.gravity * -n.y * DT;

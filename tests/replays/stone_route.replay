@@ -1,0 +1,27 @@
+# Stone level (recorded from a scripted controller): turn to stone, stop on
+# the cracked floor and hop to smash into the tunnel below, fetch the egg,
+# hop out, sink to the pool bed for the second egg, turn normal there and
+# float up, hop out, ride the fan up to the exit ledge.
+level stone
+71 R
+13 -
+1 J
+116 -
+18 R
+26 L
+1 RJ
+241 R
+1 RJ
+47 R
+1 -
+3 R
+4 -
+30 L
+5 -
+27 R
+5 -
+13 L
+76 R
+expect eggs == 2
+expect exit == 1
+expect deaths == 0

@@ -89,7 +89,7 @@ Key rules:
 
 ### Phase E — Transformations
 - [x] **22.** **Transformation framework**: pickup objects, form state machine, swap visuals and physics parameters, revert pickups.
-- [ ] **23.** **Stone ball**: heavy, sinks in water, smashes cracked blocks, tips seesaws, low bounce.
+- [x] **23.** **Stone ball**: heavy, sinks in water, smashes cracked blocks, tips seesaws, low bounce.
 - [ ] **24.** **Balloon/light ball** (+ any other form from your references): floats up, slow fall, pops on spikes.
 
 ### Phase F — Enemies & boss
@@ -333,3 +333,12 @@ Spare capacity: if a step overruns, the next prompt finishes it before moving on
 - `SMASH_SPEED` lowered 150 → 60: the stone ball rolls at ≤95, so at 150 it could never break anything by rolling into it (only `smashes` forms break blocks anyway).
 - Rendering: roll frames per form (`roll_`, `stone_`, `balloon_`); a timed form blinks back to red in its last 2 s (`FORM_WARNING_TICKS`); coloured sparkle ring on transforming. Art: ball.txt + stone/balloon bodies and shades (own outline palette keys), 16 spin frames each; objects `transformer_stone/balloon/normal`. Replay field `form` (0/1/2).
 - New ASCII level `forms`: stone → smash cracked wall → back to normal → float across a pool (stone would sink and stick) → balloon → jump a 4-tile wall → exit. Replay `forms_route`. Tests: form params/names, transform once with an event, timed form reverts, respawn keeps the checkpoint form, red ball can't break cracked walls, only the balloon clears the high wall.
+
+### Step 23 — Stone ball (done)
+- Kept the step 22 `BallParams::STONE` numbers (no reference given; classic heavy-rock behaviour). Verified in tests: sinks to the bottom (buoyancy 0.4) and rolls along the bed, bounces under a third of the red ball, can't jump two tiles (compile-time assert), smashes cracked blocks, tips seesaws (mass 3).
+- **Fans push by mass** (`Sim::wind_at` = force / mass): a stone barely moves in an updraft; the balloon (step 24) will shoot up.
+- Cracked floors break only on a **hard landing** (rolling over them presses at ~15 px/s, under `SMASH_SPEED`).
+- **Rolling speed in water** now uses the swim cap too (`Ball::roll` with `water_speed`); before, the stone rolled along a pool bed at full land speed.
+- **Ground snapping skipped when lifted** (`physics::move_and_collide`: wind up **or** water × buoyancy > 1) — a red ball turned back from stone on a pool bed stayed pinned to it.
+- FX: hard stone landing (> 200 px/s) → 10-step screen shake (`Renderer.shake`, vertical, fading) and double dust.
+- New ASCII level `stone` (smash into a tunnel for an egg, sink for a pool-bed egg, transform back to float up, fan to the exit — only the red ball rides it). The first layout's 2-deep cavity left a 4 px jump margin; made 1-deep. Replay `stone_route` (controller-recorded, re-recorded after the water speed fix). Tests: sinks + slower on the bed, red ball floats up from a bed, fans barely move a stone, rolling vs landing on cracked floor, low bounce.

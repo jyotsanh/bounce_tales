@@ -64,8 +64,10 @@ pub fn move_and_collide(ball: &mut Ball, map: &TileMap) -> Contacts {
 /// [`move_and_collide`] with extra solid boxes (crates). Pressing sideways
 /// into a box doesn't bounce the ball off; it records a push instead.
 pub fn move_and_collide_with(ball: &mut Ball, map: &TileMap, solids: &[SolidBox]) -> Contacts {
-    // An up-draft lifting the ball must not be undone by ground snapping.
-    let rolling = ball.grounded && !ball.jumping && ball.wind.y >= 0.0;
+    // An up-draft or water buoyancy lifting the ball off the ground must not
+    // be undone by ground snapping.
+    let lifted = ball.wind.y < 0.0 || ball.water * ball.params.buoyancy > 1.0;
+    let rolling = ball.grounded && !ball.jumping && !lifted;
     let old_normal = ball.ground_normal;
     // Speed along the old surface (ignores the small push into the floor
     // that keeps a rolling ball in contact).
