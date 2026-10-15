@@ -1,11 +1,14 @@
-# Clear the spikes but never jump the pit: falling out of the level counts
-# as a death and the ball comes back at the start.
+# Clear the spikes, pass the checkpoint (x 152..184), but never jump the
+# pit: falling out of the level costs a life and the ball comes back at the
+# checkpoint (x 168), not the start.
 level hazards
 20 R
 RJ
-140 R
+40 R
+expect respawn.x == 168
+100 R
 expect deaths == 1
+expect lives == 2
 60 -
-expect deaths == 1
 expect dying == 0
-expect ball.x == 56
+expect ball.x == 168

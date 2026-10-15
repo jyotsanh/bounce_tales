@@ -39,6 +39,10 @@ pub const DEFAULT_LEVEL: &str = "big";
 
 /// Steps between dying and reappearing (1 s: the burst plays out).
 pub const DEATH_TICKS: u32 = 60;
+/// Lives at the start of a level (and after a game over).
+pub const START_LIVES: u32 = 3;
+/// Steps the "game over" pause lasts before the level restarts.
+pub const GAME_OVER_TICKS: u32 = 150;
 /// Steps of the grow-in effect after respawning (drawing only).
 pub const RESPAWN_ANIM_TICKS: u32 = 12;
 
@@ -67,6 +71,13 @@ pub struct Sim {
     pub respawn_anim: u32,
     /// Total deaths this level.
     pub deaths: u32,
+    /// Balls left, including the one in play. Losing the last one is game
+    /// over.
+    pub lives: u32,
+    /// Steps left of the game-over pause; 0 = not game over.
+    pub game_over: u32,
+    /// How many times the level was restarted after a game over.
+    pub restarts: u32,
     pub rng: Rng,
     /// Input used in the most recent step.
     pub input: InputFrame,
@@ -104,6 +115,9 @@ impl Sim {
             dying: 0,
             respawn_anim: 0,
             deaths: 0,
+            lives: START_LIVES,
+            game_over: 0,
+            restarts: 0,
             camera: Camera::snapped_to(&ball, &level.map),
             ball,
             level,
@@ -121,10 +135,22 @@ impl Sim {
         self.events.clear();
         self.respawn_anim = self.respawn_anim.saturating_sub(1);
 
+        if self.game_over > 0 {
+            self.game_over -= 1;
+            if self.game_over == 0 {
+                self.restart_level();
+            }
+            return;
+        }
         if self.dying > 0 {
             self.dying -= 1;
             if self.dying == 0 {
-                self.respawn();
+                if self.lives == 0 {
+                    self.game_over = GAME_OVER_TICKS;
+                    self.events.push(Event::GameOver);
+                } else {
+                    self.respawn();
+                }
             }
             return;
         }
@@ -156,8 +182,12 @@ impl Sim {
         for e in &mut self.entities {
             e.update(&self.ball, &mut self.events);
         }
-        if self.events.contains(&Event::ExitReached) {
-            self.exit_reached = true;
+        for e in &self.events {
+            match *e {
+                Event::ExitReached => self.exit_reached = true,
+                Event::CheckpointReached { respawn } => self.respawn_point = respawn,
+                _ => {}
+            }
         }
     }
 
@@ -168,6 +198,7 @@ impl Sim {
             cause,
         });
         self.deaths += 1;
+        self.lives = self.lives.saturating_sub(1);
         self.dying = DEATH_TICKS;
         self.ball.vel = Vec2::ZERO;
     }
@@ -179,6 +210,24 @@ impl Sim {
         self.events.push(Event::Respawned {
             pos: self.respawn_point,
         });
+    }
+
+    /// Starts the level over: fresh entities, full lives, back to the
+    /// start. Keeps the step counter, input history and restart count.
+    fn restart_level(&mut self) {
+        let mut fresh = Sim::with_level(self.level.clone());
+        fresh.tick = self.tick;
+        fresh.input = self.input;
+        fresh.prev_input = self.prev_input;
+        fresh.restarts = self.restarts + 1;
+        fresh.respawn_anim = RESPAWN_ANIM_TICKS;
+        fresh.events.push(Event::LevelRestarted);
+        *self = fresh;
+    }
+
+    /// True while the ball should be drawn (not popped, not game over).
+    pub fn ball_visible(&self) -> bool {
+        self.dying == 0 && self.game_over == 0
     }
 
     /// True on the first step the jump button is held.
@@ -335,6 +384,73 @@ mod tests {
         assert_eq!(sim.dying, 0);
         assert_eq!(sim.ball.pos, start);
         assert_eq!(sim.respawn_anim, RESPAWN_ANIM_TICKS);
+    }
+
+    /// Runs `code` until the ball dies (or panics after `limit` steps).
+    fn until_death(sim: &mut Sim, code: &str, limit: usize) {
+        let deaths = sim.deaths;
+        for _ in 0..limit {
+            sim.step(press(code));
+            if sim.deaths > deaths {
+                return;
+            }
+        }
+        panic!("no death within {limit} steps");
+    }
+
+    fn wait(sim: &mut Sim, steps: u32) {
+        for _ in 0..steps {
+            sim.step(InputFrame::NONE);
+        }
+    }
+
+    #[test]
+    fn losing_every_life_is_game_over_then_a_fresh_restart() {
+        let mut sim = Sim::for_level("hazards").unwrap();
+        assert_eq!(sim.lives, START_LIVES);
+        for left in (1..START_LIVES).rev() {
+            until_death(&mut sim, "R", 200);
+            assert_eq!(sim.lives, left);
+            wait(&mut sim, DEATH_TICKS);
+            assert_eq!(sim.dying, 0, "respawned with lives left");
+        }
+        until_death(&mut sim, "R", 200);
+        assert_eq!(sim.lives, 0);
+        wait(&mut sim, DEATH_TICKS);
+        assert!(sim.game_over > 0, "game over instead of a respawn");
+        assert!(!sim.ball_visible(), "no ball during game over");
+        let tick = sim.tick;
+        wait(&mut sim, GAME_OVER_TICKS);
+        assert!(sim.events.contains(&Event::LevelRestarted));
+        assert_eq!(sim.lives, START_LIVES);
+        assert_eq!(sim.deaths, 0);
+        assert_eq!(sim.restarts, 1);
+        assert_eq!(
+            sim.tick,
+            tick + GAME_OVER_TICKS as u64,
+            "tick keeps counting"
+        );
+        assert_eq!(sim.ball.pos, sim.level.map.spawn);
+    }
+
+    #[test]
+    fn checkpoint_moves_the_respawn_point() {
+        let mut sim = Sim::for_level("hazards").unwrap();
+        // Clear the floor spikes (jump window 13-30) and pass the checkpoint.
+        for t in 0..60 {
+            sim.step(press(if t == 20 { "RJ" } else { "R" }));
+        }
+        assert!(
+            sim.entities
+                .iter()
+                .any(|e| e.kind == EntityKind::Checkpoint { active: true }),
+            "checkpoint not touched"
+        );
+        let cp = sim.respawn_point;
+        assert!(cp.x > sim.level.map.spawn.x);
+        until_death(&mut sim, "R", 300); // into the pit
+        wait(&mut sim, DEATH_TICKS);
+        assert_eq!(sim.ball.pos, cp);
     }
 
     #[test]

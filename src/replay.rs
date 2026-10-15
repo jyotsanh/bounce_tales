@@ -40,6 +40,11 @@ pub const FIELDS: &[(&str, Probe)] = &[
     ("exit", |s| s.exit_reached as u8 as f64),
     ("deaths", |s| s.deaths as f64),
     ("dying", |s| (s.dying > 0) as u8 as f64),
+    ("lives", |s| s.lives as f64),
+    ("game_over", |s| (s.game_over > 0) as u8 as f64),
+    ("restarts", |s| s.restarts as f64),
+    ("respawn.x", |s| s.respawn_point.x as f64),
+    ("respawn.y", |s| s.respawn_point.y as f64),
 ];
 
 pub fn probe(sim: &Sim, field: &str) -> Option<f64> {

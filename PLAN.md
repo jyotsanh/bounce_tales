@@ -74,7 +74,7 @@ Key rules:
 
 ### Phase C — Core gameplay
 - [x] **11.** **Hazards & death**: spikes, bottomless pits, death animation, respawn.
-- [ ] **12.** **Lives & checkpoints**: checkpoint objects, lives counter, game over → level restart.
+- [x] **12.** **Lives & checkpoints**: checkpoint objects, lives counter, game over → level restart.
 - [ ] **13.** **Collectibles & HUD**: eggs/gems, score, bitmap font, HUD.
 - [ ] **14.** **Level exit & completion**: exit gate, results screen (eggs found, time), next level.
 - [ ] **15.** **Water**: buoyancy, drag, splash particles.
@@ -237,3 +237,12 @@ Spare capacity: if a step overruns, the next prompt finishes it before moving on
 - FX: popping burst (16 rubber fragments; none for pit deaths, which happen off screen), sparkle ring on respawn, no rolling dust while dying. Overlay shows deaths.
 - New ASCII level `hazards` (24 wide): floor spikes, ceiling with hanging spikes, 2-tile pit, exit. The first 20-wide layout had a **1-tick jump window** (found by brute-force searching jump ticks); it was widened to an 18-tick spike window and a 32-tick pit window.
 - Replay fields `deaths`, `dying`. Replays `hazards_course` (no-death run to the exit), `hazards_spikes`, `hazards_pit`. Unit tests: hazard boxes, grace, pit, death→freeze→respawn, pit death, burst FX.
+
+### Step 12 — Lives & checkpoints (done)
+- `checkpoint` object type (rect; ASCII marker `C`, 32x32 like the exit). `map::OBJECT_MARKERS` + `level::ascii_marker()` drive markers generically (a test checks every marker has a kind). `EntityKind::Checkpoint { active }`: the first touch → `Event::CheckpointReached { respawn }` (ball resting on the rect's floor, centred); Sim sets `respawn_point`. The latest checkpoint touched wins.
+- Lives: `START_LIVES` = 3 (balls left including the one in play). `die()` takes one. When dying ends with 0 lives → `Event::GameOver` + `game_over` = `GAME_OVER_TICKS` (150) pause → `restart_level()`: a fresh `Sim::with_level` keeping tick, input history and `restarts + 1`, emitting `Event::LevelRestarted`. `Sim::ball_visible()` (false while dying or game over; **the screenshot caught the ball still drawn during game over**).
+- Lives will need to carry across levels in step 14 (session state); for now they live in `Sim`.
+- HUD (`Renderer::draw_hud`, called from main): mini-ball life icons at the top left, "GAME OVER" banner (default font; bitmap font in step 13).
+- Art: `objects.txt` + `checkpoint_off` (limp grey flag), `checkpoint_on` (red flag, gold star). FX: gold sparkles on activation, white sparkle on restart.
+- Maps: `hazards` has a checkpoint after the floor spikes (respawn x 168); `big.tmx` has 3 (plateau, tower foot, top ledge start).
+- Replay fields `lives`, `game_over`, `restarts`, `respawn.x/y`. Replays: `hazards_pit` (now respawns at the checkpoint), `game_over`. Unit tests: checkpoint activation/respawn spot, full game-over → restart cycle, respawn at checkpoint after a pit death.

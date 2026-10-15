@@ -23,7 +23,7 @@ pub const SCREEN_H: u32 = VIEW_H as u32;
 
 /// Sprites in the `objects` atlas that entities use (checked in tests).
 #[cfg(test)]
-pub const ENTITY_SPRITES: &[&str] = &["exit"];
+pub const ENTITY_SPRITES: &[&str] = &["exit", "checkpoint_off", "checkpoint_on"];
 
 /// Roll frames in the ball atlas (`roll_0` … `roll_15`).
 pub const BALL_FRAMES: usize = 16;
@@ -97,7 +97,8 @@ impl Renderer {
         self.particles.draw();
 
         // Squash/stretch keeps the ball's bottom on the ground. Hidden while
-        // dying (the burst shows instead); grows in after a respawn.
+        // dying or game over (the burst shows instead); grows in after a
+        // respawn.
         let b = &sim.ball;
         let p = b.render_pos(alpha);
         let grow = 1.0 - sim.respawn_anim as f32 / RESPAWN_ANIM_TICKS as f32;
@@ -105,7 +106,7 @@ impl Renderer {
         let size = vec2(d * (1.0 + b.squash), d * (1.0 - b.squash)).round();
         let top_left = vec2(p.x - size.x / 2.0, p.y + b.radius - size.y);
         let frame = ball_frame(b.angle);
-        if sim.dying == 0 {
+        if sim.ball_visible() {
             self.sprites
                 .ball
                 .draw_scaled(&format!("roll_{frame}"), top_left, size);
@@ -127,6 +128,14 @@ impl Renderer {
     fn draw_entity(&self, e: &Entity) {
         match e.kind {
             EntityKind::Exit { .. } => self.sprites.objects.draw("exit", e.pos),
+            EntityKind::Checkpoint { active } => {
+                let name = if active {
+                    "checkpoint_on"
+                } else {
+                    "checkpoint_off"
+                };
+                self.sprites.objects.draw(name, e.pos);
+            }
         }
     }
 
@@ -141,6 +150,34 @@ impl Renderer {
                     atlas.draw_index(t.id as usize, vec2(tx as f32, ty as f32) * TILE);
                 }
             }
+        }
+    }
+
+    /// Heads-up display in screen space: lives as mini balls, and the
+    /// game-over banner. (Score, eggs and a bitmap font come in step 13.)
+    pub fn draw_hud(&self, sim: &Sim) {
+        set_camera(&self.screen_camera);
+        for i in 0..sim.lives {
+            self.sprites.ball.draw_scaled(
+                "roll_0",
+                vec2(4.0 + i as f32 * 12.0, 4.0),
+                vec2(10.0, 10.0),
+            );
+        }
+        if sim.game_over > 0 {
+            let (w, h) = (160.0, 36.0);
+            let (x, y) = ((VIEW_W - w) / 2.0, (VIEW_H - h) / 2.0);
+            draw_rectangle(x, y, w, h, Color::new(0.0, 0.0, 0.0, 0.7));
+            let text = "GAME OVER";
+            let size = 24.0;
+            let dims = measure_text(text, None, size as u16, 1.0);
+            draw_text(
+                text,
+                ((VIEW_W - dims.width) / 2.0).round(),
+                (y + h / 2.0 + dims.height / 2.0).round(),
+                size,
+                Color::new(1.0, 0.85, 0.25, 1.0),
+            );
         }
     }
 

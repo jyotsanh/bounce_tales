@@ -33,6 +33,7 @@ const CONFETTI: [Color; 5] = [
     Color::new(0.34, 0.69, 0.19, 1.0),
     Color::new(0.30, 0.55, 0.95, 1.0),
 ];
+const GOLD_SPARK: Color = Color::new(1.0, 0.85, 0.25, 1.0);
 /// Colours of the ball's fragments when it pops.
 const BALL_BITS: [Color; 3] = [
     Color::new(0.89, 0.14, 0.11, 1.0),
@@ -73,7 +74,13 @@ impl Particles {
                     cause: Cause::Pit, ..
                 } => {}
                 Event::Died { pos, .. } => self.burst(pos),
-                Event::Respawned { pos } => self.sparkle(pos),
+                Event::Respawned { pos } => self.sparkle(pos, WHITE),
+                Event::LevelRestarted => self.sparkle(sim.ball.pos, WHITE),
+                // Gold sparkles around the raised flag.
+                Event::CheckpointReached { respawn } => {
+                    self.sparkle(respawn - vec2(-6.0, 22.0), GOLD_SPARK)
+                }
+                Event::GameOver => {}
             }
         }
         let b = &sim.ball;
@@ -137,8 +144,8 @@ impl Particles {
         }
     }
 
-    /// A ring of sparkles where the ball reappears.
-    fn sparkle(&mut self, at: Vec2) {
+    /// A ring of sparkles (where the ball reappears, or a checkpoint).
+    fn sparkle(&mut self, at: Vec2, color: Color) {
         for i in 0..10 {
             let angle = i as f32 / 10.0 * std::f32::consts::TAU;
             let life = 0.35;
@@ -147,7 +154,7 @@ impl Particles {
                 vel: vec2(angle.cos(), angle.sin()) * 40.0,
                 life,
                 max_life: life,
-                color: WHITE,
+                color,
                 size: 2.0,
                 gravity: 0.0,
             });

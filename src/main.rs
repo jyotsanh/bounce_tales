@@ -123,6 +123,7 @@ async fn main() {
             clock.alpha()
         };
         renderer.draw_game(&sim, alpha);
+        renderer.draw_hud(&sim);
         if debug {
             renderer.draw_debug(&sim, get_fps());
         }

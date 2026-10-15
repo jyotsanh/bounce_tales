@@ -1,0 +1,20 @@
+# Hazards level: roll into the floor spikes three times. Each death costs a
+# life; losing the third is game over (2.5 s), then the level restarts with
+# full lives at the start.
+level hazards
+60 R
+expect lives == 2
+60 -
+60 R
+expect lives == 1
+60 -
+60 R
+expect lives == 0
+60 -
+expect game_over == 1
+150 -
+expect game_over == 0
+expect restarts == 1
+expect lives == 3
+expect deaths == 0
+expect ball.x == 56

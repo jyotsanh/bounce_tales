@@ -27,8 +27,8 @@
 //! - Map property `background` (string) picks the parallax backdrop; one of
 //!   [`BACKGROUNDS`] (default `forest`).
 //!
-//! ASCII maps can mark objects too: `E` = exit (32x32, standing on the
-//! floor of that cell, centred on it).
+//! ASCII maps can mark objects too: `E` = exit, `C` = checkpoint (both
+//! 32x32, standing on the floor of that cell, centred on it).
 
 use std::io::Cursor;
 use std::path::Path;
@@ -133,6 +133,17 @@ pub const BACKGROUNDS: &[&str] = &["forest"];
 
 /// Size of the exit gate, px.
 pub const EXIT_SIZE: Vec2 = Vec2::new(32.0, 32.0);
+/// Size of a checkpoint post, px.
+pub const CHECKPOINT_SIZE: Vec2 = Vec2::new(32.0, 32.0);
+
+/// Object type and size for an ASCII marker letter.
+fn ascii_marker(c: char) -> Option<(&'static str, Vec2)> {
+    match c {
+        'E' => Some(("exit", EXIT_SIZE)),
+        'C' => Some(("checkpoint", CHECKPOINT_SIZE)),
+        _ => None,
+    }
+}
 
 /// ASCII object markers, replaced by empty space before the map is parsed.
 fn ascii_objects(text: &str) -> (String, Vec<ObjectSpec>) {
@@ -145,14 +156,14 @@ fn ascii_objects(text: &str) -> (String, Vec<ObjectSpec>) {
     let mut out = String::new();
     for (y, row) in rows.iter().enumerate() {
         for (x, c) in row.chars().enumerate() {
-            if c == 'E' {
+            if let Some((kind, size)) = ascii_marker(c) {
                 let floor = (y as f32 + 1.0) * TILE;
                 let centre_x = (x as f32 + 0.5) * TILE;
                 objects.push(ObjectSpec {
-                    kind: "exit".into(),
-                    name: "exit".into(),
-                    pos: vec2(centre_x - EXIT_SIZE.x / 2.0, floor - EXIT_SIZE.y),
-                    size: EXIT_SIZE,
+                    kind: kind.into(),
+                    name: kind.into(),
+                    pos: vec2(centre_x - size.x / 2.0, floor - size.y),
+                    size,
                     points: Vec::new(),
                     props: Vec::new(),
                 });
@@ -640,6 +651,15 @@ mod tests {
         assert_eq!(exit.pos, vec2(40.0 - 16.0, 16.0 - 32.0));
         assert_eq!(exit.size, EXIT_SIZE);
         assert_eq!(level.map.get(2, 0), Tile::Empty);
+    }
+
+    #[test]
+    fn every_object_marker_has_a_kind() {
+        for &c in map::OBJECT_MARKERS {
+            assert!(ascii_marker(c).is_some(), "{c}");
+        }
+        let level = Level::from_ascii("oC.\n###").unwrap();
+        assert_eq!(level.objects[0].kind, "checkpoint");
     }
 
     #[test]

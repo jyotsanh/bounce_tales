@@ -176,6 +176,10 @@ pub struct TileMap {
     pub spawn: Vec2,
 }
 
+/// ASCII letters that mark objects (exit, checkpoint); they are empty space
+/// in the collision map. See `level::ascii_marker`.
+pub const OBJECT_MARKERS: &[char] = &['E', 'C'];
+
 /// Per-cell flag bits from tile properties (used from steps 11 and 15).
 pub mod flags {
     /// `spike=true`: spikes pointing up from the bottom of the cell;
@@ -192,8 +196,8 @@ impl TileMap {
     /// on [`Tile`]; `o` marks the ball start (an empty tile, ball resting on
     /// the tile's bottom edge). `^` / `v` are spikes pointing up / down
     /// (no collision shape). All rows must be the same length. Object
-    /// markers (`E`) are empty space here; `level::Level::from_ascii` turns
-    /// them into objects.
+    /// markers ([`OBJECT_MARKERS`]) are empty space here;
+    /// `level::Level::from_ascii` turns them into objects.
     pub fn from_ascii(text: &str) -> Result<TileMap, String> {
         let rows: Vec<&str> = text
             .lines()
@@ -225,7 +229,7 @@ impl TileMap {
                         ));
                         Tile::Empty
                     }
-                    'E' => Tile::Empty,
+                    c if OBJECT_MARKERS.contains(&c) => Tile::Empty,
                     '^' => {
                         cell_flags[y * width + x] = flags::SPIKE;
                         Tile::Empty
@@ -416,7 +420,8 @@ const SLOPES_MAP: &str = r"
     ##############################
 ";
 
-/// Hazard course (24 wide): floor spikes at x 112..144, a low ceiling with
+/// Hazard course (24 wide): floor spikes at x 112..144, a checkpoint
+/// (x 152..184, respawn at x 168), a low ceiling with
 /// hanging spikes at x 192..240 (bottom of the spikes at y 240), a 2-tile
 /// bottomless pit at x 272..304, then an exit.
 const HAZARDS_MAP: &str = r"
@@ -437,7 +442,7 @@ const HAZARDS_MAP: &str = r"
     #...........vvv........#
     #......................#
     #......................#
-    #..o...^^.............E#
+    #..o...^^.C...........E#
     #################..#####
     #################..#####
 ";

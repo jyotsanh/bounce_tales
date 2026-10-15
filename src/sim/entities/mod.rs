@@ -5,7 +5,7 @@
 //! in [`build`] (validate properties there so bad levels fail at load
 //! time), behaviour in [`Entity::update`], and a sprite in the renderer.
 
-use macroquad::math::Vec2;
+use macroquad::math::{Vec2, vec2};
 
 use crate::level::ObjectSpec;
 use crate::sim::ball::Ball;
@@ -25,6 +25,13 @@ pub enum Event {
     Died { pos: Vec2, cause: Cause },
     /// The ball reappeared at the respawn point.
     Respawned { pos: Vec2 },
+    /// A checkpoint was touched for the first time; `respawn` is where the
+    /// ball will come back from now on (ball centre).
+    CheckpointReached { respawn: Vec2 },
+    /// The last life was lost; the level restarts after a pause.
+    GameOver,
+    /// The level started over (after game over).
+    LevelRestarted,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -32,6 +39,8 @@ pub enum EntityKind {
     /// Level goal: reaching its area finishes the level (step 14 adds the
     /// results screen).
     Exit { reached: bool },
+    /// Touching it moves the respawn point here (once).
+    Checkpoint { active: bool },
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -43,7 +52,7 @@ pub struct Entity {
 }
 
 /// Object types that `build` understands.
-pub const KNOWN_TYPES: &[&str] = &["exit"];
+pub const KNOWN_TYPES: &[&str] = &["exit", "checkpoint"];
 
 /// Turns a level object into an entity, or explains what is wrong with it.
 pub fn build(spec: &ObjectSpec) -> Result<Entity, String> {
@@ -53,6 +62,15 @@ pub fn build(spec: &ObjectSpec) -> Result<Entity, String> {
                 return Err(format!("exit '{}' must be a rectangle object", spec.name));
             }
             EntityKind::Exit { reached: false }
+        }
+        "checkpoint" => {
+            if spec.size.x <= 0.0 || spec.size.y <= 0.0 {
+                return Err(format!(
+                    "checkpoint '{}' must be a rectangle object",
+                    spec.name
+                ));
+            }
+            EntityKind::Checkpoint { active: false }
         }
         other => {
             return Err(format!(
@@ -96,6 +114,17 @@ impl Entity {
                     events.push(Event::ExitReached);
                 }
             }
+            EntityKind::Checkpoint { active } => {
+                if !*active && inside {
+                    *active = true;
+                    // Respawn resting on the rectangle's floor, centred.
+                    let respawn = vec2(
+                        self.pos.x + self.size.x / 2.0,
+                        self.pos.y + self.size.y - ball.radius,
+                    );
+                    events.push(Event::CheckpointReached { respawn });
+                }
+            }
         }
     }
 }
@@ -104,7 +133,6 @@ impl Entity {
 mod tests {
     use super::*;
     use crate::sim::ball::ball_at;
-    use macroquad::math::vec2;
 
     fn spec(kind: &str, size: Vec2) -> ObjectSpec {
         ObjectSpec {
@@ -121,6 +149,21 @@ mod tests {
     fn builds_exit() {
         let e = build(&spec("exit", vec2(32.0, 32.0))).unwrap();
         assert_eq!(e.kind, EntityKind::Exit { reached: false });
+    }
+
+    #[test]
+    fn checkpoint_activates_once_with_floor_respawn() {
+        let mut c = build(&spec("checkpoint", vec2(32.0, 32.0))).unwrap();
+        let mut events = Vec::new();
+        c.update(&ball_at(116.0, 124.0), &mut events);
+        c.update(&ball_at(118.0, 124.0), &mut events);
+        assert_eq!(
+            events,
+            vec![Event::CheckpointReached {
+                respawn: vec2(116.0, 124.0)
+            }]
+        );
+        assert_eq!(c.kind, EntityKind::Checkpoint { active: true });
     }
 
     #[test]
