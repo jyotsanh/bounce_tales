@@ -17,6 +17,10 @@ tiled = { version = "0.16", default-features = false }
 [workspace]
 members = ["tools/artgen"]
 
+# Windows exe icon and version info (build.rs; only on Windows hosts).
+[target.'cfg(windows)'.build-dependencies]
+winresource = "0.1"
+
 # Linux package (step 42): `cargo deb`, see packaging/linux/build_deb.sh.
 [package.metadata.deb]
 name = "bounce-tales"

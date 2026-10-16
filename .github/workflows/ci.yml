@@ -78,3 +78,38 @@ jobs:
           name: linux-deb
           path: dist/*.deb
           retention-days: 7
+
+  windows:
+    name: Windows installer + portable zip
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Build the zip and the installer
+        run: packaging/windows/build_windows.ps1
+      - name: Check the exe (icon and version info embedded, starts)
+        run: |
+          $exe = Get-Item target\release\bounce_tales.exe
+          if ($exe.VersionInfo.ProductName -ne 'Bounce Tales') { throw "no version info: $($exe.VersionInfo | Out-String)" }
+          # --help exits before opening a window (the runner has no GPU).
+          $p = Start-Process -FilePath $exe.FullName -ArgumentList '--help' -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "exit code $($p.ExitCode)" }
+      - name: Install silently, check, uninstall
+        run: |
+          $setup = Get-ChildItem dist\*-setup.exe | Select-Object -First 1
+          Start-Process -FilePath $setup.FullName -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/CURRENTUSER' -Wait
+          $dir = Join-Path $env:LOCALAPPDATA 'Programs\Bounce Tales'
+          if (-not (Test-Path "$dir\bounce_tales.exe")) { throw "not installed in $dir" }
+          $menu = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\Bounce Tales\Bounce Tales.lnk'
+          if (-not (Test-Path $menu)) { throw 'no Start-menu entry' }
+          Start-Process -FilePath "$dir\unins000.exe" -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART' -Wait
+          Start-Sleep -Seconds 3
+          if (Test-Path "$dir\bounce_tales.exe") { throw 'uninstall left the game behind' }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: |
+            dist/*.zip
+            dist/*-setup.exe
+          retention-days: 7
