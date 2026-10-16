@@ -7,6 +7,8 @@
 set -e
 cd "$(dirname "$0")/../.."
 version=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
+# Bundle versions must be plain numbers: 1.0.1-rc1 → 1.0.1.
+bundle_version=${version%%-*}
 
 rustup target add aarch64-apple-darwin x86_64-apple-darwin
 cargo build --release --target aarch64-apple-darwin
@@ -18,7 +20,7 @@ mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
 lipo -create -output "$app/Contents/MacOS/bounce_tales" \
     target/aarch64-apple-darwin/release/bounce_tales \
     target/x86_64-apple-darwin/release/bounce_tales
-sed "s/__VERSION__/$version/g" packaging/macos/Info.plist > "$app/Contents/Info.plist"
+sed "s/__VERSION__/$bundle_version/g" packaging/macos/Info.plist > "$app/Contents/Info.plist"
 cp packaging/icon/bounce_tales.icns "$app/Contents/Resources/"
 plutil -lint "$app/Contents/Info.plist"
 codesign --force --deep --sign - "$app"

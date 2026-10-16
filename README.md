@@ -21,6 +21,20 @@ modelled on the original's layout). It is not affiliated with Rovio or Nokia.
   <img src="docs/screenshots/boss.png" width="200" alt="Chapter 14, the Hypno Cube">
 </p>
 
+## Download
+
+Get the latest version from the [Releases page](https://github.com/jyotsanh/bounce_tales/releases):
+
+| System | File |
+| --- | --- |
+| Linux (Debian, Ubuntu 22.04+ and friends) | `bounce_tales-<version>-linux-amd64.deb`: `sudo apt install ./bounce_tales-*.deb`, then start **Bounce Tales** from the app menu |
+| Windows 10/11 (64-bit) | `…-windows-x64-setup.exe` (installer, no admin needed) or `…-windows-x64.zip` (portable) |
+| macOS 11+ (Apple Silicon and Intel) | `…-macos-universal.dmg`: drag **Bounce Tales** to Applications |
+
+The Windows and macOS builds are not code-signed yet. On Windows, if
+SmartScreen warns, choose **More info → Run anyway**. On macOS, right-click the
+app and choose **Open** the first time.
+
 ## Features
 
 - 14 chapters and a bonus chapter, each with a hidden egg, gems and checkpoints,
@@ -162,7 +176,24 @@ packaging/macos/make_dmg.sh          # universal macOS .dmg in dist/ (on a Mac)
   holds recorded routes through every chapter that the tests replay.
 - Levels are Tiled maps in `assets/levels` (16 px tiles), generated from the
   scripts in `tools/levels`. Art is drawn as text in `assets/art`.
-- `PLAN.md` is the 40-step build log.
+- `PLAN.md` is the step-by-step build log.
+
+### Making a release
+
+Every push runs CI (`.github/workflows/ci.yml`): checks and tests on Linux,
+Windows and macOS, and builds and smoke-tests all three packages. Pushing a
+version tag publishes a release (`.github/workflows/release.yml`):
+
+```sh
+# 1. set the new version in Cargo.toml, e.g. version = "1.0.1", and commit
+git commit -am "release 1.0.1"
+# 2. tag it with the same version and push both
+git tag v1.0.1
+git push origin main v1.0.1
+```
+
+The tag must match `Cargo.toml` (`v` + version). A tag with a suffix, such as
+`v1.0.1-rc1` (version `1.0.1-rc1`), makes a pre-release.
 
 ## Credits
 
