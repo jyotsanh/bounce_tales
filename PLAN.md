@@ -117,7 +117,7 @@ References: walkthrough video https://www.youtube.com/watch?v=AQa0Sx_ezxA, decom
 
 ### Phase J — Finish
 - [x] **39.** **Tuning & bug bash**: physics feel pass against the original, difficulty curve. Regression replays: every level loads and runs 3000 frames without panic, plus scripted runs through key sections. Performance check.
-- [ ] **40.** **Release**: all assets embedded, release profile (LTO), README (build, controls, credits), screenshots, and a suggested `git tag v1.0` command for you to run.
+- [x] **40.** **Release**: all assets embedded, release profile (LTO), README (build, controls, credits), screenshots, and a suggested `git tag v1.0` command for you to run.
 
 Spare capacity: if a step overruns, the next prompt finishes it before moving on. Steps 38–39 are the buffer we give up first.
 
@@ -491,3 +491,9 @@ Spare capacity: if a step overruns, the next prompt finishes it before moving on
 - **Difficulty curve** (enemies / spike cells / crushers / stalactites / route s / par): ch01 2/0/0/0/17/35, ch02 8/3/0/0/14/30, ch03 2/0/0/0/23/45, ch04 1/0/0/0/19/40, ch05 0/41/0/0/28/60, ch06 4/19/0/0/26/55, ch07 3/14/0/0/18/45 (dark), ch08 1/8/0/15/15/35, ch09 1/0/5/0/38/80, ch10 3/0/0/0/19/40, ch11 1/9/0/0/16/35, ch12 2/0/0/0/24/50 (puzzle breather), ch13 3/23/3/0/58/120, ch14 0/33/0/0/45/95 + boss, ch15 bonus. Every chapter brings something new; ch02 introduces five enemy kinds at once (its theme); ch12 is a breather before the gauntlet.
 - **Performance** (release): the sim costs 0.3–2 µs per step (ch11 with the wheel and spinner is the heaviest); rendering holds 60 fps (vsync) at about 4 ms CPU per frame on the busiest levels (ch07 dark, ch09 gears, ch11 circus, ch14 boss).
 - Physics feel: no reference measurements of the original are available, so the tuned values from steps 3-24 stay.
+
+### Step 40 — Release (done)
+- Version **1.0.0**; release profile with LTO, one codegen unit and stripped symbols: a 2.7 MB binary. Every asset is compiled in (sprite sheets, tilesets, levels; sounds and music are synthesised at start-up), verified by running the binary alone from an empty folder. It needs only the system's ALSA, GL and X11 libraries.
+- README: what the game is, screenshots (`docs/screenshots`, 2x), features, controls, the user's install/build/run steps, command-line options, the save location, development commands, credits (Rovio/Nokia original, the MIT clone for the chapter list and chapter 1 layout, macroquad, tiled) and a not-affiliated note.
+- Final state: 14 chapters + bonus; 286+ unit tests, route replays for every chapter, level/egg-route tests, robustness and app fuzz tests; `scripts/check.sh` clean.
+- Tag (run it yourself after committing): `git tag -a v1.0 -m "Bounce Tales 1.0"` then `git push origin main --tags`.

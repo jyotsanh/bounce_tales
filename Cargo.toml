@@ -1,8 +1,10 @@
 [package]
 name = "bounce_tales"
-version = "0.1.0"
+version = "1.0.0"
 edition = "2024"
 default-run = "bounce_tales"
+description = "A fan remake of the 2008 Nokia game Bounce Tales"
+repository = "https://github.com/jyotsanh/bounce_tales"
 
 [dependencies]
 directories = "6.0.0"
@@ -13,3 +15,10 @@ tiled = { version = "0.16", default-features = false }
 
 [workspace]
 members = ["tools/artgen"]
+
+# One small, fast, self-contained binary (every asset is compiled in).
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true
+
