@@ -17,6 +17,34 @@ tiled = { version = "0.16", default-features = false }
 [workspace]
 members = ["tools/artgen"]
 
+# Linux package (step 42): `cargo deb`, see packaging/linux/build_deb.sh.
+[package.metadata.deb]
+name = "bounce-tales"
+maintainer = "Jyotsan Hamal <jyotsan@getblys.com>"
+copyright = "2026, Jyotsan Hamal"
+license-file = ["LICENSE", "0"]
+extended-description = """\
+A fan remake of the 2008 Nokia game Bounce Tales: roll, bounce and transform \
+(stone, balloon) through 14 chapters and a bonus chapter to free your friends \
+from the Hypno Cube. All art, sound and music are original."""
+section = "games"
+priority = "optional"
+# The binary links ALSA and libc ($auto finds them); X11, Xi and OpenGL are
+# opened at run time, so they are listed by hand.
+depends = "$auto, libgl1, libx11-6, libxi6"
+assets = [
+    ["target/release/bounce_tales", "usr/bin/", "755"],
+    ["packaging/linux/bounce_tales.desktop", "usr/share/applications/", "644"],
+    ["packaging/icon/icon_16.png", "usr/share/icons/hicolor/16x16/apps/bounce_tales.png", "644"],
+    ["packaging/icon/icon_32.png", "usr/share/icons/hicolor/32x32/apps/bounce_tales.png", "644"],
+    ["packaging/icon/icon_48.png", "usr/share/icons/hicolor/48x48/apps/bounce_tales.png", "644"],
+    ["packaging/icon/icon_64.png", "usr/share/icons/hicolor/64x64/apps/bounce_tales.png", "644"],
+    ["packaging/icon/icon_128.png", "usr/share/icons/hicolor/128x128/apps/bounce_tales.png", "644"],
+    ["packaging/icon/icon_256.png", "usr/share/icons/hicolor/256x256/apps/bounce_tales.png", "644"],
+    ["packaging/icon/icon_512.png", "usr/share/icons/hicolor/512x512/apps/bounce_tales.png", "644"],
+    ["README.md", "usr/share/doc/bounce-tales/README.md", "644"],
+]
+
 # One small, fast, self-contained binary (every asset is compiled in).
 [profile.release]
 lto = true

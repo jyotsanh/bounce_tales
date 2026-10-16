@@ -153,6 +153,7 @@ tools/levels/build.sh ch03           # rebuild a level from its generator
 python3 tools/levels/recolor.py      # regenerate the recoloured tilesets
 cargo run -p artgen                  # rebuild the sprite sheets from assets/art
 cargo run --bin audio2wav            # write every sound and tune as WAV files
+packaging/linux/build_deb.sh         # Linux package in dist/ (needs cargo-deb)
 ```
 
 - The simulation is deterministic and runs without a window; `tests/replays`

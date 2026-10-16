@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Bounce Tales
+GenericName=Platform game
+Comment=Roll, bounce and transform through 14 chapters to beat the Hypno Cube
+Exec=bounce_tales
+Icon=bounce_tales
+Terminal=false
+Categories=Game;ArcadeGame;
+Keywords=bounce;ball;platformer;nokia;

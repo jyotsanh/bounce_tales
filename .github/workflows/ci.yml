@@ -49,3 +49,32 @@ jobs:
         run: cargo clippy --workspace --all-targets -- -D warnings
       - name: Tests
         run: cargo test --workspace
+
+  deb:
+    name: Linux package (.deb)
+    # 22.04's older glibc lets the package run on more distributions.
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deb
+      - name: Linux libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pkg-config libx11-dev libxi-dev libgl1-mesa-dev libasound2-dev xvfb libgl1-mesa-dri desktop-file-utils
+      - name: Build the package
+        run: packaging/linux/build_deb.sh
+      - name: Install it and run the game for a second
+        run: |
+          sudo apt-get install -y ./dist/*.deb
+          xvfb-run -a bounce_tales --frames 60 --screenshot smoke.png
+          test -s smoke.png
+          desktop-file-validate /usr/share/applications/bounce_tales.desktop
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-deb
+          path: dist/*.deb
+          retention-days: 7
