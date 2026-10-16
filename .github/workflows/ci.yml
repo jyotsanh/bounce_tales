@@ -113,3 +113,37 @@ jobs:
             dist/*.zip
             dist/*-setup.exe
           retention-days: 7
+
+  macos:
+    name: macOS universal .dmg
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin, x86_64-apple-darwin
+      - uses: Swatinem/rust-cache@v2
+      - name: Build the app and the disk image
+        run: packaging/macos/make_dmg.sh
+      - name: Check the app bundle
+        run: |
+          bin="target/macos/Bounce Tales.app/Contents/MacOS/bounce_tales"
+          lipo -archs "$bin" | grep -q x86_64
+          lipo -archs "$bin" | grep -q arm64
+          codesign --verify --deep "target/macos/Bounce Tales.app"
+          test -s "target/macos/Bounce Tales.app/Contents/Resources/bounce_tales.icns"
+      - name: Mount the disk image and start the game
+        run: |
+          dmg=$(ls dist/*.dmg)
+          hdiutil attach "$dmg" -mountpoint /tmp/bt -nobrowse
+          test -d "/tmp/bt/Bounce Tales.app"
+          test -L /tmp/bt/Applications
+          # --help exits before opening a window; try the Intel slice too.
+          "/tmp/bt/Bounce Tales.app/Contents/MacOS/bounce_tales" --help
+          if /usr/bin/pgrep -q oahd; then arch -x86_64 "/tmp/bt/Bounce Tales.app/Contents/MacOS/bounce_tales" --help; fi
+          hdiutil detach /tmp/bt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-dmg
+          path: dist/*.dmg
+          retention-days: 7

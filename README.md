@@ -155,6 +155,7 @@ cargo run -p artgen                  # rebuild the sprite sheets from assets/art
 cargo run --bin audio2wav            # write every sound and tune as WAV files
 packaging/linux/build_deb.sh         # Linux package in dist/ (needs cargo-deb)
 pwsh packaging/windows/build_windows.ps1   # Windows zip + installer in dist/ (on Windows)
+packaging/macos/make_dmg.sh          # universal macOS .dmg in dist/ (on a Mac)
 ```
 
 - The simulation is deterministic and runs without a window; `tests/replays`

@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- App bundle description; make_dmg.sh fills in __VERSION__. -->
+<plist version="1.0">
+<dict>
+    <key>CFBundleName</key>
+    <string>Bounce Tales</string>
+    <key>CFBundleDisplayName</key>
+    <string>Bounce Tales</string>
+    <key>CFBundleIdentifier</key>
+    <string>io.github.jyotsanh.bouncetales</string>
+    <key>CFBundleExecutable</key>
+    <string>bounce_tales</string>
+    <key>CFBundleIconFile</key>
+    <string>bounce_tales</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleVersion</key>
+    <string>__VERSION__</string>
+    <key>CFBundleShortVersionString</key>
+    <string>__VERSION__</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>11.0</string>
+    <key>LSApplicationCategoryType</key>
+    <string>public.app-category.arcade-games</string>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+    <key>NSHumanReadableCopyright</key>
+    <string>MIT License, (c) 2026 Jyotsan Hamal. A fan remake of Bounce Tales (2008).</string>
+</dict>
+</plist>
