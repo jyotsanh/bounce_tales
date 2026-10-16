@@ -183,7 +183,7 @@ pub struct TileMap {
 /// in the collision map. See `level::ascii_marker`.
 pub const OBJECT_MARKERS: &[char] = &[
     'E', 'C', '*', 'e', '+', 'H', 'V', 'S', 'D', 'B', 'j', '>', '<', 'F', 'X', 'W', 'O', 'Z', 'K',
-    'Q', '0', '1', '2', 'w', 'y', 'Y', 'J', 'G', 'g', 'M', 'T', 'h',
+    'Q', '0', '1', '2', 'w', 'y', 'Y', 'J', 'G', 'g', 'M', 'T', 'h', 'I',
 ];
 
 /// Per-cell flag bits from tile properties (used from steps 11 and 15).

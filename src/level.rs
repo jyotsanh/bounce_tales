@@ -30,6 +30,7 @@
 //!   [`crate::audio::music::TRACKS`] (default `forest`; ASCII maps with a
 //!   boss play `boss`).
 //! - Map property `title` (string) is the name on the world map.
+//! - Map property `dark` (bool) leaves only a circle round the ball lit.
 //! - Map property `par` (int, seconds) is the target time for the time
 //!   bonus on the results screen (default [`DEFAULT_PAR_SECONDS`]).
 //!
@@ -49,7 +50,8 @@
 //! `y` / `Y` = flyer gliding 4 tiles right / down and back, `J` = jumper,
 //! `G` / `g` = shooter facing left / right, `M` = the Hypno Cube (centred
 //! on the cell where it hovers), `T` = mole popping out of the ground in
-//! that cell, `h` = hypno machine (20x28 standing on the cell's floor).
+//! that cell, `h` = hypno machine (20x28 standing on the cell's floor),
+//! `I` = stalactite hanging from the top of the cell (16x24).
 
 use std::io::Cursor;
 use std::path::Path;
@@ -68,12 +70,17 @@ pub const TMX_LEVELS: &[(&str, &str)] = &[
     ("ch03", include_str!("../assets/levels/ch03.tmx")),
     ("ch04", include_str!("../assets/levels/ch04.tmx")),
     ("ch05", include_str!("../assets/levels/ch05.tmx")),
+    ("ch06", include_str!("../assets/levels/ch06.tmx")),
+    ("ch07", include_str!("../assets/levels/ch07.tmx")),
+    ("ch08", include_str!("../assets/levels/ch08.tmx")),
 ];
 
 /// Embedded tilesets, looked up by file name from `.tmx` references.
 const TILESETS: &[(&str, &str)] = &[
     ("forest.tsx", include_str!("../assets/gen/forest.tsx")),
     ("deco.tsx", include_str!("../assets/gen/deco.tsx")),
+    ("mine.tsx", include_str!("../assets/gen/mine.tsx")),
+    ("minedeco.tsx", include_str!("../assets/gen/minedeco.tsx")),
 ];
 
 /// Reads `name="value"` from an XML tag's text.
@@ -211,6 +218,8 @@ pub struct Level {
     /// Name shown on the world map (map property `title`; default: the
     /// level name in capitals).
     pub title: String,
+    /// Map property `dark`: only a small circle around the ball is lit.
+    pub dark: bool,
 }
 
 /// Music when a level sets none.
@@ -222,7 +231,7 @@ pub const DEFAULT_PAR_SECONDS: u32 = 120;
 const ASCII_PAR_SECONDS: u32 = 60;
 
 /// Parallax backdrops the renderer knows.
-pub const BACKGROUNDS: &[&str] = &["forest"];
+pub const BACKGROUNDS: &[&str] = &["forest", "cave"];
 
 /// Size of the exit gate, px.
 pub const EXIT_SIZE: Vec2 = Vec2::new(32.0, 32.0);
@@ -343,6 +352,7 @@ fn ascii_marker(c: char) -> Option<Marker> {
         },
         'J' => m("jumper", "jumper", ITEM_SIZE),
         'T' => m("mole", "mole", ITEM_SIZE),
+        'I' => m("stalactite", "stalactite", ITEM_SIZE),
         'h' => m("machine", "machine", MACHINE_SIZE),
         'M' => centred("boss", BOSS_BOX),
         'G' => m("shooter", "shooter", ITEM_SIZE),
@@ -514,6 +524,7 @@ impl Level {
             par_seconds: ASCII_PAR_SECONDS,
             music,
             title: String::new(),
+            dark: false,
         })
     }
 
@@ -754,6 +765,13 @@ impl Level {
                 ));
             }
         };
+        let dark = match tm.properties.get("dark") {
+            None => false,
+            Some(tiled::PropertyValue::BoolValue(b)) => *b,
+            Some(other) => {
+                return Err(format!("map property 'dark' must be a bool, got {other:?}"));
+            }
+        };
         let par_seconds = match tm.properties.get("par") {
             None => DEFAULT_PAR_SECONDS,
             Some(tiled::PropertyValue::IntValue(p)) if *p > 0 => *p as u32,
@@ -775,6 +793,7 @@ impl Level {
             par_seconds,
             music,
             title,
+            dark,
         })
     }
 }
@@ -911,7 +930,7 @@ mod tests {
             assert!(level.layers.iter().any(|l| l.name == "ground"), "{name}");
             for sheet in &level.sheets {
                 assert!(
-                    ["forest", "deco"].contains(&sheet.as_str()),
+                    ["forest", "deco", "mine", "minedeco"].contains(&sheet.as_str()),
                     "{name}: tileset '{sheet}' has no atlas in the renderer"
                 );
             }

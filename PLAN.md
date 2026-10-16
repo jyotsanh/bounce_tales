@@ -111,7 +111,7 @@ Key rules:
 References: walkthrough video https://www.youtube.com/watch?v=AQa0Sx_ezxA, decompilation https://github.com/HelloOO7/BounceTales (no game data in it), MIT clone https://github.com/abdellatifAhammad/bounce_tales (chapter list, chapter 1 collision layout).
 - [x] **34.** **Chapters 1–2**: Misty Morning, Unfriendly Friends (forest) + moles and hypno machines.
 - [x] **35.** **Chapters 3–5**: Seeking Answers, Bumpy Cracks, Secret Stalkway.
-- [ ] **36.** **Chapters 6–8** + mine/cave tileset: Into the Mines, A Gloomy Path, Rumbling Sounds.
+- [x] **36.** **Chapters 6–8** + mine/cave tileset: Into the Mines, A Gloomy Path, Rumbling Sounds.
 - [ ] **37.** **Chapters 9–11** + machine/castle tileset: Trapped in Machine, Tunnel of Treasures, Wicked Circus.
 - [ ] **38.** **Chapters 12–14 + bonus**: Hunting Colours, Almost There, Final Ride (Hypno Cube), Bonus Chapter: Fantastic Fair; egg/collectible balance.
 
@@ -447,3 +447,16 @@ Spare capacity: if a step overruns, the next prompt finishes it before moving on
 - Campaign: ch01–ch05, hypno. Replays `ch03_route` (1374 steps), `ch04_route` (incl. the egg), `ch05_route` (incl. the egg), all 0 deaths, from scripted controllers (reactive jumps, platform waits, balloon waypoints, per-ledge jump columns, air steering). `tests/levels.rs`: ch03 egg from the lift; every chapter has one egg and 15+ gems. Loader test for overlapping tilesets.
 - Level generators now live in the repo: `tools/levels/chNN.py` (ASCII via `lvl.Grid`), `finish_tmx.py`, `ascii/chNN.txt`, and `tools/levels/build.sh [chNN]` which rebuilds `assets/levels/chNN.tmx` (verified byte-identical). Edit the script, not the TMX, for these chapters.
 - Design fixes found by the controllers: walker moved off ch03's tiny bank before the pit (jumping it landed in the pit); moving platform level with the bank; ch04 walker moved out of the 3-tile trough between humps; ch05 stair ledges 2 rows apart (3 was a coin flip).
+
+### Step 36 — Chapters 6–8 + mine look (done)
+- **Mine tileset**: `assets/art/mine.txt` is forest.txt recoloured (rock, gravel, timber; same tiles in the same order and with the same properties, enforced by a test), so the auto-tiler and ASCII pipeline work unchanged. `minedeco` decorations: lantern (hung under ceilings), blue/pink crystals, timber post, rail, stalagmite, skull, glow mushroom, pickaxe. Both embedded in the loader and the renderer.
+- **Cave backdrop** (`background = cave`): dark violet bands, a stalactite ceiling and two rows of rock silhouettes, parallax like the forest one.
+- **Dark levels** (map property `dark`): everything but a stepped pool of light (radius 76, slight candle flicker) round the ball is black (0.93); popups stay visible.
+- **Falling stalactites** (`sim::rocks`, object `stalactite`, ASCII `I`, 16x24 hanging from its cell's top): when the ball passes below (±20 px, within 200 px) it rumbles (`Event::Rumble`, sound, dust, small shake) and shakes 30 steps, then falls (gravity 900) and shatters on the ground (`Event::RockShattered`, debris, sound); only a falling one hurts (`Cause::Rock`); it grows back from the ceiling after 4 s.
+- `tools/levels/finish_tmx.py` flags: `mine` (mine tilesets + decorations, cave backdrop), `bgcave`, `dark`, `cave` (back layer).
+- **ch06 Into the Mines** (122x27, fully underground): gallery walker, a shaft drop, crumbling planks over spikes, a moving platform over a spiked chasm, checkpoint, a zig-zag ledge climb up a shaft (4-wide ledges, 1-tile gaps), upper gallery with a bat and a shooter, exit; egg in an alcove above the shaft (jump left off the top ledge with a run-up).
+- **ch07 A Gloomy Path** (dark): 2-wide spike patches marked by gems, a step down into a pool under a spiked ceiling, checkpoint, two moles and a walker, a climb up a dark chamber, exit passage; egg on a one-tile ledge in the chamber's dark corner.
+- **ch08 Rumbling Sounds**: a lone stalactite to learn from, a corridor of seven (keep rolling), crumbling floor over spikes under two more, checkpoint, a seesaw cavern with a spring to the egg ledge (which drops into the next passage), steps down past a shooter facing you, a last rumbling run to the exit.
+- All three use cave music, so the cave cutscene plays after chapter 5. Campaign: ch01–ch08, hypno.
+- Fair-play fixes from the scripted runs: second bat and a jumper removed from ch06's crowded gallery, shooter moved off the landing spot behind a step; ch07 bat removed from a 3-row passage, 3-wide spikes cut to 2; ch08 shooter turned to face the player (pellets from behind were invisible); shaft/chamber ledges widened (3-wide with 2-tile gaps gave no run-up); ch08 egg ledge no longer a dead end.
+- Replays `ch06_route`, `ch07_route`, `ch08_route` (0 deaths; ch08 with the egg). `tests/levels.rs`: ch06 and ch07 egg routes; every chapter one egg + 15 gems. Unit tests: stalactite trigger/fall/shatter/regrow/crush, mine-forest tile parity, backdrop names.

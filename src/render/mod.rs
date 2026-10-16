@@ -117,6 +117,8 @@ pub struct Renderer {
     shake: u32,
     /// Fixed camera for screen-space drawing (HUD, debug overlay).
     screen_camera: Camera2D,
+    /// Radial light (clear centre, black rim) for dark levels.
+    light: Texture2D,
 }
 
 impl Renderer {
@@ -131,6 +133,7 @@ impl Renderer {
             particles: Particles::new(),
             shake: 0,
             screen_camera,
+            light: light_texture(),
         }
     }
 
@@ -148,6 +151,14 @@ impl Renderer {
                 .any(|e| matches!(e, Event::Landed { speed, .. } if *speed > HEAVY_LANDING))
         {
             self.shake = SHAKE_TICKS;
+        }
+        // A stalactite rumbling or crashing down shakes the view a little.
+        if sim
+            .events
+            .iter()
+            .any(|e| matches!(e, Event::Rumble { .. } | Event::RockShattered { .. }))
+        {
+            self.shake = self.shake.max(SHAKE_TICKS / 2);
         }
     }
 
@@ -169,8 +180,12 @@ impl Renderer {
         let view = sim.camera.render_pos(alpha) + shake;
         let level_h = sim.level.map.pixel_size().y;
         set_camera(&self.screen_camera);
-        self.background
-            .draw(view, (level_h - VIEW_H).max(0.0), sim.tick);
+        self.background.draw(
+            &sim.level.background,
+            view,
+            (level_h - VIEW_H).max(0.0),
+            sim.tick,
+        );
 
         set_camera(&target_camera(&self.target, view));
 
@@ -248,7 +263,36 @@ impl Renderer {
             self.draw_layer(layer, &level.sheets, view, |_, _| true);
         }
         self.draw_decorations(&level.decorations, &level.sheets, true);
+        if level.dark {
+            self.draw_darkness(sim.ball.render_pos(alpha) - view, sim.tick);
+            set_camera(&target_camera(&self.target, view));
+        }
         self.particles.draw_popups(&self.sprites.font);
+    }
+
+    /// Dark levels: black everywhere except a pool of light round the ball
+    /// (screen position `at`), flickering slightly like a candle.
+    fn draw_darkness(&self, at: Vec2, tick: u64) {
+        set_camera(&self.screen_camera);
+        let flicker = ((tick as f32 * 0.21).sin() + (tick as f32 * 0.13).sin()) * 1.5;
+        let r = (LIGHT_RADIUS + flicker).round();
+        let (x0, y0) = ((at.x - r).round(), (at.y - r).round());
+        let (x1, y1) = (x0 + 2.0 * r, y0 + 2.0 * r);
+        draw_texture_ex(
+            &self.light,
+            x0,
+            y0,
+            WHITE,
+            DrawTextureParams {
+                dest_size: Some(vec2(2.0 * r, 2.0 * r)),
+                ..Default::default()
+            },
+        );
+        let black = Color::new(0.0, 0.0, 0.0, DARKNESS);
+        draw_rectangle(0.0, 0.0, VIEW_W, y0.max(0.0), black);
+        draw_rectangle(0.0, y1, VIEW_W, (VIEW_H - y1).max(0.0), black);
+        draw_rectangle(0.0, y0, x0.max(0.0), y1 - y0, black);
+        draw_rectangle(x1, y0, (VIEW_W - x1).max(0.0), y1 - y0, black);
     }
 
     fn draw_decorations(&self, decorations: &[Decoration], sheets: &[String], front: bool) {
@@ -369,6 +413,32 @@ impl Renderer {
                 self.sprites.items.draw_flipped(&name, pos, flip);
             }
             EntityKind::Enemy(_) => {}
+            EntityKind::Stalactite(r) => {
+                use bounce_tales::sim::rocks::{RockState, SIZE};
+                let mut pos = r.prev_pos.lerp(e.pos, alpha);
+                if let RockState::Shaking { .. } = r.state {
+                    pos.x += if (tick / 2).is_multiple_of(2) {
+                        1.0
+                    } else {
+                        -1.0
+                    };
+                }
+                // 16 px wide, centred in its 32x32 cell.
+                let at = pos - vec2(8.0, 0.0);
+                match r.state {
+                    // Gone, then growing back down from the ceiling.
+                    RockState::Broken { .. } => {
+                        let h = (SIZE.y * r.grown()).round();
+                        self.sprites.objects.draw_top(
+                            "stalactite",
+                            r.home - vec2(8.0, 0.0),
+                            h,
+                            false,
+                        );
+                    }
+                    _ => self.sprites.objects.draw("stalactite", at),
+                }
+            }
             EntityKind::Boss(b) => {
                 use bounce_tales::sim::boss::{BOSS_SIZE, BossState, DYING_TICKS};
                 let mut pos = b.prev_pos.lerp(e.pos, alpha);
@@ -733,6 +803,30 @@ impl Renderer {
 
 /// Camera drawing into the game target with `view` (level pixels) at the
 /// top-left corner.
+/// Light pool for dark levels: transparent inside, fading to opaque black
+/// at the rim (drawn round the ball, black fills the rest).
+fn light_texture() -> Texture2D {
+    const N: u16 = 128;
+    let mut img = Image::gen_image_color(N, N, Color::new(0.0, 0.0, 0.0, 0.0));
+    for y in 0..N as u32 {
+        for x in 0..N as u32 {
+            let d = (vec2(x as f32 + 0.5, y as f32 + 0.5) / (N as f32 / 2.0) - Vec2::ONE).length();
+            let k = ((d - 0.45) / 0.55).clamp(0.0, 1.0);
+            // Stepped like the original's palette, not a smooth gradient.
+            let a = (k * k * (3.0 - 2.0 * k) * 6.0).round() / 6.0 * DARKNESS;
+            img.set_pixel(x, y, Color::new(0.0, 0.0, 0.0, a));
+        }
+    }
+    let t = Texture2D::from_image(&img);
+    t.set_filter(FilterMode::Nearest);
+    t
+}
+
+/// How black the unlit part of a dark level is.
+const DARKNESS: f32 = 0.93;
+/// Lit radius round the ball on dark levels, px.
+pub const LIGHT_RADIUS: f32 = 76.0;
+
 fn target_camera(target: &RenderTarget, view: Vec2) -> Camera2D {
     let mut cam = Camera2D::from_display_rect(Rect::new(view.x, view.y, VIEW_W, VIEW_H));
     cam.render_target = Some(target.clone());

@@ -118,6 +118,51 @@ fn clouds_image() -> Image {
     img
 }
 
+/// Cave rock silhouettes (no trees).
+const CAVE_FAR: Hills = Hills {
+    base: 40.0,
+    waves: &[(2.0, 16.0, 0.3), (5.0, 6.0, 1.7)],
+    body: 0x2a2432,
+    rim: 0x3a3244,
+    trees: &[],
+    tree: 0,
+};
+
+const CAVE_NEAR: Hills = Hills {
+    base: 62.0,
+    waves: &[(3.0, 12.0, 1.1), (7.0, 5.0, 0.2)],
+    body: 0x1e1a22,
+    rim: 0x302838,
+    trees: &[],
+    tree: 0,
+};
+
+/// Stalactites hanging from a rock ceiling (the hills turned upside down,
+/// with spikes).
+fn ceiling_image() -> Image {
+    let mut img = Image::gen_image_color(LAYER_W, 48, Color::new(0.0, 0.0, 0.0, 0.0));
+    let rock = rgb(0x241e2a);
+    for x in 0..LAYER_W as u32 {
+        let fx = x as f32 + 0.5;
+        let mut depth = 8.0 + 4.0 * (TAU * 3.0 * fx / LAYER_W as f32).sin();
+        // Spikes every ~21 px of varying length.
+        let k = (fx / 21.0).fract();
+        let len = 10.0 + 16.0 * ((fx / 21.0).floor() * 1.7).sin().abs();
+        depth += (1.0 - (k - 0.5).abs() * 2.0).max(0.0).powi(2) * len;
+        for y in 0..(depth as u32).min(48) {
+            img.set_pixel(x, y, rock);
+        }
+    }
+    img
+}
+
+/// Cave colour bands, top to bottom.
+const CAVE: [u32; 6] = [0x14101a, 0x18131f, 0x1c1624, 0x211a2a, 0x261e30, 0x2b2236];
+
+/// Backdrop names [`Background::draw`] knows (see `level::BACKGROUNDS`).
+#[cfg(test)]
+pub const NAMES: &[&str] = &["forest", "cave"];
+
 /// Sky colour bands, top to bottom.
 const SKY: [u32; 6] = [0x5aaeea, 0x6ab8ee, 0x7cc2f1, 0x8fccf4, 0xa3d7f7, 0xb8e2fa];
 
@@ -131,6 +176,9 @@ pub struct Background {
     far: Texture2D,
     near: Texture2D,
     clouds: Texture2D,
+    cave_far: Texture2D,
+    cave_near: Texture2D,
+    ceiling: Texture2D,
 }
 
 /// Draws `tex` repeated across the screen width, shifted left by `offset`.
@@ -149,13 +197,20 @@ impl Background {
             far: texture(&hills_image(&FAR)),
             near: texture(&hills_image(&NEAR)),
             clouds: texture(&clouds_image()),
+            cave_far: texture(&hills_image(&CAVE_FAR)),
+            cave_near: texture(&hills_image(&CAVE_NEAR)),
+            ceiling: texture(&ceiling_image()),
         }
     }
 
     /// Draws in screen space (0..240, 0..320). `view` is the camera's
     /// top-left, `max_view_y` its lowest possible value (level height minus
     /// screen height), `tick` drives the cloud drift.
-    pub fn draw(&self, view: Vec2, max_view_y: f32, tick: u64) {
+    pub fn draw(&self, name: &str, view: Vec2, max_view_y: f32, tick: u64) {
+        if name == "cave" {
+            self.draw_cave(view, max_view_y);
+            return;
+        }
         let band = VIEW_H / SKY.len() as f32;
         for (i, &c) in SKY.iter().enumerate() {
             draw_rectangle(0.0, i as f32 * band, VIEW_W, band + 1.0, rgb(c));
@@ -176,9 +231,45 @@ impl Background {
     }
 }
 
+impl Background {
+    /// Dark rock: a ceiling with stalactites and two rows of rock
+    /// silhouettes, all scrolling slowly.
+    fn draw_cave(&self, view: Vec2, max_view_y: f32) {
+        let band = VIEW_H / CAVE.len() as f32;
+        for (i, &c) in CAVE.iter().enumerate() {
+            draw_rectangle(0.0, i as f32 * band, VIEW_W, band + 1.0, rgb(c));
+        }
+        let climb = (max_view_y - view.y).max(0.0);
+        tile_across(&self.ceiling, view.x * 0.15, -climb * 0.05);
+        let far_y = 150.0 + climb * 0.1;
+        tile_across(&self.cave_far, view.x * 0.2, far_y);
+        draw_rectangle(
+            0.0,
+            far_y + LAYER_H as f32,
+            VIEW_W,
+            VIEW_H,
+            rgb(CAVE_FAR.body),
+        );
+        let near_y = 196.0 + climb * 0.25;
+        tile_across(&self.cave_near, view.x * 0.45, near_y);
+        draw_rectangle(
+            0.0,
+            near_y + LAYER_H as f32,
+            VIEW_W,
+            VIEW_H,
+            rgb(CAVE_NEAR.body),
+        );
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn every_level_backdrop_is_drawable() {
+        assert_eq!(NAMES, bounce_tales::level::BACKGROUNDS);
+    }
 
     #[test]
     fn hill_profiles_tile_seamlessly() {

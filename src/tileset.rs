@@ -16,6 +16,11 @@ pub fn names_from_index(idx: &str) -> Vec<&str> {
         .collect()
 }
 
+/// Mine tileset sprite names: the forest tiles recoloured, same order.
+pub fn mine_names() -> Vec<&'static str> {
+    names_from_index(include_str!("../assets/gen/mine.idx"))
+}
+
 /// Id of a forest tile by name. Panics on an unknown name (a code typo,
 /// caught by tests).
 pub fn forest_id(name: &str) -> u16 {
@@ -99,6 +104,22 @@ pub fn autotile(map: &TileMap, x: i32, y: i32) -> Option<&'static str> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn mine_tiles_match_forest_tiles() {
+        // Same names in the same order: levels can swap one for the other.
+        assert_eq!(mine_names(), forest_names());
+        let props = |tsx: &str| -> Vec<String> {
+            tsx.lines()
+                .filter(|l| l.contains("<property") && !l.contains("\"name\""))
+                .map(str::to_owned)
+                .collect()
+        };
+        assert_eq!(
+            props(include_str!("../assets/gen/mine.tsx")),
+            props(include_str!("../assets/gen/forest.tsx"))
+        );
+    }
 
     #[test]
     fn every_autotile_name_exists() {

@@ -86,10 +86,43 @@ fn ch03_egg_from_the_lift() {
     assert_eq!(sim.deaths, 0);
 }
 
+/// Chapter 6: from the top ledge of the zig-zag shaft, jump left over the
+/// little stepping ledge into the alcove with the egg (same height).
+#[test]
+fn ch06_egg_alcove_above_the_shaft() {
+    let mut sim = Sim::with_level(Level::load("ch06").unwrap());
+    // Start at the right end of the ledge for a run-up, jump off each edge.
+    sim.ball.pos = vec2(72.4 * 16.0, 12.0 * 16.0 - 8.0);
+    for _ in 0..240 {
+        let b = &sim.ball;
+        let top_edge = (b.pos.y - 184.0).abs() < 2.0 && b.pos.x < 69.4 * 16.0;
+        sim.step(inp(true, false, b.grounded && top_edge));
+    }
+    assert_eq!(sim.eggs, 1);
+    assert_eq!(sim.deaths, 0);
+}
+
+/// Chapter 7: the egg sits on a one-tile ledge in the dark chamber's corner;
+/// jump left to it off the ledge beside it.
+#[test]
+fn ch07_egg_in_the_dark_corner() {
+    let mut sim = Sim::with_level(Level::load("ch07").unwrap());
+    sim.ball.pos = vec2(89.0 * 16.0, 11.0 * 16.0 - 8.0);
+    for _ in 0..120 {
+        let b = &sim.ball;
+        let jump = b.grounded && b.pos.x < 87.6 * 16.0;
+        sim.step(inp(true, false, jump));
+    }
+    assert_eq!(sim.eggs, 1);
+    assert_eq!(sim.deaths, 0);
+}
+
 /// Every chapter has exactly one secret egg and a fair number of gems.
 #[test]
 fn chapters_have_one_egg_and_gems() {
-    for name in ["ch01", "ch02", "ch03", "ch04", "ch05"] {
+    for name in [
+        "ch01", "ch02", "ch03", "ch04", "ch05", "ch06", "ch07", "ch08",
+    ] {
         let sim = Sim::with_level(Level::load(name).unwrap());
         assert_eq!(sim.eggs_total, 1, "{name}");
         assert!(sim.gems_total >= 15, "{name}: {}", sim.gems_total);

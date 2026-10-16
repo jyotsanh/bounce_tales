@@ -58,6 +58,11 @@ const STONE: [Color; 3] = [
     Color::new(0.35, 0.34, 0.31, 1.0),
 ];
 const WATER_DROP: Color = Color::new(0.62, 0.84, 1.0, 1.0);
+const ROCK_BITS: [Color; 3] = [
+    Color::new(0.66, 0.6, 0.55, 1.0),
+    Color::new(0.48, 0.42, 0.38, 1.0),
+    Color::new(0.3, 0.26, 0.24, 1.0),
+];
 const MACHINE_BITS: [Color; 3] = [
     Color::new(0.54, 0.35, 0.82, 1.0),
     Color::new(0.75, 0.75, 0.8, 1.0),
@@ -164,6 +169,11 @@ impl Particles {
                     self.confetti(pos);
                 }
                 Event::ShotBlocked { pos } => self.debris(pos, &STONE, 6, 60.0),
+                Event::Rumble { pos } => self.puffs(pos + vec2(0.0, 10.0), 3, 15.0),
+                Event::RockShattered { pos } => {
+                    self.debris(pos, &ROCK_BITS, 12, 110.0);
+                    self.puffs(pos, 6, 40.0);
+                }
                 Event::MachineBroken { pos } => {
                     self.debris(pos, &MACHINE_BITS, 14, 120.0);
                     self.sparkle(pos, GOLD_SPARK);

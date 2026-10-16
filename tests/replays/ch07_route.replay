@@ -1,0 +1,50 @@
+# Chapter 7, A Gloomy Path (dark; scripted controller): spike patches,
+# the pool under the spiked ceiling, checkpoint, moles and a walker,
+# ledges up the dark chamber, exit.
+level ch07
+114 R
+1 RJ
+63 R
+1 RJ
+63 R
+1 RJ
+247 R
+2 RJ
+37 R
+1 RJ
+90 R
+1 RJ
+90 R
+1 RJ
+21 R
+12 -
+5 L
+4 -
+2 L
+1 -
+5 R
+1 RJ
+20 R
+13 -
+5 L
+3 -
+36 L
+1 LJ
+20 L
+13 -
+5 R
+1 -
+36 R
+1 RJ
+20 R
+13 -
+5 L
+3 -
+4 L
+1 R
+1 RJ
+57 R
+1 RJ
+81 R
+expect exit == 1
+expect deaths == 0

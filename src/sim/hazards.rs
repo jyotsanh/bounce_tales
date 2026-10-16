@@ -13,6 +13,8 @@ pub enum Cause {
     Pit,
     /// Touched an enemy the wrong way.
     Enemy,
+    /// Hit by a falling stalactite.
+    Rock,
 }
 
 /// Danger box of a spike cell, relative to the cell's top-left. A little

@@ -1,0 +1,13 @@
+# Chapter 8, Rumbling Sounds (scripted controller): keeps rolling under
+# the stalactites (they fall behind it), crumbling floor over spikes,
+# seesaw, the spring to the egg ledge (which drops into the last
+# passage), past the shooter, the last rumbling run, exit.
+level ch08
+670 R
+1 RJ
+89 R
+1 RJ
+165 R
+expect exit == 1
+expect deaths == 0
+expect eggs == 1

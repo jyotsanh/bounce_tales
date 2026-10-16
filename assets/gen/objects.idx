@@ -14,3 +14,4 @@ machine_0 0 96 32 32
 machine_1 32 96 32 32
 machine_2 64 96 32 32
 machine_broken 96 96 32 32
+stalactite 0 128 32 32

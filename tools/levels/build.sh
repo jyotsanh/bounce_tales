@@ -11,10 +11,11 @@
 set -e
 cd "$(dirname "$0")/../.."
 OUT=$(mktemp -d)
-build() { # name title music par seed [cave]
+build() { # name title music par seed [flags: cave mine bgcave dark]
     python3 tools/levels/$1.py > /dev/null
     cargo run -q --bin ascii2tmx -- tools/levels/ascii/$1.txt "$OUT/$1.tmx" > /dev/null
-    python3 tools/levels/finish_tmx.py tools/levels/ascii/$1.txt "$OUT/$1.tmx" assets/levels/$1.tmx "$2" "$3" "$4" "$5" "$6"
+    n=$1; shift
+    python3 tools/levels/finish_tmx.py tools/levels/ascii/$n.txt "$OUT/$n.tmx" assets/levels/$n.tmx "$@"
 }
 want() { [ -z "$ONLY" ] || [ "$ONLY" = "$1" ]; }
 ONLY=$1
@@ -23,4 +24,7 @@ want ch02 && build ch02 "Unfriendly Friends" forest 120 2
 want ch03 && build ch03 "Seeking Answers" forest 120 3
 want ch04 && build ch04 "Bumpy Cracks" forest 120 4 cave
 want ch05 && build ch05 "Secret Stalkway" forest 100 5
+want ch06 && build ch06 "Into the Mines" cave 130 6 cave mine
+want ch07 && build ch07 "A Gloomy Path" cave 120 7 cave mine dark
+want ch08 && build ch08 "Rumbling Sounds" cave 120 8 cave mine
 rm -rf "$OUT"

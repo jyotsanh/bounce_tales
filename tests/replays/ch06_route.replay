@@ -1,0 +1,55 @@
+# Chapter 6, Into the Mines (scripted controller): gallery walker, down
+# the shaft, crumbling planks over spikes, the moving platform over the
+# spiked chasm, checkpoint, zig-zag ledges up the shaft, bat and shooter
+# in the upper gallery, exit.
+level ch06
+45 R
+1 RJ
+191 R
+1 RJ
+93 R
+3 -
+13 L
+67 -
+23 R
+178 -
+16 R
+1 RJ
+52 R
+1 RJ
+35 R
+39 L
+24 R
+1 RJ
+18 R
+1 LJ
+28 L
+4 -
+26 R
+1 RJ
+41 R
+4 -
+29 L
+1 LJ
+18 L
+1 RJ
+29 R
+4 -
+32 L
+1 LJ
+17 L
+1 RJ
+66 R
+30 L
+1 LJ
+18 L
+1 RJ
+173 R
+1 RJ
+62 R
+1 RJ
+80 R
+1 RJ
+73 R
+expect exit == 1
+expect deaths == 0

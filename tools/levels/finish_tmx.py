@@ -1,7 +1,11 @@
-# usage: finish_tmx.py ascii.txt in.tmx out.tmx title music par seed
+# usage: finish_tmx.py ascii.txt in.tmx out.tmx title music par seed [flags...]
+# flags: cave (back layer for enclosed spaces), mine (mine tilesets and
+# decorations), bgcave (cave backdrop), dark (only the ball's surroundings lit)
 import sys, re
 asc, tin, tout, title, music, par, seed = sys.argv[1:8]
-cave = len(sys.argv) > 8 and sys.argv[8] == 'cave'
+flags = set(sys.argv[8:])
+cave = 'cave' in flags
+mine = 'mine' in flags
 rows=[l.rstrip('\n') for l in open(asc) if l.strip()]
 H=len(rows); W=len(rows[0]); seed=int(seed)
 s=open(tin).read()
@@ -19,7 +23,11 @@ while c < W-3:
     if top is not None and all(rows[top-1][c+k]=='.' and rows[top][c+k]=='#' for k in (0,1)):
         k=rnd(c)%10
         y=top*16
-        if k<3: objs.append((FR if k<2 else FY, c*16, y))
+        if mine:
+            # lantern, crystal_blue, crystal_pink, post, rail, stalagmite, skull, glowshroom, pickaxe
+            pick = {0: 102, 1: 103, 2: 106, 3: 106, 4: 108, 5: 107, 6: 109}.get(k)
+            if pick: objs.append((pick, c*16, y))
+        elif k<3: objs.append((FR if k<2 else FY, c*16, y))
         elif k==3: objs.append((TU, c*16, y))
         elif k==4: objs.append((RO, c*16, y))
         elif k==5: objs+= [(BL,c*16,y),(BR,c*16+16,y)]; c+=1
@@ -27,9 +35,21 @@ while c < W-3:
         c+= 3 + rnd(c+1000)%4
     else:
         c+=1
+if mine:
+    # Lanterns hanging under ceilings now and then.
+    for c in range(3, W-3, 1):
+        for r in range(1, H-2):
+            if rows[r-1][c]=='#' and rows[r][c]=='.' and rows[r+1][c]=='.' and rnd(c*31+r)%9==0:
+                objs.append((101, c*16, (r+1)*16))
 xml="".join(f'  <object id="{nid+i}" gid="{g}" x="{x}" y="{y}" width="16" height="16"/>\n' for i,(g,x,y) in enumerate(objs))
 s=s.replace('nextobjectid="%d"'%nid, 'nextobjectid="%d"'%(nid+len(objs)))
 s=s.replace(' <tileset firstgid="1" source="../gen/forest.tsx"/>\n', ' <properties>\n  <property name="title" value="%s"/>\n  <property name="music" value="%s"/>\n  <property name="par" type="int" value="%s"/>\n </properties>\n <tileset firstgid="1" source="../gen/forest.tsx"/>\n <tileset firstgid="101" source="../gen/deco.tsx"/>\n'%(title,music,par),1)
+extra_props = ''
+if 'bgcave' in flags or mine: extra_props += '  <property name="background" value="cave"/>\n'
+if 'dark' in flags: extra_props += '  <property name="dark" type="bool" value="true"/>\n'
+s=s.replace(' </properties>\n', extra_props + ' </properties>\n', 1)
+if mine:
+    s=s.replace('source="../gen/forest.tsx"','source="../gen/mine.tsx"').replace('source="../gen/deco.tsx"','source="../gen/minedeco.tsx"')
 s=s.replace(' </objectgroup>\n</map>', xml+' </objectgroup>\n</map>')
 if cave:
     CAVE_BACK = 21  # forest.tsx tile 20

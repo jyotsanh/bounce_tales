@@ -18,6 +18,7 @@ pub mod map;
 pub mod physics;
 pub mod platforms;
 pub mod rng;
+pub mod rocks;
 pub mod seesaw;
 pub mod water;
 
@@ -301,6 +302,9 @@ impl Sim {
         }
         self.update_crates();
         self.update_enemies();
+        if self.update_rocks() {
+            return;
+        }
         self.update_seesaws();
         self.ball.wind = self.wind_at(self.ball.pos);
         if !self.hold_in_catapult() {
@@ -432,6 +436,32 @@ impl Sim {
     }
 
     /// Moves every enemy one step (crates block them).
+    /// Moves falling stalactites. Returns true if one crushed the ball.
+    fn update_rocks(&mut self) -> bool {
+        let ball = self.ball.pos;
+        let mut crushed = false;
+        for e in &mut self.entities {
+            let EntityKind::Stalactite(r) = &mut e.kind else {
+                continue;
+            };
+            let (pos, ev) = r.advance(e.pos, &self.level.map, ball);
+            e.pos = pos;
+            let centre = pos + e.size / 2.0;
+            match ev {
+                rocks::RockEvent::Rumble => self.events.push(Event::Rumble { pos: centre }),
+                rocks::RockEvent::Shattered => self.events.push(Event::RockShattered {
+                    pos: pos + macroquad::math::vec2(e.size.x / 2.0, e.size.y),
+                }),
+                rocks::RockEvent::None => {}
+            }
+            crushed |= r.crushes(e.pos, &self.ball);
+        }
+        if crushed {
+            self.die(Cause::Rock);
+        }
+        crushed
+    }
+
     fn update_enemies(&mut self) {
         let (_, crates) = self.crate_boxes(None);
         let ball = self.ball.pos;

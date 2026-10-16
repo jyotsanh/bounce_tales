@@ -97,7 +97,7 @@ impl Renderer {
     /// along it.
     fn draw_backdrop(&self, tick: u64) {
         let scroll = tick as f32 * 0.6;
-        self.background.draw(vec2(scroll, 0.0), 0.0, tick);
+        self.background.draw("forest", vec2(scroll, 0.0), 0.0, tick);
         let tiles = (VIEW_W / TILE) as i32 + 2;
         let offset = scroll % TILE;
         for i in 0..tiles {
@@ -173,7 +173,7 @@ impl Renderer {
     fn draw_map(&self, app: &App, sel: usize) {
         let t = app.ticks;
         let f = self.font();
-        self.background.draw(Vec2::ZERO, 0.0, t);
+        self.background.draw("forest", Vec2::ZERO, 0.0, t);
         draw_rectangle(0.0, 0.0, VIEW_W, VIEW_H, Color::new(0.0, 0.0, 0.0, 0.25));
 
         // Map area between the top bar and the info panel; scrolls so the

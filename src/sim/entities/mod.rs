@@ -54,6 +54,10 @@ pub enum Event {
     Shot { pos: Vec2 },
     /// A pellet shattered on the stone ball at `pos`.
     ShotBlocked { pos: Vec2 },
+    /// A stalactite started shaking above the ball (`pos` = its centre).
+    Rumble { pos: Vec2 },
+    /// A falling stalactite hit the ground (`pos` = its tip).
+    RockShattered { pos: Vec2 },
     /// A hypno machine was broken at `pos` (its centre).
     MachineBroken { pos: Vec2 },
     /// An enemy was freed (stomped, or crushed by the stone) at `pos`.
@@ -141,6 +145,8 @@ pub enum EntityKind {
     Enemy(Enemy),
     /// The Hypno Cube (moved by `Sim::step`); beating it wins the level.
     Boss(Boss),
+    /// A falling stalactite (moved by `Sim::step`).
+    Stalactite(crate::sim::rocks::Stalactite),
     /// Touching it turns the ball into `form`; `duration` steps (0 = until
     /// changed again).
     Transformer { form: Form, duration: u32 },
@@ -406,6 +412,14 @@ pub fn build(spec: &ObjectSpec) -> Result<Entity, String> {
             need_rect(spec)?;
             let delay = num_prop(spec, "delay", 0.0)?;
             EntityKind::Enemy(Enemy::mole(spec.pos, seconds_to_ticks(delay)))
+        }
+        "stalactite" => {
+            // Hangs from the top of its rectangle; its size is fixed.
+            return Ok(Entity {
+                pos: spec.pos,
+                size: crate::sim::rocks::SIZE,
+                kind: EntityKind::Stalactite(crate::sim::rocks::Stalactite::new(spec.pos)),
+            });
         }
         "machine" => {
             need_rect(spec)?;
@@ -711,7 +725,8 @@ impl Entity {
             | EntityKind::Seesaw(_)
             | EntityKind::Transformer { .. }
             | EntityKind::Enemy(_)
-            | EntityKind::Boss(_) => {}
+            | EntityKind::Boss(_)
+            | EntityKind::Stalactite(_) => {}
             EntityKind::Wheel { angle, speed, .. } => *angle += *speed * crate::sim::DT,
             EntityKind::Cannon {
                 aim,

@@ -206,6 +206,8 @@ impl Atlas {
 pub struct Sprites {
     pub ball: Atlas,
     pub forest: Atlas,
+    pub mine: Atlas,
+    pub minedeco: Atlas,
     pub deco: Atlas,
     pub objects: Atlas,
     pub items: Atlas,
@@ -231,6 +233,8 @@ impl Sprites {
         Sprites {
             ball: embedded_atlas!("ball"),
             forest: embedded_atlas!("forest"),
+            mine: embedded_atlas!("mine"),
+            minedeco: embedded_atlas!("minedeco"),
             deco: embedded_atlas!("deco"),
             objects: embedded_atlas!("objects"),
             items: embedded_atlas!("items"),
@@ -248,6 +252,8 @@ impl Sprites {
         match name {
             "ball" => &self.ball,
             "forest" => &self.forest,
+            "mine" => &self.mine,
+            "minedeco" => &self.minedeco,
             "deco" => &self.deco,
             "objects" => &self.objects,
             "items" => &self.items,

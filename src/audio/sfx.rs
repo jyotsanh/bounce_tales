@@ -40,6 +40,10 @@ pub enum Sfx {
     GameOver,
     /// A hypno machine breaking.
     MachineBreak,
+    /// Low rumble of a stalactite about to fall.
+    Rumble,
+    /// A stalactite shattering on the ground.
+    RockBreak,
     /// Menu cursor moved.
     MenuMove,
     /// Menu item chosen.
@@ -49,7 +53,7 @@ pub enum Sfx {
 }
 
 impl Sfx {
-    pub const ALL: [Sfx; 29] = [
+    pub const ALL: [Sfx; 31] = [
         Sfx::Bounce,
         Sfx::Jump,
         Sfx::Gem,
@@ -76,6 +80,8 @@ impl Sfx {
         Sfx::Exit,
         Sfx::GameOver,
         Sfx::MachineBreak,
+        Sfx::Rumble,
+        Sfx::RockBreak,
         Sfx::MenuMove,
         Sfx::MenuSelect,
         Sfx::MenuBack,
@@ -231,6 +237,22 @@ impl Sfx {
                 );
                 v
             }
+            Sfx::Rumble => vec![
+                t(NOISE, 0.0, 0.5, 180.0, 120.0)
+                    .env(Envelope {
+                        attack: 0.08,
+                        decay: 0.0,
+                        sustain: 1.0,
+                        release: 0.2,
+                    })
+                    .volume(0.5),
+                t(TRI, 0.0, 0.5, 55.0, 45.0).vibrato(9.0, 0.08).volume(0.4),
+            ],
+            Sfx::RockBreak => vec![
+                t(NOISE, 0.0, 0.3, 2400.0, 500.0).volume(0.5),
+                t(NOISE, 0.08, 0.15, 5000.0, 2500.0).volume(0.25),
+                t(SQUARE, 0.0, 0.1, 140.0, 60.0).volume(0.25),
+            ],
             Sfx::MenuMove => vec![t(PULSE, 0.0, 0.04, note(84), note(84)).volume(0.18)],
             Sfx::MenuSelect => vec![
                 t(PULSE, 0.0, 0.05, note(79), note(79)).volume(0.2),
@@ -317,6 +339,8 @@ pub fn for_event(event: &Event, form: Form) -> Option<(Sfx, f32)> {
         Event::ShotBlocked { .. } => Sfx::Tink,
         Event::EnemyFreed { .. } => Sfx::Freed,
         Event::MachineBroken { .. } => Sfx::MachineBreak,
+        Event::Rumble { .. } => Sfx::Rumble,
+        Event::RockShattered { .. } => Sfx::RockBreak,
         Event::BossHit { .. } => Sfx::BossHit,
         Event::BossDefeated { .. } => Sfx::BossDefeated,
         Event::ExitReached => Sfx::Exit,

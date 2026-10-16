@@ -1,0 +1,421 @@
+; Mine tileset: the forest tileset recoloured (same tiles, same order, so
+; the auto-tiler and levels work unchanged). Generated from forest.txt by
+; the step-36 script; keep the two in step (append tiles to both).
+; Forest tileset notes: ORDER MATTERS: Tiled levels (step 8) refer to tiles by
+; position (0 = first sprite, 8 per row). Only append new tiles at the end.
+; `shape=` sets the collision shape a Tiled level gets from the tile
+; (solid, slope45_r, slope45_l, slope2_r_low, slope2_r_high, slope2_l_high,
+; slope2_l_low; no shape = decoration). spike=true / spike_down=true make a
+; hazard (spikes pointing up from the cell bottom / down from its top).
+; crumble=true blocks fall away when stood on; cracked=true blocks break
+; when a heavy ball hits them hard.
+; Run `cargo run -p artgen` after editing.
+sheet mine cell 16x16 columns 8 tileset
+palette
+  G #a8a4b4   ; grass light
+  g #86829a   ; grass
+  V #5e5a72   ; grass dark
+  D #7a6a5c   ; dirt light
+  d #5c5048   ; dirt
+  K #43392f   ; dirt dark
+  O #2a221c   ; dirt deepest / roots
+  S #bdb6aa   ; stone light
+  s #7d766c   ; stone dark
+  M #e4eaee   ; metal light
+  m #9aa6ae   ; metal
+  N #565e66   ; metal dark
+  A #3a8ee899 ; water (see-through)
+  a #2f7fd8a8 ; water deep
+  T #bfe8ffd8 ; water surface foam
+  t #79c0f4b8 ; water surface
+  U #c8a46a   ; sandstone top
+  H #a07a44   ; sandstone
+  u #7a5a30   ; sandstone dark
+  h #4a3c2c   ; mortar / cracks
+  p #b0aaa0   ; boulder light
+  q #8c867c   ; boulder
+  Q #7a746a   ; boulder speckle
+  P #5a5650   ; boulder dark edge
+  z #2a2620   ; deep crack
+  c #3a322c   ; cave wall
+  b #2c2520   ; cave wall dark
+  B #1c1714   ; cave wall deepest
+end
+sprite grass_top shape=solid
+GGGGGGGGGGGGGGGG
+GGGGGGGGGGGGGGGG
+gggggggggggggggg
+VVVVVVVVVVVVVVVV
+dVddVVddVdKVdVVd
+ddddVddddddVdKdd
+dddddddddddddddd
+dddDdKdddKdddddd
+dddddddddddddddd
+ddKDDDddddddddKd
+dddddddddddddddK
+dddDddDDddddddKd
+dDDddddddddddddd
+dddddddddddddddK
+ddddddddddKddddd
+dddddddddddddddd
+end
+sprite grass_left shape=solid
+.GGGGGGGGGGGGGGG
+VgGGGGGGGGGGGGGG
+Vggggggggggggggg
+VgVVVVVVVVVVVVVV
+VgddVVddVdKVdVVd
+VVddVddddddVdKdd
+KVdddddddddddddd
+KddDdKdddKdddddd
+Kddddddddddddddd
+KdKDDDddddddddKd
+KddddddddddddddK
+KddDddDDddddddKd
+KDDddddddddddddd
+KddddddddddddddK
+KdddddddddKddddd
+Kddddddddddddddd
+end
+sprite grass_right shape=solid
+GGGGGGGGGGGGGGG.
+GGGGGGGGGGGGGGgV
+gggggggggggggggV
+VVVVVVVVVVVVVVgV
+dVVdVKdVddVVddgV
+ddKdVddddddVddVV
+ddddddddddddddVK
+ddddddKdddKdDddK
+dddddddddddddddK
+dKddddddddDDDKdK
+KddddddddddddddK
+dKddddddDDddDddK
+dddddddddddddDDK
+KddddddddddddddK
+dddddKdddddddddK
+dddddddddddddddK
+end
+sprite grass_platform shape=solid
+GGGGGGGGGGGGGGGG
+GGGGGGGGGGGGGGGG
+gggggggggggggggg
+VVVVVVVVVVVVVVVV
+dVddVVddVdKVdVVd
+ddddVddddddVdKdd
+dddddddddddddddd
+dddDdKdddKdddddd
+dddddddddddddddd
+ddKDDDddddddddKd
+dddddddddddddddK
+dddDddDDddddddKd
+dDDddddddddddddd
+dddddddddddddddK
+KKKKKKKKKKKKKKKK
+OOOOOOOOOOOOOOOO
+end
+sprite dirt shape=solid
+dddddddddddddddd
+ddDdddDDdddddDdd
+dDdddddddddddDDd
+ddKddDdddddddddd
+ddddddddddKDdddd
+dddddddddddddKdd
+dddddddddddddddd
+dddDdKdddKdddddd
+dddddddddddddddd
+ddKDDDddddddddKd
+dddddddddddddddK
+dddDddDDddddddKd
+dDDddddddddddddd
+dddddddddddddddK
+ddddddddddKddddd
+dddddddddddddddd
+end
+sprite dirt_stones shape=solid
+dddddddddddddddd
+ddDdddDDdddddDdd
+dDdddddddddddDDd
+ddKddDdddddddddd
+ddddSSddddKDdddd
+dddSSSsddddddKdd
+ddddssdddddddddd
+dddDdKdddKdddddd
+dddddddddddddddd
+ddKDDDddddddddKd
+dddddddddddSSddK
+dddDddDDddSSSsKd
+dDDddddddddssddd
+dddddddddddddddK
+ddddddddddKddddd
+dddddddddddddddd
+end
+sprite dirt_bottom shape=solid
+dddddddddddddddd
+ddDdddDDdddddDdd
+dDdddddddddddDDd
+ddKddDdddddddddd
+ddddddddddKDdddd
+dddddddddddddKdd
+dddddddddddddddd
+dddDdKdddKdddddd
+dddddddddddddddd
+ddKDDDddddddddKd
+dddddddddddddddK
+dddDddDDddddddKd
+dDDddddddddddddd
+dddddddddddddddK
+KKKKKKKKKKKKKKKK
+OOOOOOOOOOOOOOOO
+end
+sprite dirt_roots shape=solid
+dddddddddddddddd
+ddDdddDDdddddDdd
+dDdddddddddddDDd
+ddOddDdddddddddd
+dddOOdddddKDdddd
+dddddOdddddddKdd
+ddddddOOdddddddd
+dddDdKddOKdddddd
+dddddddddOdddddd
+ddKDDDdddOddddKd
+ddddddddddOOdddK
+dddDddDDddddOdKd
+dDDddddddddddddd
+dddddddddddddddK
+ddddddddddKddddd
+dddddddddddddddd
+end
+sprite slope45_r shape=slope45_r
+...............G
+..............GG
+.............GGG
+............GGGg
+...........GGGgg
+..........GGGggV
+.........GGGggVV
+........GGGggVVd
+.......GGGggVVVd
+......GGGggVVVKd
+.....GGGggVVdddK
+....GGGggVVVddKd
+...GGGggVVdVdddd
+..GGGggVVddVdddK
+.GGGggVVVdKddddd
+GGGggVVddddddddd
+end
+sprite slope45_l shape=slope45_l
+G...............
+GG..............
+GGG.............
+gGGG............
+ggGGG...........
+VggGGG..........
+VVggGGG.........
+dVVggGGG........
+dVVVggGGG.......
+ddKVVggGGG......
+ddddVVggGGG.....
+dddDVVVggGGG....
+dDDdVVVVggGGG...
+ddddVddVVggGGG..
+ddddddddVVggGGG.
+ddddddddVVVggGGG
+end
+sprite slope2_r_low shape=slope2_r_low
+................
+................
+................
+................
+................
+................
+................
+................
+...............G
+.............GGG
+...........GGGGg
+.........GGGGggg
+.......GGGGgggVV
+.....GGGGgggVVVK
+...GGGGgggVVVVVd
+.GGGGgggVVVVdddd
+end
+sprite slope2_r_high shape=slope2_r_high
+...............G
+.............GGG
+...........GGGGg
+.........GGGGggg
+.......GGGGgggVV
+.....GGGGgggVVVd
+...GGGGgggVVVVVd
+.GGGGgggVVVVdddd
+GGGgggVVVddVdddd
+GgggVVVdVdddddKd
+ggVVVVdddddddddK
+VVVDVdDDddddddKd
+VVDdVddddddddddd
+dddddddddddddddK
+ddddddddddKddddd
+dddddddddddddddd
+end
+sprite slope2_l_high shape=slope2_l_high
+G...............
+GGG.............
+gGGGG...........
+gggGGGG.........
+VVgggGGGG.......
+dVVVgggGGGG.....
+dVdVVVgggGGGG...
+dddDVVVVgggGGGG.
+ddddVVdVVVgggGGG
+ddKDDDddVVVVgggG
+dddddddddddVVVgg
+dddDddDDdddVdVVV
+dDDddddddddVdVVV
+dddddddddddddddK
+ddddddddddKddddd
+dddddddddddddddd
+end
+sprite slope2_l_low shape=slope2_l_low
+................
+................
+................
+................
+................
+................
+................
+................
+G...............
+GGG.............
+gGGGG...........
+gggGGGG.........
+VVgggGGGG.......
+dVVVgggGGGG.....
+dVdVVVgggGGGG...
+ddddVVVVgggGGGG.
+end
+sprite spikes spike=true
+................
+................
+................
+................
+...Mm......Mm...
+...Mm......Mm...
+...Mm......Mm...
+..MMmm....MMmm..
+..MMmm....MMmm..
+..MMmm....MMmm..
+.MMMmmm..MMMmmm.
+.MMMmmm..MMMmmm.
+.MMMmmm..MMMmmm.
+NMMMmmmNNMMMmmmN
+NMMMmmmNNMMMmmmN
+NNNNNNNNNNNNNNNN
+end
+sprite spikes_down spike_down=true
+NNNNNNNNNNNNNNNN
+NMMMmmmNNMMMmmmN
+NMMMmmmNNMMMmmmN
+.MMMmmm..MMMmmm.
+.MMMmmm..MMMmmm.
+.MMMmmm..MMMmmm.
+..MMmm....MMmm..
+..MMmm....MMmm..
+..MMmm....MMmm..
+...Mm......Mm...
+...Mm......Mm...
+...Mm......Mm...
+................
+................
+................
+................
+end
+sprite water_top water=true
+TT...TTTTT...TTT
+ttTTTtttttTTTttt
+tttttttttttttttt
+AAtttAAAAAtttAAA
+AAAaAAAAAAaAAAAA
+AAaAAAAAAaAAAAAA
+AaAAAAAAaAAAAAAa
+aAAAAAAaAAAAAAaA
+AAAAAAaAAAAAAaAA
+AAAAAaAAAAAAaAAA
+AAAAaAAAAAAaAAAA
+AAAaAAAAAAaAAAAA
+AAaAAAAAAaAAAAAA
+AaAAAAAAaAAAAAAa
+aAAAAAAaAAAAAAaA
+AAAAAAaAAAAAAaAA
+end
+sprite water water=true
+aAAAAAAaAAAAAAaA
+AAAAAAaAAAAAAaAA
+AAAAAaAAAAAAaAAA
+AAAAaAAAAAAaAAAA
+AAAaAAAAAAaAAAAA
+AAaAAAAAAaAAAAAA
+AaAAAAAAaAAAAAAa
+aAAAAAAaAAAAAAaA
+AAAAAAaAAAAAAaAA
+AAAAAaAAAAAAaAAA
+AAAAaAAAAAAaAAAA
+AAAaAAAAAAaAAAAA
+AAaAAAAAAaAAAAAA
+AaAAAAAAaAAAAAAa
+aAAAAAAaAAAAAAaA
+AAAAAAaAAAAAAaAA
+end
+sprite crumble shape=solid crumble=true
+UUUUUUUUUUUUUUUU
+HHHHuHHhHuHHHHuh
+HHHuHHHhuHHHHuHh
+HHuhHHHhHHHHuHHh
+HuHHhhuhHHHuHHHh
+uHHHHuHhHHuHHHHh
+HHHHuHHhHuHHHHuh
+hhhhhhhhhhhhhhhh
+HHuhHHHuHHHhuHHH
+HuHhHHuHHHHhHHHH
+uHHhHuHHHHhhHHHu
+HHHhuHHHHuHhHHuH
+HHHhHHhHuHHhHuHH
+HHuhHHHuHHHhuHHH
+HuHhHHuHHHHhHHHH
+hhhhhhhhhhhhhhhh
+end
+sprite cracked shape=solid cracked=true
+pppppppppppppppP
+pqqQqqqqzqQqqqqP
+pqqqqqQzqqqqqQqP
+pqQqqqqzqQqqqqqP
+pqqqqQqqzqqzQqqP
+pQqqqqqqQzzqqqqP
+pqqqQqqqzqqQqqqP
+pqqqqqqzqqqqqqQP
+pqqQqzzqqqQqqqqP
+pqqqzqQzqqqqqQqP
+pqQqqqqqzQqqqqqP
+pqqqqQqqzqqqQqqP
+pQqqqqqqQzqqqqqP
+pqqqQqqqqqzQqqqP
+pqqqqqqQqzqqqqQP
+PPPPPPPPPPPPPPPP
+end
+sprite cave_back
+cccccbcccccccccc
+cbccccccccccbccc
+ccccccBccccccccc
+cccbccccccbccccc
+ccccccccccccccbc
+cccccccbBccccccc
+cbcccccccccccccc
+cccccccccccbcccc
+ccccBccccccccccc
+cccccccccbcccccc
+cccbcccccccccBcc
+cccccccccccccccc
+ccccccbcccccbccc
+cBcccccccccccccc
+cccccccBcccccccc
+ccccccccccccccbc
+end
