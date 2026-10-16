@@ -103,7 +103,14 @@ jobs:
           # --help exits before opening a window; try the Intel slice too.
           "/tmp/bt/Bounce Tales.app/Contents/MacOS/bounce_tales" --help
           if /usr/bin/pgrep -q oahd; then arch -x86_64 "/tmp/bt/Bounce Tales.app/Contents/MacOS/bounce_tales" --help; fi
-          hdiutil detach /tmp/bt
+          # Just after the game ran from it (Rosetta caches the Intel slice,
+          # Spotlight indexes the new volume) the image can be briefly busy:
+          # retry, then force. Cleanup only; the runner is thrown away.
+          for i in 1 2 3 4 5; do
+            hdiutil detach /tmp/bt && exit 0
+            sleep 3
+          done
+          hdiutil detach /tmp/bt -force
       - uses: actions/upload-artifact@v4
         with:
           name: macos-dmg
