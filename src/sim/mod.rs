@@ -392,6 +392,13 @@ impl Sim {
         let prev_bottom = self.ball.pos.y + self.ball.radius;
         let (solid_ids, solids) = self.crate_boxes(None);
         let contacts = physics::move_and_collide_with(&mut self.ball, &self.level.map, &solids);
+        // For a balloon the level's top edge is a ceiling, even under open
+        // sky, so it can't float away for good. (A thrown or launched ball
+        // may arc above it; gravity brings that back.)
+        if self.ball.params.lift > 0.0 && self.ball.pos.y < self.ball.radius {
+            self.ball.pos.y = self.ball.radius;
+            self.ball.vel.y = self.ball.vel.y.max(0.0);
+        }
         for &(i, vx) in &contacts.pushes {
             if let EntityKind::Crate(c) = &mut self.entities[solid_ids[i]].kind {
                 c.push = Some(vx);
@@ -2618,5 +2625,21 @@ mod tests {
         };
         assert!(open("red"));
         assert!(!open("blue"));
+    }
+
+    #[test]
+    fn the_top_of_the_level_is_a_ceiling() {
+        // A balloon holding jump under open sky stops at the top edge.
+        let mut sim = Sim::with_level(Level::from_ascii(".....\n..o..\n#####").unwrap());
+        sim.ball.set_form(ball::Form::Balloon);
+        let up = InputFrame::from_code("J").unwrap();
+        for _ in 0..(5 * TICKS_PER_SECOND) {
+            sim.step(up);
+        }
+        assert!(
+            (sim.ball.pos.y - sim.ball.radius).abs() < 0.5,
+            "{}",
+            sim.ball.pos.y
+        );
     }
 }

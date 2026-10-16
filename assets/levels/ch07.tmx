@@ -3,7 +3,7 @@
  <properties>
   <property name="title" value="A Gloomy Path"/>
   <property name="music" value="cave"/>
-  <property name="par" type="int" value="120"/>
+  <property name="par" type="int" value="45"/>
   <property name="background" value="cave"/>
   <property name="dark" type="bool" value="true"/>
  </properties>

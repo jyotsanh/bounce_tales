@@ -3,7 +3,7 @@
  <properties>
   <property name="title" value="Bumpy Cracks"/>
   <property name="music" value="forest"/>
-  <property name="par" type="int" value="120"/>
+  <property name="par" type="int" value="40"/>
  </properties>
  <tileset firstgid="1" source="../gen/forest.tsx"/>
  <tileset firstgid="101" source="../gen/deco.tsx"/>

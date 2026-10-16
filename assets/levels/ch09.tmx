@@ -3,7 +3,7 @@
  <properties>
   <property name="title" value="Trapped in Machine"/>
   <property name="music" value="castle"/>
-  <property name="par" type="int" value="140"/>
+  <property name="par" type="int" value="80"/>
   <property name="background" value="factory"/>
  </properties>
  <tileset firstgid="1" source="../gen/machine.tsx"/>

@@ -3,7 +3,7 @@
  <properties>
   <property name="title" value="Into the Mines"/>
   <property name="music" value="cave"/>
-  <property name="par" type="int" value="130"/>
+  <property name="par" type="int" value="55"/>
   <property name="background" value="cave"/>
  </properties>
  <tileset firstgid="1" source="../gen/mine.tsx"/>

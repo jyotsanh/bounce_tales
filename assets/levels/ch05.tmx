@@ -3,7 +3,7 @@
  <properties>
   <property name="title" value="Secret Stalkway"/>
   <property name="music" value="forest"/>
-  <property name="par" type="int" value="100"/>
+  <property name="par" type="int" value="60"/>
  </properties>
  <tileset firstgid="1" source="../gen/forest.tsx"/>
  <tileset firstgid="101" source="../gen/deco.tsx"/>

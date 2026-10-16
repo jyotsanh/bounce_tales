@@ -3,7 +3,7 @@
  <properties>
   <property name="title" value="Hunting Colours"/>
   <property name="music" value="forest"/>
-  <property name="par" type="int" value="150"/>
+  <property name="par" type="int" value="50"/>
  </properties>
  <tileset firstgid="1" source="../gen/forest.tsx"/>
  <tileset firstgid="101" source="../gen/deco.tsx"/>

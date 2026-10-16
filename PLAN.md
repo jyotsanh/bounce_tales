@@ -116,7 +116,7 @@ References: walkthrough video https://www.youtube.com/watch?v=AQa0Sx_ezxA, decom
 - [x] **38.** **Chapters 12–14 + bonus**: Hunting Colours, Almost There, Final Ride (Hypno Cube), Bonus Chapter: Fantastic Fair; egg/collectible balance.
 
 ### Phase J — Finish
-- [ ] **39.** **Tuning & bug bash**: physics feel pass against the original, difficulty curve. Regression replays: every level loads and runs 3000 frames without panic, plus scripted runs through key sections. Performance check.
+- [x] **39.** **Tuning & bug bash**: physics feel pass against the original, difficulty curve. Regression replays: every level loads and runs 3000 frames without panic, plus scripted runs through key sections. Performance check.
 - [ ] **40.** **Release**: all assets embedded, release profile (LTO), README (build, controls, credits), screenshots, and a suggested `git tag v1.0` command for you to run.
 
 Spare capacity: if a step overruns, the next prompt finishes it before moving on. Steps 38–39 are the buffer we give up first.
@@ -483,3 +483,11 @@ Spare capacity: if a step overruns, the next prompt finishes it before moving on
 - **Balance**: every chapter 1 egg; gems 15–34 (322 total); extra lives in ch07, ch09, ch10, ch13, ch15 (×2); checkpoints in all but the short vertical ch05. Campaign eggs 14 vs. 10 needed for the bonus (test keeps ≥ 3 slack).
 - Fixes from scripted runs: ch12 walker moved off the platform's landing island; ch13 conveyor taken out from under the crushers; ch14 bank shortened so the arena's opening is reachable.
 - Campaign: ch01–ch14 (+ bonus ch15). Replays ch12–ch15 (ch14: the controller wins with ≤ 1 ball lost, `expect boss.hp == 0`). `tests/levels.rs`: egg routes for ch12–ch15, content check for all 15, bonus egg slack. App tests: bonus unlock by eggs, ending after the campaign.
+
+### Step 39 — Tuning & bug bash (done)
+- **`tests/robustness.rs`**: every level (all built-in maps and chapters) × 6 input patterns (idle, right, left, right with jumping, two seeded random players) × 3000 steps: no panic; ball and entities finite; the ball never escapes the level's reach and never stays inside a solid tile for more than 10 steps. Plus an app-level fuzz: 3 seeds × 20 000 steps of random menu keys, game input and hotkeys through title, map, cutscenes, pause, options and levels (unlock-all): no panic, the ball stays finite, every seed reaches a level.
+- **Bug found and fixed**: a balloon under open sky could float off the top of the level for good (the `forms` map; also possible in ch11/ch15's balloon sections). For a balloon the level's top edge is now a ceiling (thrown and launched balls may still arc above it). ch11's replay re-recorded (its balloon had brushed past the top).
+- **Par times** set from the route replays: about 2x the scripted time (2.5x for the dark ch07), rounded up to 5 s: 35, 30, 45, 40, 60, 55, 45, 35, 80, 40, 35, 50, 120, 95, 35. Test: every par is between 1.5x and 3x the route time.
+- **Difficulty curve** (enemies / spike cells / crushers / stalactites / route s / par): ch01 2/0/0/0/17/35, ch02 8/3/0/0/14/30, ch03 2/0/0/0/23/45, ch04 1/0/0/0/19/40, ch05 0/41/0/0/28/60, ch06 4/19/0/0/26/55, ch07 3/14/0/0/18/45 (dark), ch08 1/8/0/15/15/35, ch09 1/0/5/0/38/80, ch10 3/0/0/0/19/40, ch11 1/9/0/0/16/35, ch12 2/0/0/0/24/50 (puzzle breather), ch13 3/23/3/0/58/120, ch14 0/33/0/0/45/95 + boss, ch15 bonus. Every chapter brings something new; ch02 introduces five enemy kinds at once (its theme); ch12 is a breather before the gauntlet.
+- **Performance** (release): the sim costs 0.3–2 µs per step (ch11 with the wheel and spinner is the heaviest); rendering holds 60 fps (vsync) at about 4 ms CPU per frame on the busiest levels (ch07 dark, ch09 gears, ch11 circus, ch14 boss).
+- Physics feel: no reference measurements of the original are available, so the tuned values from steps 3-24 stay.

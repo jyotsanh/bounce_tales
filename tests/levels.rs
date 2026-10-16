@@ -276,3 +276,28 @@ fn enough_campaign_eggs_for_the_bonus() {
         Level::load(n).unwrap();
     }
 }
+
+/// Par times leave room: at least 1.5x the scripted route's time (a
+/// person plays slower than the controllers that recorded the replays).
+#[test]
+fn pars_are_reachable() {
+    for n in 1..=15 {
+        let name = format!("ch{n:02}");
+        let text = std::fs::read_to_string(format!("tests/replays/{name}_route.replay")).unwrap();
+        let steps: u32 = text
+            .lines()
+            .filter(|l| l.chars().next().is_some_and(|c| c.is_ascii_digit()))
+            .map(|l| l.split_whitespace().next().unwrap().parse::<u32>().unwrap())
+            .sum();
+        let route = steps as f32 / bounce_tales::sim::TICKS_PER_SECOND as f32;
+        let par = Level::load(&name).unwrap().par_seconds as f32;
+        assert!(
+            par >= route * 1.5,
+            "{name}: par {par} s for a {route:.0} s route"
+        );
+        assert!(
+            par <= route * 3.0,
+            "{name}: par {par} s is too generous for a {route:.0} s route"
+        );
+    }
+}

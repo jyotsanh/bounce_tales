@@ -19,19 +19,19 @@ build() { # name title music par seed [flags: cave mine bgcave dark]
 }
 want() { [ -z "$ONLY" ] || [ "$ONLY" = "$1" ]; }
 ONLY=$1
-want ch01 && build ch01 "Misty Morning" forest 90 1
-want ch02 && build ch02 "Unfriendly Friends" forest 120 2
-want ch03 && build ch03 "Seeking Answers" forest 120 3
-want ch04 && build ch04 "Bumpy Cracks" forest 120 4 cave
-want ch05 && build ch05 "Secret Stalkway" forest 100 5
-want ch06 && build ch06 "Into the Mines" cave 130 6 cave mine
-want ch07 && build ch07 "A Gloomy Path" cave 120 7 cave mine dark
-want ch08 && build ch08 "Rumbling Sounds" cave 120 8 cave mine
-want ch09 && build ch09 "Trapped in Machine" castle 140 9 cave machine
-want ch10 && build ch10 "Tunnel of Treasures" cave 140 10 cave mine
-want ch11 && build ch11 "Wicked Circus" castle 120 11 circus
-want ch12 && build ch12 "Hunting Colours" forest 150 12
-want ch13 && build ch13 "Almost There" castle 160 13 cave machine
-want ch14 && build ch14 "Final Ride" boss 150 14 machine
-want ch15 && build ch15 "Fantastic Fair" title 120 15 circus
+want ch01 && build ch01 "Misty Morning" forest 35 1
+want ch02 && build ch02 "Unfriendly Friends" forest 30 2
+want ch03 && build ch03 "Seeking Answers" forest 45 3
+want ch04 && build ch04 "Bumpy Cracks" forest 40 4 cave
+want ch05 && build ch05 "Secret Stalkway" forest 60 5
+want ch06 && build ch06 "Into the Mines" cave 55 6 cave mine
+want ch07 && build ch07 "A Gloomy Path" cave 45 7 cave mine dark
+want ch08 && build ch08 "Rumbling Sounds" cave 35 8 cave mine
+want ch09 && build ch09 "Trapped in Machine" castle 80 9 cave machine
+want ch10 && build ch10 "Tunnel of Treasures" cave 40 10 cave mine
+want ch11 && build ch11 "Wicked Circus" castle 35 11 circus
+want ch12 && build ch12 "Hunting Colours" forest 50 12
+want ch13 && build ch13 "Almost There" castle 120 13 cave machine
+want ch14 && build ch14 "Final Ride" boss 95 14 machine
+want ch15 && build ch15 "Fantastic Fair" title 35 15 circus
 rm -rf "$OUT"

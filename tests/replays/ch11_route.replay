@@ -25,9 +25,9 @@ level ch11
 4 LJ
 6 J
 3 RJ
-40 R
-29 RJ
-175 R
+36 R
+30 RJ
+177 R
 87 -
 56 R
 expect exit == 1
