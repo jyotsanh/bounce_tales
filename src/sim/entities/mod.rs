@@ -13,6 +13,7 @@ use crate::sim::boss::Boss;
 use crate::sim::crates::Crate;
 use crate::sim::enemies::{self, Enemy};
 use crate::sim::hazards::Cause;
+use crate::sim::math;
 use crate::sim::platforms::{self, Platform};
 use crate::sim::seesaw::{self, Seesaw};
 
@@ -556,7 +557,7 @@ pub fn build(spec: &ObjectSpec) -> Result<Entity, String> {
             let speed = num_prop(spec, "speed", DEFAULT_CATAPULT_SPEED)?;
             let angle = num_prop(spec, "angle", DEFAULT_CATAPULT_ANGLE)?.to_radians();
             EntityKind::Catapult {
-                launch: vec2(dir.x * angle.cos(), -angle.sin()) * speed,
+                launch: vec2(dir.x * math::cos(angle), -math::sin(angle)) * speed,
                 cooldown: 0,
                 fired: 0,
             }
@@ -666,7 +667,7 @@ fn build_wheel(spec: &ObjectSpec) -> Result<Vec<Entity>, String> {
     let path: Vec<Vec2> = (0..SIDES)
         .map(|i| {
             let a = dir * i as f32 / SIDES as f32 * std::f32::consts::TAU;
-            centre + vec2(a.cos(), a.sin()) * radius
+            centre + vec2(math::cos(a), math::sin(a)) * radius
         })
         .collect();
     let probe = Platform::new(path.clone(), true, 1.0, 0, width);
@@ -754,7 +755,7 @@ impl Entity {
             } => {
                 if *swing > 0.0 {
                     *phase += *swing_speed * crate::sim::DT;
-                    *aim = *base_aim + *swing * phase.sin();
+                    *aim = *base_aim + *swing * math::sin(*phase);
                 }
                 *cooldown = cooldown.saturating_sub(1);
                 *fired = fired.saturating_sub(1);

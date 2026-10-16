@@ -8,6 +8,7 @@ repository = "https://github.com/jyotsanh/bounce_tales"
 
 [dependencies]
 directories = "6.0.0"
+libm = "0.2.16"
 macroquad = { version = "0.4", features = ["audio"] }
 ron = "0.12.2"
 serde = { version = "1.0.229", features = ["derive"] }

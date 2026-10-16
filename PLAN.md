@@ -22,6 +22,7 @@ Gameplay is copied as closely as possible. All art, audio and level files are **
 | Git | **You commit, not me.** At the end of each step I leave the changes uncommitted and give you a ready-to-paste commit message (`step NN: <title>` + short body). Branch rename `master` → `main` is your command to run too (`git branch -m master main`) |
 | Plan tracking | `PLAN.md` in the repo with checkboxes + a progress log |
 | Ship | Release binary with all assets embedded (`include_bytes!`) |
+| Distribution | GitHub Actions: CI on every push/PR (Linux, Windows, macOS); tags `v*` publish a GitHub Release with a `.deb`, a Windows installer `.exe` + portable zip, a universal macOS `.dmg` and `SHA256SUMS.txt`. Unsigned for now (README explains the SmartScreen / Gatekeeper warnings) |
 
 ## Architecture (set up in steps 1–2, kept throughout)
 ```
@@ -48,7 +49,7 @@ Key rules:
 - CLI flags: `--level <name>`, `--frames N`, `--replay <file>`, `--screenshot <png>` (saves the screen after N frames, then quits). Used for the visual check in every step.
 - `scripts/check.sh` = `cargo fmt --check && cargo clippy -D warnings && cargo test`.
 
-## Per-Prompt Protocol (every one of the 40 prompts)
+## Per-Prompt Protocol (every step prompt)
 1. Read `PLAN.md` (progress log) to see the current state.
 2. Build only that step's feature.
 3. Add unit tests and/or a replay test for it.
@@ -56,7 +57,7 @@ Key rules:
 5. Tick the step in `PLAN.md` and add notes (tuning values, known issues).
 6. Do **not** commit. Give you: the commit message (`step NN: <title>` + body), a list of changed files, and what to playtest by hand.
 
-## The 40 Steps
+## The Steps (1–40 the game, 41–45 distribution)
 
 ### Phase A — Foundation
 - [x] **01.** **Bootstrap**: (you run `git branch -m master main`). Add macroquad. Module skeleton, `PLAN.md`, `scripts/check.sh`. Fixed-timestep loop, 240×320 target integer-scaled to the window, CLI flags + screenshot capture.
@@ -120,6 +121,14 @@ References: walkthrough video https://www.youtube.com/watch?v=AQa0Sx_ezxA, decom
 - [x] **40.** **Release**: all assets embedded, release profile (LTO), README (build, controls, credits), screenshots, and a suggested `git tag v1.0` command for you to run.
 
 Spare capacity: if a step overruns, the next prompt finishes it before moving on. Steps 38–39 are the buffer we give up first.
+
+### Phase K — Distribution (GitHub Actions releases)
+Workflows only run on GitHub, and you push, so you trigger the runs and paste back results or failure logs. Each step I verify what runs locally (`cargo deb`, packaging scripts, `actionlint` on the YAML if available) and hand over the commit message as usual; tags are yours to push.
+- [x] **41.** **Cross-platform readiness + CI**: `.github/workflows/ci.yml`, a matrix of ubuntu / windows / macos running `cargo fmt --check`, `clippy -D warnings` and `cargo test --workspace` (the sim and replays are headless; Linux installs its apt deps first). Fix whatever breaks off Linux (known: `build.rs` is already Linux-only, the save path uses `directories`, tests use relative `tests/replays` paths). An app icon generated from the ball art (`packaging/icon/`: PNG sizes, `.ico`, `.icns`), also used as the window icon (macroquad `Conf.icon`). Windows release builds hide the console window (`windows_subsystem = "windows"` when not a debug build).
+- [ ] **42.** **Linux `.deb`**: `cargo-deb` metadata in `Cargo.toml` (binary in `/usr/bin`, a `.desktop` entry, hicolor icons, Depends on libasound2, libgl1, libx11-6, libxi6), built on ubuntu-22.04 for an older glibc. CI installs it with `dpkg -i` and runs `xvfb-run bounce_tales --frames 60`; checked locally with `cargo deb`.
+- [ ] **43.** **Windows `.exe`**: icon and version info embedded in the exe (Windows-only resource in `build.rs`), a portable `bounce_tales-<ver>-windows-x64.zip`, and an installer from `packaging/windows/installer.iss` built with Inno Setup on the Windows runner (Start-menu + optional desktop shortcut, uninstaller, per-user install, so no admin needed).
+- [ ] **44.** **macOS universal `.dmg`**: build `aarch64-apple-darwin` and `x86_64-apple-darwin`, merge with `lipo`, wrap in a `Bounce Tales.app` bundle (`packaging/macos/Info.plist`, `.icns`), and `packaging/macos/make_dmg.sh` makes the disk image with `hdiutil` (with an Applications link). Unsigned: the README explains right-click → Open (or `xattr -dr com.apple.quarantine`).
+- [ ] **45.** **Release workflow**: `.github/workflows/release.yml` on tags `v*`. A first job checks the tag matches the `Cargo.toml` version; three build jobs reuse the step 42–44 packaging and upload artifacts; a publish job creates the GitHub Release (`gh release create`, generated notes) with the `.deb`, Windows zip, installer `.exe`, `.dmg` and `SHA256SUMS.txt`. README gets a Download section and the release how-to (bump the version → commit → `git tag vX.Y.Z` → `git push origin main --tags`). Tried first with a pre-release tag such as `v1.0.1-rc1`.
 
 ## Critical files
 `Cargo.toml` (workspace + deps: macroquad, tiled, serde, ron, directories, png for artgen), `src/main.rs`, `src/sim/*`, `src/render/*`, `PLAN.md`, `scripts/check.sh`, `assets/levels/*.tmx`.
@@ -497,3 +506,12 @@ Spare capacity: if a step overruns, the next prompt finishes it before moving on
 - README: what the game is, screenshots (`docs/screenshots`, 2x), features, controls, the user's install/build/run steps, command-line options, the save location, development commands, credits (Rovio/Nokia original, the MIT clone for the chapter list and chapter 1 layout, macroquad, tiled) and a not-affiliated note.
 - Final state: 14 chapters + bonus; 286+ unit tests, route replays for every chapter, level/egg-route tests, robustness and app fuzz tests; `scripts/check.sh` clean.
 - Tag (run it yourself after committing): `git tag -a v1.0 -m "Bounce Tales 1.0"` then `git push origin main --tags`.
+
+### Step 41 — Cross-platform readiness + CI (done)
+- `.github/workflows/ci.yml`: on every push and pull request. Formatting once (ubuntu); then a fail-fast-off matrix of ubuntu / windows / macos (Apple Silicon) running `cargo clippy --workspace --all-targets -D warnings` and `cargo test --workspace` (Swatinem/rust-cache; Linux installs pkg-config, X11, Xi, GL and ALSA dev packages). Newer pushes cancel older runs of the same ref. Linted with actionlint 1.7.12.
+- **Deterministic maths across platforms**: the standard `sin`/`cos`/`atan2` call the system maths library, which differs in the last bits between glibc, the MSVC runtime and Apple's libm, enough to make long replays drift. The sim now uses `sim::math` (the pure-Rust `libm` crate, bit-identical everywhere) at all 9 call sites (seesaws/spinners, wheel paths, cannon aim and swing, flyers, boss aim). `tests/determinism.rs` fails if sim, game, app or level code calls a platform maths function. All replays unchanged.
+- `.gitattributes`: text files keep LF on every platform (the ASCII maps and art are parsed line by line; a Windows CRLF checkout would break them); images and sounds are binary.
+- `build.rs`: the ALSA helper is compiled only on Unix hosts (no unused-variable warnings when building elsewhere).
+- Checked locally: `cargo clippy --all-targets -D warnings` is clean for x86_64-pc-windows-msvc, aarch64-apple-darwin and x86_64-apple-darwin.
+- **App icon**: `packaging/icon/make_icons.py` (Pillow) turns the ball sprite into crisp PNGs (16–1024), `bounce_tales.ico` and `bounce_tales.icns`; the 16/32/64 PNGs are the window icon (`Conf.icon`, test that they decode).
+- Windows release builds use the GUI subsystem (no console window); debug builds keep the console. (So command-line output such as `--help` is not shown by a Windows release build.)

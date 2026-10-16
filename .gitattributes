@@ -1,0 +1,8 @@
+# Text files (levels, ASCII art, replays, sources) keep LF line endings on
+# every platform: the ASCII maps and art sheets are parsed line by line and a
+# Windows checkout must not turn them into CRLF.
+* text=auto eol=lf
+*.png binary
+*.ico binary
+*.icns binary
+*.wav binary

@@ -16,6 +16,7 @@ pub mod entities;
 pub mod hazards;
 pub mod input;
 pub mod map;
+pub mod math;
 pub mod physics;
 pub mod platforms;
 pub mod rng;
@@ -763,7 +764,7 @@ impl Sim {
                 self.held = Some((i, ticks.saturating_sub(1)));
                 return true;
             }
-            let dir = macroquad::math::vec2(aim.cos(), aim.sin());
+            let dir = macroquad::math::vec2(math::cos(*aim), math::sin(*aim));
             let muzzle = pivot + dir * entities::CANNON_BARREL;
             self.ball.pos = muzzle;
             self.ball.prev_pos = muzzle;

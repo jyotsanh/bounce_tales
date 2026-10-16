@@ -71,6 +71,7 @@ name = "bounce_tales"
 version = "1.0.0"
 dependencies = [
  "directories",
+ "libm",
  "macroquad",
  "ron",
  "serde",

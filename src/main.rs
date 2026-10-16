@@ -1,3 +1,6 @@
+// Release builds on Windows are a GUI app (no console window behind the game).
+#![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
+
 mod render;
 mod sound;
 
@@ -29,9 +32,23 @@ fn options() -> Options {
     }
 }
 
+/// The red ball as the window icon (16, 32 and 64 px, from packaging/icon).
+fn window_icon() -> Option<miniquad::conf::Icon> {
+    fn rgba<const N: usize>(png: &[u8]) -> Option<[u8; N]> {
+        let img = Image::from_file_with_format(png, Some(ImageFormat::Png)).ok()?;
+        img.bytes.try_into().ok()
+    }
+    Some(miniquad::conf::Icon {
+        small: rgba(include_bytes!("../packaging/icon/icon_16.png"))?,
+        medium: rgba(include_bytes!("../packaging/icon/icon_32.png"))?,
+        big: rgba(include_bytes!("../packaging/icon/icon_64.png"))?,
+    })
+}
+
 fn window_conf() -> Conf {
     let opts = options();
     Conf {
+        icon: window_icon(),
         window_title: "Bounce Tales".to_owned(),
         window_width: (SCREEN_W * opts.scale) as i32,
         window_height: (SCREEN_H * opts.scale) as i32,
@@ -270,5 +287,13 @@ async fn main() {
             }
             std::process::exit(1);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn window_icon_decodes_at_the_right_sizes() {
+        assert!(super::window_icon().is_some());
     }
 }

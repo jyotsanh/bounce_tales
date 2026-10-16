@@ -253,7 +253,7 @@ impl Enemy {
                 // Smooth back-and-forth: (1 - cos) / 2 eases at both ends.
                 let rate = std::f32::consts::PI * self.speed / range.max(1.0);
                 *phase += rate * DT;
-                let new = *origin + *axis * *range * (1.0 - phase.cos()) / 2.0;
+                let new = *origin + *axis * *range * (1.0 - super::math::cos(*phase)) / 2.0;
                 self.vel = (new - pos) / DT;
                 if self.vel.x != 0.0 {
                     self.dir = self.vel.x.signum();

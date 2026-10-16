@@ -209,11 +209,11 @@ impl Boss {
     /// `count` pellets fanned around the direction to the ball.
     fn fire_spread(&mut self, from: Vec2, ball: Vec2, count: u32) {
         let aim = (ball - from).normalize_or(vec2(0.0, 1.0));
-        let base = aim.y.atan2(aim.x);
+        let base = super::math::atan2(aim.y, aim.x);
         let gap = 0.28;
         for i in 0..count {
             let a = base + (i as f32 - (count - 1) as f32 / 2.0) * gap;
-            let dir = vec2(a.cos(), a.sin());
+            let dir = vec2(super::math::cos(a), super::math::sin(a));
             let start = from + dir * (BOSS_SIZE / 2.0 + SHOT_RADIUS + 2.0);
             self.fired.push(Projectile {
                 pos: start,

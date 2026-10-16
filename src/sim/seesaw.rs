@@ -9,6 +9,7 @@ use macroquad::math::{Vec2, vec2};
 
 use super::DT;
 use super::ball::Ball;
+use super::math::{cos, sin};
 
 /// Plank thickness, px.
 pub const THICKNESS: f32 = 8.0;
@@ -66,17 +67,17 @@ impl Seesaw {
     /// True when the plank's original top face points down (a spinner
     /// past vertical): the other face is the top then.
     fn flipped(&self) -> bool {
-        self.angle.cos() < 0.0
+        cos(self.angle) < 0.0
     }
 
     /// Unit vector along the plank (toward its right end).
     pub fn dir(&self) -> Vec2 {
-        vec2(self.angle.cos(), self.angle.sin())
+        vec2(cos(self.angle), sin(self.angle))
     }
 
     /// Unit normal of the plank's top surface.
     pub fn normal(&self) -> Vec2 {
-        let n = vec2(self.angle.sin(), -self.angle.cos());
+        let n = vec2(sin(self.angle), -cos(self.angle));
         if self.flipped() { -n } else { n }
     }
 
@@ -118,7 +119,7 @@ impl Seesaw {
             return;
         }
         if let Some((s, mass)) = load {
-            let torque = mass * GRAVITY * s * self.angle.cos();
+            let torque = mass * GRAVITY * s * cos(self.angle);
             self.omega += torque / self.inertia() * DT;
         }
         self.omega *= 1.0 - DAMPING * DT;
