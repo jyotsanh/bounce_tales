@@ -1,0 +1,20 @@
+# Chapter 10, Tunnel of Treasures (scripted controller): gem trail, swim
+# the flooded corridor, push the crate under the switch ledge and climb to
+# the switch, through the door, stone rams the cracked wall into the
+# treasure room, normal again, jump the moles and the walker, exit.
+level ch10
+370 R
+2 RJ
+105 R
+1 RJ
+35 R
+8 RJ
+321 R
+1 RJ
+97 R
+1 RJ
+58 R
+1 RJ
+138 R
+expect exit == 1
+expect deaths == 0

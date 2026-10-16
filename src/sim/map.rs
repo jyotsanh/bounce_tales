@@ -183,7 +183,7 @@ pub struct TileMap {
 /// in the collision map. See `level::ascii_marker`.
 pub const OBJECT_MARKERS: &[char] = &[
     'E', 'C', '*', 'e', '+', 'H', 'V', 'S', 'D', 'B', 'j', '>', '<', 'F', 'X', 'W', 'O', 'Z', 'K',
-    'Q', '0', '1', '2', 'w', 'y', 'Y', 'J', 'G', 'g', 'M', 'T', 'h', 'I',
+    'Q', '0', '1', '2', 'w', 'y', 'Y', 'J', 'G', 'g', 'M', 'T', 'h', 'I', 'P',
 ];
 
 /// Per-cell flag bits from tile properties (used from steps 11 and 15).
@@ -200,6 +200,10 @@ pub mod flags {
     pub const CRUMBLE: u8 = 8;
     /// `cracked=true`: a solid block a heavy ball smashes for good.
     pub const CRACKED: u8 = 16;
+    /// `conveyor=left` / `conveyor=right`: a solid belt that carries a ball
+    /// standing on it.
+    pub const CONVEYOR_LEFT: u8 = 32;
+    pub const CONVEYOR_RIGHT: u8 = 64;
 }
 
 impl TileMap {
@@ -207,7 +211,8 @@ impl TileMap {
     /// on [`Tile`]; `o` marks the ball start (an empty tile, ball resting on
     /// the tile's bottom edge). `^` / `v` are spikes pointing up / down,
     /// `~` is water (no collision shape), `x` a crumbling block and `k` a
-    /// cracked block (both solid). All rows must be the same length. Object
+    /// cracked block (both solid), `{` / `}` a conveyor belt moving left /
+    /// right (solid). All rows must be the same length. Object
     /// markers ([`OBJECT_MARKERS`]) are empty space here;
     /// `level::Level::from_ascii` turns them into objects.
     pub fn from_ascii(text: &str) -> Result<TileMap, String> {
@@ -260,6 +265,14 @@ impl TileMap {
                     }
                     'k' => {
                         cell_flags[y * width + x] = flags::CRACKED;
+                        Tile::Solid
+                    }
+                    '{' => {
+                        cell_flags[y * width + x] = flags::CONVEYOR_LEFT;
+                        Tile::Solid
+                    }
+                    '}' => {
+                        cell_flags[y * width + x] = flags::CONVEYOR_RIGHT;
                         Tile::Solid
                     }
                     other => Tile::from_glyph(other)

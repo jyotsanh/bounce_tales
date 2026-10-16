@@ -21,6 +21,21 @@ pub fn mine_names() -> Vec<&'static str> {
     names_from_index(include_str!("../assets/gen/mine.idx"))
 }
 
+/// Every recoloured tileset's sprite names (each must match the forest's).
+pub fn recoloured_names() -> Vec<(&'static str, Vec<&'static str>)> {
+    vec![
+        ("mine", mine_names()),
+        (
+            "machine",
+            names_from_index(include_str!("../assets/gen/machine.idx")),
+        ),
+        (
+            "circus",
+            names_from_index(include_str!("../assets/gen/circus.idx")),
+        ),
+    ]
+}
+
 /// Id of a forest tile by name. Panics on an unknown name (a code typo,
 /// caught by tests).
 pub fn forest_id(name: &str) -> u16 {
@@ -72,6 +87,8 @@ pub fn autotile(map: &TileMap, x: i32, y: i32) -> Option<&'static str> {
         Tile::Slope2LeftLow => "slope2_l_low",
         Tile::Solid if f & flags::CRUMBLE != 0 => "crumble",
         Tile::Solid if f & flags::CRACKED != 0 => "cracked",
+        Tile::Solid if f & flags::CONVEYOR_LEFT != 0 => "conveyor_l",
+        Tile::Solid if f & flags::CONVEYOR_RIGHT != 0 => "conveyor_r",
         Tile::Solid => {
             // The map's top row is the edge of the world, not open sky, and
             // no grass grows under water.
@@ -108,7 +125,9 @@ mod tests {
     #[test]
     fn mine_tiles_match_forest_tiles() {
         // Same names in the same order: levels can swap one for the other.
-        assert_eq!(mine_names(), forest_names());
+        for (name, names) in recoloured_names() {
+            assert_eq!(names, forest_names(), "{name}");
+        }
         let props = |tsx: &str| -> Vec<String> {
             tsx.lines()
                 .filter(|l| l.contains("<property") && !l.contains("\"name\""))

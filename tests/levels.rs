@@ -117,11 +117,66 @@ fn ch07_egg_in_the_dark_corner() {
     assert_eq!(sim.deaths, 0);
 }
 
+/// Chapter 9: break the hypno machine at the end of the backwards conveyor
+/// with jump held; its bounce reaches the egg above it.
+#[test]
+fn ch09_egg_from_the_machine() {
+    let mut sim = Sim::with_level(Level::load("ch09").unwrap());
+    sim.ball.pos = vec2(77.5 * 16.0, 18.0 * 16.0 - 8.0);
+    for _ in 0..200 {
+        let x = sim.ball.pos.x;
+        sim.step(inp(x > 1276.0, x < 1268.0, true));
+    }
+    assert_eq!(sim.machines_broken, 1);
+    assert_eq!(sim.eggs, 1);
+    assert_eq!(sim.deaths, 0);
+}
+
+/// Chapter 10: hop onto the crate where it starts and jump from its top.
+#[test]
+fn ch10_egg_from_the_crate() {
+    let mut sim = Sim::with_level(Level::load("ch10").unwrap());
+    sim.ball.pos = vec2(46.0 * 16.0, 14.0 * 16.0 - 8.0);
+    for _ in 0..90 {
+        let g = sim.ball.grounded;
+        sim.step(inp(false, false, g));
+    }
+    assert_eq!(sim.eggs, 1);
+    assert_eq!(sim.deaths, 0);
+}
+
+/// Chapter 11: ride the big wheel and jump from the top car.
+#[test]
+fn ch11_egg_from_the_wheel_top() {
+    let mut sim = Sim::with_level(Level::load("ch11").unwrap());
+    let top_car = |sim: &Sim| {
+        sim.entities
+            .iter()
+            .filter(|e| matches!(e.kind, EntityKind::Platform(_)))
+            .map(|e| e.pos)
+            .min_by(|a, b| a.y.total_cmp(&b.y))
+            .unwrap()
+    };
+    // Wait until a car is right at the top, then stand on it and jump.
+    while (top_car(&sim).x + 16.0 - (48.0 * 16.0 + 8.0)).abs() > 2.0 {
+        sim.step(InputFrame::NONE);
+    }
+    let p = top_car(&sim);
+    sim.ball.pos = p + vec2(16.0, -8.0);
+    sim.ball.vel = vec2(0.0, 0.0);
+    for _ in 0..60 {
+        let g = sim.ball.grounded;
+        sim.step(inp(false, false, g));
+    }
+    assert_eq!(sim.eggs, 1);
+    assert_eq!(sim.deaths, 0);
+}
+
 /// Every chapter has exactly one secret egg and a fair number of gems.
 #[test]
 fn chapters_have_one_egg_and_gems() {
     for name in [
-        "ch01", "ch02", "ch03", "ch04", "ch05", "ch06", "ch07", "ch08",
+        "ch01", "ch02", "ch03", "ch04", "ch05", "ch06", "ch07", "ch08", "ch09", "ch10", "ch11",
     ] {
         let sim = Sim::with_level(Level::load(name).unwrap());
         assert_eq!(sim.eggs_total, 1, "{name}");

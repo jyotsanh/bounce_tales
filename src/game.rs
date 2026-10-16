@@ -10,7 +10,7 @@ use crate::sim::{Carry, InputFrame, Sim};
 
 /// Levels in play order. Real levels arrive in steps 34-38.
 pub const CAMPAIGN: &[&str] = &[
-    "ch01", "ch02", "ch03", "ch04", "ch05", "ch06", "ch07", "ch08", "hypno",
+    "ch01", "ch02", "ch03", "ch04", "ch05", "ch06", "ch07", "ch08", "ch09", "ch10", "ch11", "hypno",
 ];
 
 /// Steps between touching the exit and the results screen (confetti).

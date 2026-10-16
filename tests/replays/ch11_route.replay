@@ -1,0 +1,34 @@
+# Chapter 11, Wicked Circus (scripted controller): clown, trampoline to
+# the plateau, catapult over the pit, ride the big wheel over its pit,
+# jump the spinner pit, balloon over the tall wall, normal on top, the
+# cannon up to the exit platform.
+level ch11
+32 R
+1 RJ
+166 R
+3 RJ
+105 R
+1 RJ
+62 R
+1 RJ
+57 R
+14 RJ
+3 J
+23 LJ
+4 J
+19 RJ
+4 J
+15 LJ
+6 J
+10 RJ
+12 J
+4 LJ
+6 J
+3 RJ
+40 R
+29 RJ
+175 R
+87 -
+56 R
+expect exit == 1
+expect deaths == 0

@@ -160,8 +160,131 @@ fn ceiling_image() -> Image {
 const CAVE: [u32; 6] = [0x14101a, 0x18131f, 0x1c1624, 0x211a2a, 0x261e30, 0x2b2236];
 
 /// Backdrop names [`Background::draw`] knows (see `level::BACKGROUNDS`).
+/// Bands top to bottom for the factory and the circus.
+const FACTORY: [u32; 6] = [0x1a2028, 0x1e252e, 0x222a34, 0x262f3a, 0x2a3440, 0x2e3946];
+const CIRCUS: [u32; 6] = [0x140c28, 0x1c1032, 0x26143c, 0x301846, 0x3a1c4e, 0x441e54];
+
+fn bands(colours: &[u32; 6]) {
+    let band = VIEW_H / colours.len() as f32;
+    for (i, &c) in colours.iter().enumerate() {
+        draw_rectangle(0.0, i as f32 * band, VIEW_W, band + 1.0, rgb(c));
+    }
+}
+
+/// A cog silhouette: a disc with `teeth` square teeth, turned by `angle`.
+fn gear(centre: Vec2, r: f32, teeth: u32, angle: f32, colour: Color) {
+    draw_circle(centre.x, centre.y, r, colour);
+    for k in 0..teeth {
+        let a = angle + k as f32 * TAU / teeth as f32;
+        let d = vec2(a.cos(), a.sin());
+        let p = centre + d * (r + 2.0);
+        let side = vec2(-d.y, d.x) * (r * 0.18).max(2.0);
+        draw_triangle(
+            p - side - d * 4.0,
+            p + side - d * 4.0,
+            p + side + d * 3.0,
+            colour,
+        );
+        draw_triangle(
+            p - side - d * 4.0,
+            p + side + d * 3.0,
+            p - side + d * 3.0,
+            colour,
+        );
+    }
+    draw_circle(centre.x, centre.y, r * 0.35, rgb(FACTORY[1]));
+}
+
+impl Background {
+    /// Machine hall: big cogs turning far back, pipes in front.
+    fn draw_factory(&self, view: Vec2, tick: u64) {
+        bands(&FACTORY);
+        let far = rgb(0x323c48);
+        let spin = tick as f32 * 0.01;
+        // Cogs repeat every 192 px of parallax scroll.
+        let off = (view.x * 0.15).rem_euclid(192.0);
+        for k in -1..3 {
+            let x = k as f32 * 192.0 - off;
+            gear(vec2(x + 60.0, 90.0), 34.0, 10, spin, far);
+            gear(vec2(x + 118.0, 150.0), 22.0, 8, -spin * 1.5, far);
+            gear(vec2(x + 160.0, 60.0), 16.0, 6, spin * 2.0, far);
+        }
+        let pipe = rgb(0x3e4a58);
+        let rim = rgb(0x4e5c6c);
+        let off = (view.x * 0.35).rem_euclid(160.0);
+        draw_rectangle(0.0, 214.0, VIEW_W, 10.0, pipe);
+        draw_rectangle(0.0, 214.0, VIEW_W, 2.0, rim);
+        draw_rectangle(0.0, 250.0, VIEW_W, 6.0, pipe);
+        for k in -1..3 {
+            let x = k as f32 * 160.0 - off;
+            draw_rectangle(x + 40.0, 210.0, 8.0, 18.0, rim);
+            draw_rectangle(x + 110.0, 224.0, 10.0, 96.0, pipe);
+            draw_rectangle(x + 110.0, 224.0, 2.0, 96.0, rim);
+        }
+    }
+
+    /// Night circus: stars, striped tents, a string of coloured lights.
+    fn draw_circus(&self, view: Vec2, tick: u64) {
+        bands(&CIRCUS);
+        for k in 0..24u32 {
+            let x = ((k * 97 + 13) % 240) as f32 - (view.x * 0.03).rem_euclid(240.0);
+            let x = x.rem_euclid(240.0);
+            let y = ((k * 53 + 7) % 130) as f32;
+            let tw = if (tick / 20 + k as u64).is_multiple_of(7) {
+                0.4
+            } else {
+                0.9
+            };
+            draw_rectangle(x, y, 1.0, 1.0, Color::new(1.0, 1.0, 0.9, tw));
+        }
+        let off = (view.x * 0.25).rem_euclid(200.0);
+        for k in -1..3 {
+            let x = k as f32 * 200.0 - off;
+            let (cx, w, base) = (x + 100.0, 130.0, 236.0);
+            // Stripes of the tent body, then its cone roof.
+            for s in 0..8 {
+                let colour = if s % 2 == 0 {
+                    rgb(0x8a2a3a)
+                } else {
+                    rgb(0xc8b8c0)
+                };
+                draw_rectangle(
+                    cx - w / 2.0 + s as f32 * w / 8.0,
+                    base - 40.0,
+                    w / 8.0,
+                    80.0,
+                    colour,
+                );
+            }
+            draw_triangle(
+                vec2(cx - w / 2.0 - 6.0, base - 40.0),
+                vec2(cx + w / 2.0 + 6.0, base - 40.0),
+                vec2(cx, base - 96.0),
+                rgb(0x8a2a3a),
+            );
+            draw_rectangle(cx - 1.0, base - 110.0, 2.0, 16.0, rgb(0x6a4a3a));
+            draw_triangle(
+                vec2(cx + 1.0, base - 110.0),
+                vec2(cx + 12.0, base - 106.0),
+                vec2(cx + 1.0, base - 102.0),
+                rgb(0xffd84a),
+            );
+        }
+        // Lights strung across the top, blinking in turn.
+        let off = (view.x * 0.5).rem_euclid(24.0);
+        for k in 0..12 {
+            let x = k as f32 * 24.0 - off;
+            let y = 34.0 + ((x + view.x * 0.5) * 0.13).sin() * 4.0;
+            let colours = [0xff5a5a, 0xffd84a, 0x7ad8ff, 0x9cf0a8];
+            let lit = (tick / 15 + k as u64) % 4;
+            let c = rgb(colours[lit as usize]);
+            draw_circle(x, y, 2.0, c);
+        }
+    }
+}
+
 #[cfg(test)]
-pub const NAMES: &[&str] = &["forest", "cave"];
+pub const NAMES: &[&str] = &["forest", "cave", "factory", "circus"];
 
 /// Sky colour bands, top to bottom.
 const SKY: [u32; 6] = [0x5aaeea, 0x6ab8ee, 0x7cc2f1, 0x8fccf4, 0xa3d7f7, 0xb8e2fa];
@@ -207,9 +330,11 @@ impl Background {
     /// top-left, `max_view_y` its lowest possible value (level height minus
     /// screen height), `tick` drives the cloud drift.
     pub fn draw(&self, name: &str, view: Vec2, max_view_y: f32, tick: u64) {
-        if name == "cave" {
-            self.draw_cave(view, max_view_y);
-            return;
+        match name {
+            "cave" => return self.draw_cave(view, max_view_y),
+            "factory" => return self.draw_factory(view, tick),
+            "circus" => return self.draw_circus(view, tick),
+            _ => {}
         }
         let band = VIEW_H / SKY.len() as f32;
         for (i, &c) in SKY.iter().enumerate() {

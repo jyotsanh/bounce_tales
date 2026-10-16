@@ -54,6 +54,8 @@ pub enum Event {
     Shot { pos: Vec2 },
     /// A pellet shattered on the stone ball at `pos`.
     ShotBlocked { pos: Vec2 },
+    /// A crusher hit the floor (`pos` = middle of its bottom edge).
+    CrusherSlam { pos: Vec2 },
     /// A stalactite started shaking above the ball (`pos` = its centre).
     Rumble { pos: Vec2 },
     /// A falling stalactite hit the ground (`pos` = its tip).
@@ -147,6 +149,8 @@ pub enum EntityKind {
     Boss(Boss),
     /// A falling stalactite (moved by `Sim::step`).
     Stalactite(crate::sim::rocks::Stalactite),
+    /// A crusher head slamming up and down (moved by `Sim::step`).
+    Crusher(crate::sim::crusher::Crusher),
     /// Touching it turns the ball into `form`; `duration` steps (0 = until
     /// changed again).
     Transformer { form: Form, duration: u32 },
@@ -412,6 +416,15 @@ pub fn build(spec: &ObjectSpec) -> Result<Entity, String> {
             need_rect(spec)?;
             let delay = num_prop(spec, "delay", 0.0)?;
             EntityKind::Enemy(Enemy::mole(spec.pos, seconds_to_ticks(delay)))
+        }
+        "crusher" => {
+            need_rect(spec)?;
+            let delay = num_prop(spec, "delay", 0.0)?;
+            EntityKind::Crusher(crate::sim::crusher::Crusher::new(
+                spec.pos,
+                spec.size,
+                seconds_to_ticks(delay),
+            ))
         }
         "stalactite" => {
             // Hangs from the top of its rectangle; its size is fixed.
@@ -726,7 +739,8 @@ impl Entity {
             | EntityKind::Transformer { .. }
             | EntityKind::Enemy(_)
             | EntityKind::Boss(_)
-            | EntityKind::Stalactite(_) => {}
+            | EntityKind::Stalactite(_)
+            | EntityKind::Crusher(_) => {}
             EntityKind::Wheel { angle, speed, .. } => *angle += *speed * crate::sim::DT,
             EntityKind::Cannon {
                 aim,

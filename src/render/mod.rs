@@ -28,6 +28,7 @@ use bounce_tales::sim::{
     Entity, EntityKind, Event, FORM_WARNING_TICKS, Item, RESPAWN_ANIM_TICKS, TRANSFORM_ANIM_TICKS,
     cells_of,
 };
+use bounce_tales::tileset;
 
 pub const SCREEN_W: u32 = VIEW_W as u32;
 pub const SCREEN_H: u32 = VIEW_H as u32;
@@ -153,11 +154,12 @@ impl Renderer {
             self.shake = SHAKE_TICKS;
         }
         // A stalactite rumbling or crashing down shakes the view a little.
-        if sim
-            .events
-            .iter()
-            .any(|e| matches!(e, Event::Rumble { .. } | Event::RockShattered { .. }))
-        {
+        if sim.events.iter().any(|e| {
+            matches!(
+                e,
+                Event::Rumble { .. } | Event::RockShattered { .. } | Event::CrusherSlam { .. }
+            )
+        }) {
             self.shake = self.shake.max(SHAKE_TICKS / 2);
         }
     }
@@ -193,7 +195,7 @@ impl Renderer {
         let map = &level.map;
         let shaking = |x: i32, y: i32| sim.crumbles.iter().any(|c| !c.gone && (c.x, c.y) == (x, y));
         for layer in level.layers.iter().filter(|l| !l.front) {
-            self.draw_layer(layer, &level.sheets, view, |x, y| {
+            self.draw_layer(layer, &level.sheets, view, sim.tick, |x, y| {
                 !is_water(map, x, y) && !shaking(x, y)
             });
         }
@@ -257,10 +259,12 @@ impl Renderer {
         // Water goes over the ball so it looks submerged (the tiles are
         // see-through), then front layers.
         for layer in level.layers.iter().filter(|l| !l.front) {
-            self.draw_layer(layer, &level.sheets, view, |x, y| is_water(map, x, y));
+            self.draw_layer(layer, &level.sheets, view, sim.tick, |x, y| {
+                is_water(map, x, y)
+            });
         }
         for layer in level.layers.iter().filter(|l| l.front) {
-            self.draw_layer(layer, &level.sheets, view, |_, _| true);
+            self.draw_layer(layer, &level.sheets, view, sim.tick, |_, _| true);
         }
         self.draw_decorations(&level.decorations, &level.sheets, true);
         if level.dark {
@@ -413,6 +417,27 @@ impl Renderer {
                 self.sprites.items.draw_flipped(&name, pos, flip);
             }
             EntityKind::Enemy(_) => {}
+            EntityKind::Crusher(c) => {
+                let off = c.prev_offset + (c.offset - c.prev_offset) * alpha;
+                let head = c.home + vec2(0.0, off);
+                // Piston rod from where it hangs down to the head.
+                let mx = c.home.x + c.size.x / 2.0;
+                draw_rectangle(
+                    mx - 3.0,
+                    c.home.y - 8.0,
+                    6.0,
+                    off + 8.0,
+                    Color::new(0.36, 0.38, 0.42, 1.0),
+                );
+                draw_rectangle(
+                    mx - 1.0,
+                    c.home.y - 8.0,
+                    2.0,
+                    off + 8.0,
+                    Color::new(0.6, 0.63, 0.68, 1.0),
+                );
+                self.sprites.objects.draw("crusher", head);
+            }
             EntityKind::Stalactite(r) => {
                 use bounce_tales::sim::rocks::{RockState, SIZE};
                 let mut pos = r.prev_pos.lerp(e.pos, alpha);
@@ -582,8 +607,16 @@ impl Renderer {
         layer: &TileLayer,
         sheets: &[String],
         view: Vec2,
+        tick: u64,
         keep: impl Fn(i32, i32) -> bool,
     ) {
+        // Conveyor belts move: every few steps draw their second frame
+        // (same ids in every tileset, which share the forest layout).
+        let belt = (
+            tileset::forest_id("conveyor_l") as usize,
+            tileset::forest_id("conveyor_r") as usize,
+        );
+        let second = (tick / 6) % 2 == 1;
         let (x0, y0) = TileMap::cell_at(view);
         let (x1, y1) = TileMap::cell_at(view + vec2(VIEW_W, VIEW_H));
         for ty in y0.max(0)..=y1.min(layer.height as i32 - 1) {
@@ -593,7 +626,11 @@ impl Renderer {
                 }
                 if let Some(t) = layer.get(tx, ty) {
                     let atlas = self.sprites.by_name(&sheets[t.sheet as usize]);
-                    atlas.draw_index(t.id as usize, vec2(tx as f32, ty as f32) * TILE);
+                    let mut id = t.id as usize;
+                    if second && (id == belt.0 || id == belt.1) {
+                        id += 2; // conveyor_l2 / conveyor_r2
+                    }
+                    atlas.draw_index(id, vec2(tx as f32, ty as f32) * TILE);
                 }
             }
         }

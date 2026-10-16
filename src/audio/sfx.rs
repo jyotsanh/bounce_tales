@@ -44,6 +44,8 @@ pub enum Sfx {
     Rumble,
     /// A stalactite shattering on the ground.
     RockBreak,
+    /// A crusher hitting the floor.
+    Slam,
     /// Menu cursor moved.
     MenuMove,
     /// Menu item chosen.
@@ -53,7 +55,7 @@ pub enum Sfx {
 }
 
 impl Sfx {
-    pub const ALL: [Sfx; 31] = [
+    pub const ALL: [Sfx; 32] = [
         Sfx::Bounce,
         Sfx::Jump,
         Sfx::Gem,
@@ -82,6 +84,7 @@ impl Sfx {
         Sfx::MachineBreak,
         Sfx::Rumble,
         Sfx::RockBreak,
+        Sfx::Slam,
         Sfx::MenuMove,
         Sfx::MenuSelect,
         Sfx::MenuBack,
@@ -253,6 +256,11 @@ impl Sfx {
                 t(NOISE, 0.08, 0.15, 5000.0, 2500.0).volume(0.25),
                 t(SQUARE, 0.0, 0.1, 140.0, 60.0).volume(0.25),
             ],
+            Sfx::Slam => vec![
+                t(SQUARE, 0.0, 0.18, 90.0, 40.0).volume(0.35),
+                t(NOISE, 0.0, 0.2, 900.0, 200.0).volume(0.4),
+                t(TRI, 0.02, 0.1, 1200.0, 900.0).volume(0.15),
+            ],
             Sfx::MenuMove => vec![t(PULSE, 0.0, 0.04, note(84), note(84)).volume(0.18)],
             Sfx::MenuSelect => vec![
                 t(PULSE, 0.0, 0.05, note(79), note(79)).volume(0.2),
@@ -341,6 +349,7 @@ pub fn for_event(event: &Event, form: Form) -> Option<(Sfx, f32)> {
         Event::MachineBroken { .. } => Sfx::MachineBreak,
         Event::Rumble { .. } => Sfx::Rumble,
         Event::RockShattered { .. } => Sfx::RockBreak,
+        Event::CrusherSlam { .. } => Sfx::Slam,
         Event::BossHit { .. } => Sfx::BossHit,
         Event::BossDefeated { .. } => Sfx::BossDefeated,
         Event::ExitReached => Sfx::Exit,

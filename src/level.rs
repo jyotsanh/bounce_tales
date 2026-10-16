@@ -51,7 +51,8 @@
 //! `G` / `g` = shooter facing left / right, `M` = the Hypno Cube (centred
 //! on the cell where it hovers), `T` = mole popping out of the ground in
 //! that cell, `h` = hypno machine (20x28 standing on the cell's floor),
-//! `I` = stalactite hanging from the top of the cell (16x24).
+//! `I` = stalactite hanging from the top of the cell (16x24), `P` =
+//! crusher (32x16 head in that cell, centred; slams to the floor below).
 
 use std::io::Cursor;
 use std::path::Path;
@@ -73,6 +74,9 @@ pub const TMX_LEVELS: &[(&str, &str)] = &[
     ("ch06", include_str!("../assets/levels/ch06.tmx")),
     ("ch07", include_str!("../assets/levels/ch07.tmx")),
     ("ch08", include_str!("../assets/levels/ch08.tmx")),
+    ("ch09", include_str!("../assets/levels/ch09.tmx")),
+    ("ch10", include_str!("../assets/levels/ch10.tmx")),
+    ("ch11", include_str!("../assets/levels/ch11.tmx")),
 ];
 
 /// Embedded tilesets, looked up by file name from `.tmx` references.
@@ -81,6 +85,13 @@ const TILESETS: &[(&str, &str)] = &[
     ("deco.tsx", include_str!("../assets/gen/deco.tsx")),
     ("mine.tsx", include_str!("../assets/gen/mine.tsx")),
     ("minedeco.tsx", include_str!("../assets/gen/minedeco.tsx")),
+    ("machine.tsx", include_str!("../assets/gen/machine.tsx")),
+    ("machdeco.tsx", include_str!("../assets/gen/machdeco.tsx")),
+    ("circus.tsx", include_str!("../assets/gen/circus.tsx")),
+    (
+        "circusdeco.tsx",
+        include_str!("../assets/gen/circusdeco.tsx"),
+    ),
 ];
 
 /// Reads `name="value"` from an XML tag's text.
@@ -231,12 +242,14 @@ pub const DEFAULT_PAR_SECONDS: u32 = 120;
 const ASCII_PAR_SECONDS: u32 = 60;
 
 /// Parallax backdrops the renderer knows.
-pub const BACKGROUNDS: &[&str] = &["forest", "cave"];
+pub const BACKGROUNDS: &[&str] = &["forest", "cave", "factory", "circus"];
 
 /// Size of the exit gate, px.
 pub const EXIT_SIZE: Vec2 = Vec2::new(32.0, 32.0);
 /// Size of a collectible (gem, egg, extra life), px.
 pub const ITEM_SIZE: Vec2 = Vec2::new(16.0, 16.0);
+/// A crusher head, px.
+pub const CRUSHER_SIZE: Vec2 = Vec2::new(32.0, 16.0);
 /// A hypno machine, px.
 pub const MACHINE_SIZE: Vec2 = Vec2::new(20.0, 28.0);
 /// Size of an ASCII crate (`X`: a big 2x2-tile crate standing on the
@@ -353,6 +366,7 @@ fn ascii_marker(c: char) -> Option<Marker> {
         'J' => m("jumper", "jumper", ITEM_SIZE),
         'T' => m("mole", "mole", ITEM_SIZE),
         'I' => m("stalactite", "stalactite", ITEM_SIZE),
+        'P' => m("crusher", "crusher", CRUSHER_SIZE),
         'h' => m("machine", "machine", MACHINE_SIZE),
         'M' => centred("boss", BOSS_BOX),
         'G' => m("shooter", "shooter", ITEM_SIZE),
@@ -635,6 +649,20 @@ impl Level {
                                 if is_true("cracked") {
                                     cell_flags[i] |= map::flags::CRACKED;
                                 }
+                                match prop("conveyor") {
+                                    None => {}
+                                    Some(tiled::PropertyValue::StringValue(d)) if d == "left" => {
+                                        cell_flags[i] |= map::flags::CONVEYOR_LEFT;
+                                    }
+                                    Some(tiled::PropertyValue::StringValue(d)) if d == "right" => {
+                                        cell_flags[i] |= map::flags::CONVEYOR_RIGHT;
+                                    }
+                                    Some(other) => {
+                                        return Err(format!(
+                                            "'conveyor' must be left or right, got {other:?}"
+                                        ));
+                                    }
+                                }
                             }
                         }
                     }
@@ -862,9 +890,13 @@ pub fn ascii_to_tmx(text: &str) -> Result<String, String> {
         if o.points.is_empty() {
             let mut props = String::new();
             for (k, v) in &o.props {
-                if let Prop::Str(v) = v {
-                    props.push_str(&format!("    <property name=\"{k}\" value=\"{v}\"/>\n"));
-                }
+                let (ty, v) = match v {
+                    Prop::Str(s) => ("", s.clone()),
+                    Prop::Bool(b) => (" type=\"bool\"", b.to_string()),
+                    Prop::Int(i) => (" type=\"int\"", i.to_string()),
+                    Prop::Float(f) => (" type=\"float\"", f.to_string()),
+                };
+                props.push_str(&format!("    <property name=\"{k}\"{ty} value=\"{v}\"/>\n"));
             }
             let body = if props.is_empty() {
                 "/>".to_owned()
@@ -930,7 +962,17 @@ mod tests {
             assert!(level.layers.iter().any(|l| l.name == "ground"), "{name}");
             for sheet in &level.sheets {
                 assert!(
-                    ["forest", "deco", "mine", "minedeco"].contains(&sheet.as_str()),
+                    [
+                        "forest",
+                        "deco",
+                        "mine",
+                        "minedeco",
+                        "machine",
+                        "machdeco",
+                        "circus",
+                        "circusdeco"
+                    ]
+                    .contains(&sheet.as_str()),
                     "{name}: tileset '{sheet}' has no atlas in the renderer"
                 );
             }
@@ -1126,6 +1168,18 @@ mod tests {
                 .unwrap_err()
                 .contains("background")
         );
+    }
+
+    #[test]
+    fn ascii_to_tmx_keeps_every_property_type() {
+        // The cannon marker has int properties; the swinging one a string.
+        let text = "o.....\n......\n.K..Q.\n######";
+        let mut ascii = Level::from_ascii(text).unwrap();
+        for o in &mut ascii.objects {
+            o.props.sort_by(|a, b| a.0.cmp(&b.0));
+        }
+        let tmx = Level::from_tmx("t", &ascii_to_tmx(text).unwrap()).unwrap();
+        assert_eq!(tmx.objects, ascii.objects);
     }
 
     #[test]

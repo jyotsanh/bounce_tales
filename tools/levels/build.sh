@@ -27,4 +27,7 @@ want ch05 && build ch05 "Secret Stalkway" forest 100 5
 want ch06 && build ch06 "Into the Mines" cave 130 6 cave mine
 want ch07 && build ch07 "A Gloomy Path" cave 120 7 cave mine dark
 want ch08 && build ch08 "Rumbling Sounds" cave 120 8 cave mine
+want ch09 && build ch09 "Trapped in Machine" castle 140 9 cave machine
+want ch10 && build ch10 "Tunnel of Treasures" cave 140 10 cave mine
+want ch11 && build ch11 "Wicked Circus" castle 120 11 circus
 rm -rf "$OUT"

@@ -170,6 +170,7 @@ impl Particles {
                 }
                 Event::ShotBlocked { pos } => self.debris(pos, &STONE, 6, 60.0),
                 Event::Rumble { pos } => self.puffs(pos + vec2(0.0, 10.0), 3, 15.0),
+                Event::CrusherSlam { pos } => self.puffs(pos, 8, 60.0),
                 Event::RockShattered { pos } => {
                     self.debris(pos, &ROCK_BITS, 12, 110.0);
                     self.puffs(pos, 6, 40.0);

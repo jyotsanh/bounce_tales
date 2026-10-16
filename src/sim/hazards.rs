@@ -15,6 +15,8 @@ pub enum Cause {
     Enemy,
     /// Hit by a falling stalactite.
     Rock,
+    /// Under a crusher.
+    Crushed,
 }
 
 /// Danger box of a spike cell, relative to the cell's top-left. A little

@@ -1,6 +1,5 @@
-; Mine tileset: the forest tileset recoloured (same tiles, same order, so
-; the auto-tiler and levels work unchanged). Generated from forest.txt by
-; the step-36 script; keep the two in step (append tiles to both).
+; Mine tileset (rock, gravel and timber): generated from forest.txt by
+; tools/levels/recolor.py. Do not edit; edit forest.txt and rerun.
 ; Forest tileset notes: ORDER MATTERS: Tiled levels (step 8) refer to tiles by
 ; position (0 = first sprite, 8 per row). Only append new tiles at the end.
 ; `shape=` sets the collision shape a Tiled level gets from the tile
@@ -418,4 +417,76 @@ ccccccbcccccbccc
 cBcccccccccccccc
 cccccccBcccccccc
 ccccccccccccccbc
+end
+sprite conveyor_l shape=solid conveyor=left
+NNNNNNNNNNNNNNNN
+zzzzzzMzzzzzzzMz
+zzzzzMzzzzzzzMzz
+NNNNNNNNNNNNNNNN
+NmmmmmmmmmmmmmmN
+NmmmmmmmmmmmmmmN
+NmmssmmmmmmssmmN
+NmssssmmmmssssmN
+NssNNssmmssNNssN
+NssNNssmmssNNssN
+NssNNssmmssNNssN
+NmssssmmmmssssmN
+NmmssmmmmmmssmmN
+NmmmmmmmmmmmmmmN
+NmmmmmmmmmmmmmmN
+NNNNNNNNNNNNNNNN
+end
+sprite conveyor_r shape=solid conveyor=right
+NNNNNNNNNNNNNNNN
+zMzMzzzzzMzMzzzz
+zzMzzzzzzzMzzzzz
+NNNNNNNNNNNNNNNN
+NmmmmmmmmmmmmmmN
+NmmmmmmmmmmmmmmN
+NmmssmmmmmmssmmN
+NmssssmmmmssssmN
+NssNNssmmssNNssN
+NssNNssmmssNNssN
+NssNNssmmssNNssN
+NmssssmmmmssssmN
+NmmssmmmmmmssmmN
+NmmmmmmmmmmmmmmN
+NmmmmmmmmmmmmmmN
+NNNNNNNNNNNNNNNN
+end
+sprite conveyor_l2 shape=solid conveyor=left
+NNNNNNNNNNNNNNNN
+zzMzzzzzzzMzzzzz
+zMzzzzzzzMzzzzzz
+NNNNNNNNNNNNNNNN
+NmmmmmmmmmmmmmmN
+NmmmmmmmmmmmmmmN
+NmmssmmmmmmssmmN
+NmssssmmmmssssmN
+NssNNssmmssNNssN
+NssNNssmmssNNssN
+NssNNssmmssNNssN
+NmssssmmmmssssmN
+NmmssmmmmmmssmmN
+NmmmmmmmmmmmmmmN
+NmmmmmmmmmmmmmmN
+NNNNNNNNNNNNNNNN
+end
+sprite conveyor_r2 shape=solid conveyor=right
+NNNNNNNNNNNNNNNN
+zzzzzMzMzzzzzMzM
+zzzzzzMzzzzzzzMz
+NNNNNNNNNNNNNNNN
+NmmmmmmmmmmmmmmN
+NmmmmmmmmmmmmmmN
+NmmssmmmmmmssmmN
+NmssssmmmmssssmN
+NssNNssmmssNNssN
+NssNNssmmssNNssN
+NssNNssmmssNNssN
+NmssssmmmmssssmN
+NmmssmmmmmmssmmN
+NmmmmmmmmmmmmmmN
+NmmmmmmmmmmmmmmN
+NNNNNNNNNNNNNNNN
 end

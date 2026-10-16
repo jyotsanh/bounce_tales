@@ -112,7 +112,7 @@ References: walkthrough video https://www.youtube.com/watch?v=AQa0Sx_ezxA, decom
 - [x] **34.** **Chapters 1–2**: Misty Morning, Unfriendly Friends (forest) + moles and hypno machines.
 - [x] **35.** **Chapters 3–5**: Seeking Answers, Bumpy Cracks, Secret Stalkway.
 - [x] **36.** **Chapters 6–8** + mine/cave tileset: Into the Mines, A Gloomy Path, Rumbling Sounds.
-- [ ] **37.** **Chapters 9–11** + machine/castle tileset: Trapped in Machine, Tunnel of Treasures, Wicked Circus.
+- [x] **37.** **Chapters 9–11** + machine/castle tileset: Trapped in Machine, Tunnel of Treasures, Wicked Circus.
 - [ ] **38.** **Chapters 12–14 + bonus**: Hunting Colours, Almost There, Final Ride (Hypno Cube), Bonus Chapter: Fantastic Fair; egg/collectible balance.
 
 ### Phase J — Finish
@@ -460,3 +460,15 @@ Spare capacity: if a step overruns, the next prompt finishes it before moving on
 - All three use cave music, so the cave cutscene plays after chapter 5. Campaign: ch01–ch08, hypno.
 - Fair-play fixes from the scripted runs: second bat and a jumper removed from ch06's crowded gallery, shooter moved off the landing spot behind a step; ch07 bat removed from a 3-row passage, 3-wide spikes cut to 2; ch08 shooter turned to face the player (pellets from behind were invisible); shaft/chamber ledges widened (3-wide with 2-tile gaps gave no run-up); ch08 egg ledge no longer a dead end.
 - Replays `ch06_route`, `ch07_route`, `ch08_route` (0 deaths; ch08 with the egg). `tests/levels.rs`: ch06 and ch07 egg routes; every chapter one egg + 15 gems. Unit tests: stalactite trigger/fall/shatter/regrow/crush, mine-forest tile parity, backdrop names.
+
+### Step 37 — Chapters 9–11 + factory and circus looks (done)
+- **Tilesets**: `tools/levels/recolor.py` now generates mine, **machine** (riveted steel) and **circus** (red carpet, painted boards) from forest.txt (same tiles and order; parity test covers all three). Decorations: `machdeco` (pipe, gauge, cog, red lamp, warning sign, vent, barrel), `circusdeco` (balloons, pennant, drum, striped ball, podium, star, popcorn). Backdrops: **factory** (big cogs turning, pipes) and **circus** (stars, striped tents with flags, blinking string lights).
+- **Conveyor belts**: forest tiles `conveyor_l/r` (+ second animation frames `_l2/_r2`, swapped every 6 steps by the renderer), tile property `conveyor=left|right` → map flags `CONVEYOR_LEFT/RIGHT`, ASCII `{` / `}`. A ball resting on one is carried 50 px/s (like a platform carry, before its own movement).
+- **Crushers** (`sim::crusher`, object `crusher` with `delay` s, ASCII `P` = 32x16 head): wait up 70 steps, slam down at 420 px/s to the floor below (distance measured from the map), hold 30, rise at 70 px/s. Deadly while slamming or down (`Cause::Crushed`), harmless up or rising. `Event::CrusherSlam` (thud, dust, shake). `finish_tmx.py` staggers ASCII crushers by 0.5 s each.
+- `finish_tmx.py` themes: `mine` / `machine` / `circus` choose tileset, decorations and backdrop.
+- **Bug fixed**: `ascii_to_tmx` dropped int/float/bool object properties (only strings were written), so cannons in Tiled levels lost their angle/power (fell back to defaults). Now all types are written; test.
+- **ch09 Trapped in Machine** (factory, castle music): conveyor start, three staggered crushers, a fan updraft out of a pit onto a gantry, a backwards conveyor to a hypno machine (its bounce reaches the egg), checkpoint, two crushers over a forward conveyor, exit.
+- **ch10 Tunnel of Treasures** (mine, cave music): gem trail, flooded corridor, crate pushed under a 2-thick switch ledge (climb crate → ledge → switch), the door, stone rams a cracked wall into the treasure room (normal transformer right inside so the hoard is reachable; extra life), mole tunnel, exit; egg above the crate's starting spot.
+- **ch11 Wicked Circus** (circus, castle music): clown jumper, trampoline over spikes onto a plateau, catapult over a pit, big wheel over a pit (egg above its top car), checkpoint, spinner over a 4-wide pit, balloon over a tall wall past a spiked ledge, normal on top, a cannon to the exit platform. Geometry copied from the proven test maps (launchers, wheels).
+- Fixes from scripted runs: ch09 gantry lowered a tile (the fan's hover band missed its lip); ch10 switch ledge thickened (the ball slid off the crate under it), water gems lowered to the surface; ch11 spinner pit 5→4 wide, the clown and walker in the landing zone below the balloon wall removed.
+- Campaign: ch01–ch11, hypno. Replays ch09–ch11 (0 deaths). `tests/levels.rs`: egg routes for ch09 (machine), ch10 (crate), ch11 (wheel). Unit tests: crusher cycle and danger windows, conveyor carry, ascii→tmx properties.

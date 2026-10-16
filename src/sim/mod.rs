@@ -10,6 +10,7 @@ pub mod ball;
 pub mod boss;
 pub mod camera;
 pub mod crates;
+pub mod crusher;
 pub mod enemies;
 pub mod entities;
 pub mod hazards;
@@ -84,6 +85,8 @@ pub const CRUMBLE_RETURN_TICKS: u32 = 300;
 /// Hitting a cracked block at least this fast breaks it (if the ball
 /// `smashes`), px/s.
 pub const SMASH_SPEED: f32 = 60.0;
+/// How fast a conveyor belt carries a ball, px/s.
+pub const CONVEYOR_SPEED: f32 = 50.0;
 
 /// Points for each hit on the boss.
 pub const BOSS_HIT_POINTS: u32 = 1000;
@@ -361,6 +364,20 @@ impl Sim {
         if let Some(p) = self.riding.and_then(|i| self.platform(i)) {
             self.ball.pos += p.delta();
         }
+        // A conveyor belt under a resting ball carries it along.
+        if self.ball.grounded {
+            let under = self.ball.pos + macroquad::math::vec2(0.0, self.ball.radius + 2.0);
+            let (cx, cy) = map::TileMap::cell_at(under);
+            let f = self.level.map.flags(cx, cy);
+            let dir = if f & map::flags::CONVEYOR_LEFT != 0 {
+                -1.0
+            } else if f & map::flags::CONVEYOR_RIGHT != 0 {
+                1.0
+            } else {
+                0.0
+            };
+            self.ball.pos.x += dir * CONVEYOR_SPEED * DT;
+        }
 
         let jump_pressed = self.jump_pressed();
         let bottom = |b: &Ball| b.pos + macroquad::math::vec2(0.0, b.radius);
@@ -436,7 +453,8 @@ impl Sim {
     }
 
     /// Moves every enemy one step (crates block them).
-    /// Moves falling stalactites. Returns true if one crushed the ball.
+    /// Moves falling stalactites and crushers. Returns true if one crushed
+    /// the ball.
     fn update_rocks(&mut self) -> bool {
         let ball = self.ball.pos;
         let mut crushed = false;
@@ -458,6 +476,24 @@ impl Sim {
         }
         if crushed {
             self.die(Cause::Rock);
+            return true;
+        }
+        let mut crushed = false;
+        for e in &mut self.entities {
+            let EntityKind::Crusher(c) = &mut e.kind else {
+                continue;
+            };
+            let (pos, ev) = c.advance(&self.level.map);
+            e.pos = pos;
+            if ev == crusher::CrusherEvent::Slammed {
+                self.events.push(Event::CrusherSlam {
+                    pos: pos + macroquad::math::vec2(e.size.x / 2.0, e.size.y),
+                });
+            }
+            crushed |= c.crushes(&self.ball);
+        }
+        if crushed {
+            self.die(Cause::Crushed);
         }
         crushed
     }
@@ -2535,5 +2571,34 @@ mod tests {
                 sim.ball.pos.x
             );
         }
+    }
+
+    #[test]
+    fn conveyors_carry_a_resting_ball() {
+        let mut sim = Sim::with_level(Level::from_ascii("..o.........\n}}}}}}{{{{{{").unwrap());
+        let start = sim.ball.pos.x;
+        for _ in 0..TICKS_PER_SECOND {
+            sim.step(InputFrame::NONE);
+        }
+        let moved = sim.ball.pos.x - start;
+        assert!((40.0..=60.0).contains(&moved), "{moved}");
+        // Where the belts meet it is held between them.
+        for _ in 0..(4 * TICKS_PER_SECOND) {
+            sim.step(InputFrame::NONE);
+        }
+        assert!(
+            (sim.ball.pos.x - 6.0 * 16.0).abs() < 10.0,
+            "{}",
+            sim.ball.pos.x
+        );
+        // Rolling against a belt is slower than with it.
+        let mut a = Sim::with_level(Level::from_ascii("o...........\n}}}}}}}}}}}}").unwrap());
+        let mut b = Sim::with_level(Level::from_ascii("o...........\n{{{{{{{{{{{{").unwrap());
+        let right = InputFrame::from_code("R").unwrap();
+        for _ in 0..60 {
+            a.step(right);
+            b.step(right);
+        }
+        assert!(a.ball.pos.x > b.ball.pos.x + 40.0);
     }
 }
