@@ -68,7 +68,7 @@ dependencies = [
 
 [[package]]
 name = "bounce_tales"
-version = "1.0.0"
+version = "1.0.1-rc1"
 dependencies = [
  "directories",
  "libm",

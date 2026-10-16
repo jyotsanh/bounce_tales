@@ -1,6 +1,6 @@
 [package]
 name = "bounce_tales"
-version = "1.0.0"
+version = "1.0.1-rc1"
 edition = "2024"
 default-run = "bounce_tales"
 description = "A fan remake of the 2008 Nokia game Bounce Tales"
