@@ -16,7 +16,7 @@ carve(45, 58, 16, 20); g.fill(45, 58, 18, 20, '~'); g.fill(45, 58, 21, 21)
 for c in range(48, 56): g.g[15][c] = '#'; g.g[16][c] = 'v'
 g.gems([(47, 17), (51, 17), (55, 17)])
 carve(59, 64, 13, 17); g.fill(59, 64, 18, 18)      # out of the pool
-g.put(62, 17, 'C')
+g.put(62, 17, 'C'); g.put(60, 16, '+')       # a spare ball in the dark
 # D: mole run (two moles, a walker)
 carve(65, 84, 12, 16)
 g.put(69, 16, 'T'); g.put(76, 16, 'T'); g.put(82, 16, 'w')

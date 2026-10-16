@@ -113,7 +113,7 @@ References: walkthrough video https://www.youtube.com/watch?v=AQa0Sx_ezxA, decom
 - [x] **35.** **Chapters 3–5**: Seeking Answers, Bumpy Cracks, Secret Stalkway.
 - [x] **36.** **Chapters 6–8** + mine/cave tileset: Into the Mines, A Gloomy Path, Rumbling Sounds.
 - [x] **37.** **Chapters 9–11** + machine/castle tileset: Trapped in Machine, Tunnel of Treasures, Wicked Circus.
-- [ ] **38.** **Chapters 12–14 + bonus**: Hunting Colours, Almost There, Final Ride (Hypno Cube), Bonus Chapter: Fantastic Fair; egg/collectible balance.
+- [x] **38.** **Chapters 12–14 + bonus**: Hunting Colours, Almost There, Final Ride (Hypno Cube), Bonus Chapter: Fantastic Fair; egg/collectible balance.
 
 ### Phase J — Finish
 - [ ] **39.** **Tuning & bug bash**: physics feel pass against the original, difficulty curve. Regression replays: every level loads and runs 3000 frames without panic, plus scripted runs through key sections. Performance check.
@@ -472,3 +472,14 @@ Spare capacity: if a step overruns, the next prompt finishes it before moving on
 - **ch11 Wicked Circus** (circus, castle music): clown jumper, trampoline over spikes onto a plateau, catapult over a pit, big wheel over a pit (egg above its top car), checkpoint, spinner over a 4-wide pit, balloon over a tall wall past a spiked ledge, normal on top, a cannon to the exit platform. Geometry copied from the proven test maps (launchers, wheels).
 - Fixes from scripted runs: ch09 gantry lowered a tile (the fan's hover band missed its lip); ch10 switch ledge thickened (the ball slid off the crate under it), water gems lowered to the surface; ch11 spinner pit 5→4 wide, the clown and walker in the landing zone below the balloon wall removed.
 - Campaign: ch01–ch11, hypno. Replays ch09–ch11 (0 deaths). `tests/levels.rs`: egg routes for ch09 (machine), ch10 (crate), ch11 (wheel). Unit tests: crusher cycle and danger windows, conveyor carry, ascii→tmx properties.
+
+### Step 38 — Chapters 12–14, bonus chapter, collectible balance (done)
+- **Coloured gates**: ASCII `a`/`A` red, `u`/`U` blue, `n`/`N` green (switch / door cell; switch target and door name = the colour); switches and doors are drawn tinted. Test: a red switch opens red doors only.
+- **Bonus levels**: `game::BONUS = ["ch15"]`, opened by `BONUS_EGGS` = 10 eggs found over the campaign (`App::campaign_eggs`). The map lists them after the campaign (gold "B" node; panel: "BONUS <title>", "FIND 10 EGGS TO OPEN: n/10"); long titles shrink to fit. Story scenes only follow campaign levels, so the ending still plays after chapter 14. A newly opened level (incl. the bonus) flashes and takes the map cursor.
+- **ch12 Hunting Colours** (forest): climb to the red switch (egg in a nook above), red door, a hole down to a flooded cave with the blue switch, steps back up, blue door, checkpoint, platform to the green switch's island, green door, a walker and a flyer, exit.
+- **ch13 Almost There** (factory, castle music): a gauntlet of proven pieces: staggered crushers (plain floor under them; a belt would carry you in while you wait), 2-wide spikes, crumbling planks over spikes, a platform over a spiked chasm, a zig-zag climb, an upper hall with a shooter (out of range of the climb), a hypno machine (egg above), an extra life; two checkpoints.
+- **ch14 Final Ride** (factory, boss music): three moving platforms over a long spiked chasm (egg above the second ride), checkpoint, a low opening into an arena identical to the step-27 one where the Hypno Cube waits; beating it ends the level and the campaign (ending scene). The `hypno` test arena is out of the campaign.
+- **ch15 Fantastic Fair** (bonus; circus, title music): no enemies, 34 gems, 2 extra lives; trampolines, catapult, big wheel (egg above), balloon through a gem cloud, the cannon.
+- **Balance**: every chapter 1 egg; gems 15–34 (322 total); extra lives in ch07, ch09, ch10, ch13, ch15 (×2); checkpoints in all but the short vertical ch05. Campaign eggs 14 vs. 10 needed for the bonus (test keeps ≥ 3 slack).
+- Fixes from scripted runs: ch12 walker moved off the platform's landing island; ch13 conveyor taken out from under the crushers; ch14 bank shortened so the arena's opening is reachable.
+- Campaign: ch01–ch14 (+ bonus ch15). Replays ch12–ch15 (ch14: the controller wins with ≤ 1 ball lost, `expect boss.hp == 0`). `tests/levels.rs`: egg routes for ch12–ch15, content check for all 15, bonus egg slack. App tests: bonus unlock by eggs, ending after the campaign.

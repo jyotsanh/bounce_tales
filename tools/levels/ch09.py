@@ -26,7 +26,7 @@ g.put(79, 11, 'e')                       # the machine's bounce reaches it
 g.gems([(67, 15), (71, 15), (75, 15)])
 # E: two crushers over a conveyor helping you on, then the exit
 carve(83, 121, 12, F - 1)
-g.put(85, F - 1, 'C')
+g.put(85, F - 1, 'C'); g.put(87, F - 2, '+')   # a spare ball before the last crushers
 for c in range(90, 108): g.g[F][c] = '}'
 for c in (93, 101): g.put(c, 12, 'P')
 g.gems([(97, 16), (105, 16), (112, 15)])

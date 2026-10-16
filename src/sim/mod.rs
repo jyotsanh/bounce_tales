@@ -2601,4 +2601,22 @@ mod tests {
         }
         assert!(a.ball.pos.x > b.ball.pos.x + 40.0);
     }
+
+    #[test]
+    fn coloured_switches_open_only_their_own_doors() {
+        let mut sim =
+            Sim::with_level(Level::from_ascii("o.a...A...U....\n###############").unwrap());
+        let right = InputFrame::from_code("R").unwrap();
+        for _ in 0..(3 * TICKS_PER_SECOND) {
+            sim.step(right);
+        }
+        // Past the red door (opened by the red switch), stopped at the blue.
+        let x = sim.ball.pos.x;
+        assert!(x > 7.0 * 16.0 && x < 10.0 * 16.0, "{x}");
+        let open = |name: &str| {
+            sim.entities.iter().any(|e| matches!(&e.kind, EntityKind::Door { name: n, switched: true, .. } if n == name))
+        };
+        assert!(open("red"));
+        assert!(!open("blue"));
+    }
 }

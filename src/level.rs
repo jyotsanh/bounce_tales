@@ -51,6 +51,8 @@
 //! `G` / `g` = shooter facing left / right, `M` = the Hypno Cube (centred
 //! on the cell where it hovers), `T` = mole popping out of the ground in
 //! that cell, `h` = hypno machine (20x28 standing on the cell's floor),
+//! `a` / `A`, `u` / `U`, `n` / `N` = red, blue, green switch / door cell
+//! (each colour opens only its own doors),
 //! `I` = stalactite hanging from the top of the cell (16x24), `P` =
 //! crusher (32x16 head in that cell, centred; slams to the floor below).
 
@@ -77,6 +79,10 @@ pub const TMX_LEVELS: &[(&str, &str)] = &[
     ("ch09", include_str!("../assets/levels/ch09.tmx")),
     ("ch10", include_str!("../assets/levels/ch10.tmx")),
     ("ch11", include_str!("../assets/levels/ch11.tmx")),
+    ("ch12", include_str!("../assets/levels/ch12.tmx")),
+    ("ch13", include_str!("../assets/levels/ch13.tmx")),
+    ("ch14", include_str!("../assets/levels/ch14.tmx")),
+    ("ch15", include_str!("../assets/levels/ch15.tmx")),
 ];
 
 /// Embedded tilesets, looked up by file name from `.tmx` references.
@@ -326,6 +332,22 @@ fn ascii_marker(c: char) -> Option<Marker> {
             ..m("switch", "switch", ITEM_SIZE)
         },
         'D' => m("door", "gate", ITEM_SIZE),
+        // Coloured gates: lowercase = switch, uppercase = door cell.
+        'a' => Marker {
+            props: vec![("target".into(), Prop::Str("red".into()))],
+            ..m("switch", "switch_red", ITEM_SIZE)
+        },
+        'A' => m("door", "red", ITEM_SIZE),
+        'u' => Marker {
+            props: vec![("target".into(), Prop::Str("blue".into()))],
+            ..m("switch", "switch_blue", ITEM_SIZE)
+        },
+        'U' => m("door", "blue", ITEM_SIZE),
+        'n' => Marker {
+            props: vec![("target".into(), Prop::Str("green".into()))],
+            ..m("switch", "switch_green", ITEM_SIZE)
+        },
+        'N' => m("door", "green", ITEM_SIZE),
         'B' => m("bridge", "gate", ITEM_SIZE),
         'j' => m("spring", "spring", ITEM_SIZE),
         '>' => Marker {

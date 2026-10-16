@@ -172,14 +172,107 @@ fn ch11_egg_from_the_wheel_top() {
     assert_eq!(sim.deaths, 0);
 }
 
+/// Chapter 12: from the top of the red climb, jump left into the nook.
+#[test]
+fn ch12_egg_in_the_nook() {
+    let mut sim = Sim::with_level(Level::load("ch12").unwrap());
+    sim.ball.pos = vec2(23.4 * 16.0, 12.0 * 16.0 - 8.0);
+    for _ in 0..150 {
+        let b = &sim.ball;
+        let edge = (b.pos.y - 184.0).abs() < 2.0 && b.pos.x < 20.4 * 16.0;
+        sim.step(inp(true, false, b.grounded && edge));
+    }
+    assert_eq!(sim.eggs, 1);
+    assert_eq!(sim.deaths, 0);
+}
+
+/// Chapter 13: break the machine in the upper hall with jump held.
+#[test]
+fn ch13_egg_from_the_machine() {
+    let mut sim = Sim::with_level(Level::load("ch13").unwrap());
+    sim.ball.pos = vec2(115.5 * 16.0, 8.0 * 16.0 - 8.0);
+    for _ in 0..200 {
+        let x = sim.ball.pos.x;
+        sim.step(inp(x > 118.5 * 16.0 + 4.0, x < 118.5 * 16.0 - 4.0, true));
+    }
+    assert_eq!(sim.machines_broken, 1);
+    assert_eq!(sim.eggs, 1);
+    assert_eq!(sim.deaths, 0);
+}
+
+/// Chapter 14: jump for the egg from the second ride's platform.
+#[test]
+fn ch14_egg_from_the_second_ride() {
+    let mut sim = Sim::with_level(Level::load("ch14").unwrap());
+    let second = |sim: &Sim| {
+        sim.entities
+            .iter()
+            .filter(|e| matches!(e.kind, EntityKind::Platform(_)))
+            .map(|e| e.pos)
+            .find(|p| p.x > 21.5 * 16.0 && p.x < 33.0 * 16.0)
+            .unwrap()
+    };
+    // Wait for the platform's middle to pass under the egg (col 27).
+    while (second(&sim).x + 24.0 - 27.5 * 16.0).abs() > 1.5 {
+        sim.step(InputFrame::NONE);
+    }
+    sim.ball.pos = second(&sim) + vec2(24.0, -8.0);
+    sim.ball.vel = vec2(0.0, 0.0);
+    for _ in 0..60 {
+        let g = sim.ball.grounded;
+        sim.step(inp(false, false, g));
+    }
+    assert_eq!(sim.eggs, 1);
+}
+
+/// Chapter 15: the egg above the big wheel's top car.
+#[test]
+fn ch15_egg_from_the_wheel_top() {
+    let mut sim = Sim::with_level(Level::load("ch15").unwrap());
+    let top_car = |sim: &Sim| {
+        sim.entities
+            .iter()
+            .filter(|e| matches!(e.kind, EntityKind::Platform(_)))
+            .map(|e| e.pos)
+            .min_by(|a, b| a.y.total_cmp(&b.y))
+            .unwrap()
+    };
+    while (top_car(&sim).x + 16.0 - (48.0 * 16.0 + 8.0)).abs() > 2.0 {
+        sim.step(InputFrame::NONE);
+    }
+    sim.ball.pos = top_car(&sim) + vec2(16.0, -8.0);
+    sim.ball.vel = vec2(0.0, 0.0);
+    for _ in 0..60 {
+        let g = sim.ball.grounded;
+        sim.step(inp(false, false, g));
+    }
+    assert_eq!(sim.eggs, 1);
+}
+
 /// Every chapter has exactly one secret egg and a fair number of gems.
 #[test]
 fn chapters_have_one_egg_and_gems() {
     for name in [
         "ch01", "ch02", "ch03", "ch04", "ch05", "ch06", "ch07", "ch08", "ch09", "ch10", "ch11",
+        "ch12", "ch13", "ch14", "ch15",
     ] {
         let sim = Sim::with_level(Level::load(name).unwrap());
         assert_eq!(sim.eggs_total, 1, "{name}");
         assert!(sim.gems_total >= 15, "{name}: {}", sim.gems_total);
+    }
+}
+
+/// The bonus level needs eggs from the campaign: leave some slack so a
+/// player can miss a few and still open it.
+#[test]
+fn enough_campaign_eggs_for_the_bonus() {
+    use bounce_tales::game::{BONUS, BONUS_EGGS, CAMPAIGN};
+    let eggs: u32 = CAMPAIGN
+        .iter()
+        .map(|n| Sim::with_level(Level::load(n).unwrap()).eggs_total)
+        .sum();
+    assert!(eggs >= BONUS_EGGS + 3, "{eggs} campaign eggs");
+    for n in BONUS {
+        Level::load(n).unwrap();
     }
 }

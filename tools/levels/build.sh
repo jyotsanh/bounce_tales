@@ -30,4 +30,8 @@ want ch08 && build ch08 "Rumbling Sounds" cave 120 8 cave mine
 want ch09 && build ch09 "Trapped in Machine" castle 140 9 cave machine
 want ch10 && build ch10 "Tunnel of Treasures" cave 140 10 cave mine
 want ch11 && build ch11 "Wicked Circus" castle 120 11 circus
+want ch12 && build ch12 "Hunting Colours" forest 150 12
+want ch13 && build ch13 "Almost There" castle 160 13 cave machine
+want ch14 && build ch14 "Final Ride" boss 150 14 machine
+want ch15 && build ch15 "Fantastic Fair" title 120 15 circus
 rm -rf "$OUT"

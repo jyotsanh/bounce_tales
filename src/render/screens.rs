@@ -219,13 +219,17 @@ impl Renderer {
                 Color::new(0.1, 0.1, 0.1, 1.0)
             };
             draw_circle(p.x, p.y, 12.0, ring);
-            let fill = if unlocked {
+            let fill = if unlocked && level.bonus {
+                GOLD
+            } else if unlocked {
                 world_color(&level.music)
             } else {
                 Color::new(0.35, 0.35, 0.38, 1.0)
             };
             draw_circle(p.x, p.y, 10.0, fill);
-            let label = if unlocked {
+            let label = if level.bonus {
+                "B".into()
+            } else if unlocked {
                 (i + 1).to_string()
             } else {
                 "?".into()
@@ -283,10 +287,27 @@ impl Renderer {
             return;
         };
         let y = bottom + 10.0;
-        let title = format!("{} {}", sel + 1, level.title);
-        font::draw_centred(f, &title, VIEW_W / 2.0, y, 2.0, GOLD);
+        let title = if level.bonus {
+            format!("BONUS {}", level.title)
+        } else {
+            format!("{} {}", sel + 1, level.title)
+        };
+        // Long titles drop to the small size to fit the panel.
+        let scale = if font::width(&title, 2.0) > VIEW_W - 8.0 {
+            1.0
+        } else {
+            2.0
+        };
+        font::draw_centred(f, &title, VIEW_W / 2.0, y + 8.0 - 4.0 * scale, scale, GOLD);
         let rec = app.progress.get(&level.name);
-        let line = if !app.unlocked(sel) {
+        let line = if !app.unlocked(sel) && level.bonus {
+            format!(
+                "FIND {} EGGS TO OPEN: {}/{}",
+                game::BONUS_EGGS,
+                app.campaign_eggs(),
+                game::BONUS_EGGS
+            )
+        } else if !app.unlocked(sel) {
             "LOCKED - FINISH THE LEVEL BEFORE".to_owned()
         } else if rec.completed {
             format!(

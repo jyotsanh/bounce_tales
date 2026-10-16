@@ -1,0 +1,28 @@
+# Bonus, Fantastic Fair (scripted controller): trampoline, catapult, big
+# wheel, balloon through the gem cloud over the wall, the cannon, exit.
+level ch15
+199 R
+3 RJ
+105 R
+1 RJ
+88 R
+14 RJ
+3 J
+23 LJ
+4 J
+19 RJ
+4 J
+15 LJ
+6 J
+10 RJ
+12 J
+4 LJ
+7 J
+2 RJ
+40 R
+30 RJ
+207 R
+87 -
+56 R
+expect exit == 1
+expect deaths == 0

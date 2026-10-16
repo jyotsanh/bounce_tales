@@ -10,8 +10,14 @@ use crate::sim::{Carry, InputFrame, Sim};
 
 /// Levels in play order. Real levels arrive in steps 34-38.
 pub const CAMPAIGN: &[&str] = &[
-    "ch01", "ch02", "ch03", "ch04", "ch05", "ch06", "ch07", "ch08", "ch09", "ch10", "ch11", "hypno",
+    "ch01", "ch02", "ch03", "ch04", "ch05", "ch06", "ch07", "ch08", "ch09", "ch10", "ch11", "ch12",
+    "ch13", "ch14",
 ];
+
+/// Bonus levels, shown on the map after the campaign.
+pub const BONUS: &[&str] = &["ch15"];
+/// Eggs found over the campaign that open the bonus levels.
+pub const BONUS_EGGS: u32 = 10;
 
 /// Steps between touching the exit and the results screen (confetti).
 pub const COMPLETE_DELAY: u32 = 75;

@@ -150,10 +150,12 @@ pub struct MapLevel {
     pub eggs_total: u32,
     /// Its music track (also tints its node: forest, cave, castle, boss).
     pub music: String,
+    /// A bonus level: after the campaign, opened by eggs found.
+    pub bonus: bool,
 }
 
 impl MapLevel {
-    fn load(name: &str) -> Option<MapLevel> {
+    fn load(name: &str, bonus: bool) -> Option<MapLevel> {
         let level = Level::load(name).ok()?;
         let (title, music) = (level.title.clone(), level.music.clone());
         let eggs_total = Sim::with_level_carry(level, Carry::default()).eggs_total;
@@ -162,6 +164,7 @@ impl MapLevel {
             title,
             eggs_total,
             music,
+            bonus,
         })
     }
 }
@@ -219,10 +222,15 @@ pub struct App {
 impl App {
     /// Starts at the title screen.
     pub fn new() -> App {
-        App::with_campaign(CAMPAIGN)
+        App::with_levels(CAMPAIGN, game::BONUS)
     }
 
     pub fn with_campaign(campaign: &[&str]) -> App {
+        App::with_levels(campaign, &[])
+    }
+
+    /// The map's levels: the campaign in order, then bonus levels.
+    pub fn with_levels(campaign: &[&str], bonus: &[&str]) -> App {
         App {
             screen: Screen::Title,
             game: None,
@@ -234,7 +242,11 @@ impl App {
             ui_events: Vec::new(),
             stepped: false,
             progress: Progress::default(),
-            levels: campaign.iter().filter_map(|n| MapLevel::load(n)).collect(),
+            levels: campaign
+                .iter()
+                .filter_map(|n| MapLevel::load(n, false))
+                .chain(bonus.iter().filter_map(|n| MapLevel::load(n, true)))
+                .collect(),
             map_sel: 0,
             unlocked_now: None,
             result_recorded: false,
@@ -258,8 +270,26 @@ impl App {
         Ok(app)
     }
 
+    /// Campaign level names (bonus levels left out).
     fn names(&self) -> Vec<String> {
-        self.levels.iter().map(|l| l.name.clone()).collect()
+        self.levels
+            .iter()
+            .filter(|l| !l.bonus)
+            .map(|l| l.name.clone())
+            .collect()
+    }
+
+    fn campaign_len(&self) -> usize {
+        self.levels.iter().filter(|l| !l.bonus).count()
+    }
+
+    /// Eggs found over the campaign (what opens bonus levels).
+    pub fn campaign_eggs(&self) -> u32 {
+        self.levels
+            .iter()
+            .filter(|l| !l.bonus)
+            .map(|l| self.progress.get(&l.name).eggs.min(l.eggs_total))
+            .sum()
     }
 
     fn level_index(&self, name: &str) -> Option<usize> {
@@ -268,7 +298,12 @@ impl App {
 
     /// Map level `i` can be played.
     pub fn unlocked(&self, i: usize) -> bool {
-        self.progress.unlocked(&self.names(), i)
+        match self.levels.get(i) {
+            Some(l) if l.bonus => {
+                self.progress.unlock_all || self.campaign_eggs() >= game::BONUS_EGGS
+            }
+            _ => self.progress.unlocked(&self.names(), i),
+        }
     }
 
     /// Fade darkness 0..1 (for drawing).
@@ -630,7 +665,8 @@ impl App {
         self.ui_events.push(UiEvent::Select);
         let scene = self
             .level_index(&g.level_name)
-            .and_then(|i| cutscene::after_level(&self.levels, i));
+            .filter(|&i| i < self.campaign_len())
+            .and_then(|i| cutscene::after_level(&self.levels[..self.campaign_len()], i));
         match scene {
             Some(scene) => self.play_scene_once(scene, Action::ToMap),
             None => self.start_fade(Action::ToMap),
@@ -680,13 +716,15 @@ impl App {
         self.dirty = true;
         let result = result.clone();
         let index = self.level_index(&result.level);
-        let was_unlocked = index.map(|i| self.unlocked(i + 1));
+        let before: Vec<bool> = (0..self.levels.len()).map(|k| self.unlocked(k)).collect();
         self.progress.record(&result);
         if let Some(i) = index {
             let next = (i + 1).min(self.levels.len().saturating_sub(1));
             self.map_sel = next;
-            if was_unlocked == Some(false) && i + 1 < self.levels.len() {
-                self.unlocked_now = Some(i + 1);
+            // The first level this result opened flashes on the map.
+            self.unlocked_now = (0..self.levels.len()).find(|&k| !before[k] && self.unlocked(k));
+            if let Some(k) = self.unlocked_now {
+                self.map_sel = k;
             }
         }
     }
@@ -1188,7 +1226,38 @@ mod tests {
     #[test]
     fn campaign_levels_all_appear_on_the_map() {
         let app = App::new();
-        assert_eq!(app.levels.len(), CAMPAIGN.len());
-        assert_eq!(app.levels.last().unwrap().music, "boss");
+        assert_eq!(app.levels.len(), CAMPAIGN.len() + game::BONUS.len());
+        let last_campaign = &app.levels[CAMPAIGN.len() - 1];
+        assert_eq!(last_campaign.music, "boss");
+        assert!(!last_campaign.bonus);
+        assert!(app.levels[CAMPAIGN.len()..].iter().all(|l| l.bonus));
+    }
+
+    #[test]
+    fn bonus_opens_with_enough_eggs_and_the_ending_stays_after_the_campaign() {
+        let mut app = App::new();
+        let bonus = CAMPAIGN.len();
+        // Every campaign level done but no eggs: still locked.
+        for l in CAMPAIGN {
+            app.progress.records.insert(
+                l.to_string(),
+                crate::progress::LevelRecord {
+                    completed: true,
+                    ..Default::default()
+                },
+            );
+        }
+        assert!(!app.unlocked(bonus));
+        for l in &CAMPAIGN[..game::BONUS_EGGS as usize] {
+            app.progress.records.get_mut(*l).unwrap().eggs = 1;
+        }
+        assert_eq!(app.campaign_eggs(), game::BONUS_EGGS);
+        assert!(app.unlocked(bonus));
+        // The ending follows the last campaign level, not the bonus.
+        let campaign = &app.levels[..app.campaign_len()];
+        assert_eq!(
+            cutscene::after_level(campaign, CAMPAIGN.len() - 1),
+            Some("ending")
+        );
     }
 }

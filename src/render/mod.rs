@@ -539,11 +539,14 @@ impl Renderer {
                 let pos = base - vec2(8.0, 8.0) + dir * -8.0;
                 self.sprites.items.draw(&format!("fan_{frame}"), pos);
             }
-            EntityKind::Switch { on, .. } => {
+            EntityKind::Switch { on, target } => {
                 let name = if *on { "switch_on" } else { "switch_off" };
-                self.sprites.items.draw(name, e.pos);
+                self.sprites
+                    .items
+                    .draw_tinted(name, e.pos, vec2(TILE, TILE), gate_tint(target));
             }
             EntityKind::Door {
+                name: gate,
                 bridge,
                 switched,
                 anim,
@@ -569,7 +572,12 @@ impl Renderer {
                         let lift = if *switched { t * rows * TILE } else { 0.0 };
                         let p = pos - vec2(0.0, lift);
                         if p.y + TILE > y0 as f32 * TILE {
-                            self.sprites.items.draw("door", p);
+                            self.sprites.items.draw_tinted(
+                                "door",
+                                p,
+                                vec2(TILE, TILE),
+                                gate_tint(gate),
+                            );
                         }
                     }
                 }
@@ -840,6 +848,16 @@ impl Renderer {
 
 /// Camera drawing into the game target with `view` (level pixels) at the
 /// top-left corner.
+/// Colour of a coloured gate's switch and doors (plain gates are untinted).
+fn gate_tint(name: &str) -> Color {
+    match name {
+        "red" => Color::new(1.0, 0.45, 0.45, 1.0),
+        "blue" => Color::new(0.5, 0.7, 1.0, 1.0),
+        "green" => Color::new(0.5, 1.0, 0.55, 1.0),
+        _ => WHITE,
+    }
+}
+
 /// Light pool for dark levels: transparent inside, fading to opaque black
 /// at the rim (drawn round the ball, black fills the rest).
 fn light_texture() -> Texture2D {

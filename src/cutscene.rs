@@ -348,6 +348,7 @@ mod tests {
             title: String::new(),
             eggs_total: 0,
             music: music.into(),
+            bonus: false,
         }
     }
 

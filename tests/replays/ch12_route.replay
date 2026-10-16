@@ -1,0 +1,38 @@
+# Chapter 12, Hunting Colours (scripted controller): climb to the red
+# switch, through the red door, down the hole to the flooded cave and the
+# blue switch, steps back up, the blue door, the platform to the green
+# switch island, the green door, exit.
+level ch12
+39 R
+1 RJ
+20 R
+13 -
+5 L
+1 -
+6 L
+1 RJ
+23 R
+12 -
+3 L
+4 -
+2 L
+1 -
+5 R
+1 RJ
+20 R
+11 -
+280 R
+1 RJ
+45 R
+1 RJ
+45 R
+1 RJ
+58 R
+261 -
+14 R
+187 -
+302 R
+1 RJ
+71 R
+expect exit == 1
+expect deaths == 0

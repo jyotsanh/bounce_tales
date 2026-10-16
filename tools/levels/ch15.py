@@ -1,0 +1,40 @@
+import sys; sys.path.insert(0, 'tools/levels')
+from lvl import Grid
+g = Grid(132, 22)
+g.walls()
+F = 16
+# A: welcome stretch, a gem arch
+g.ground(2, 16, F); g.put(4, F - 1, 'o')
+g.gems([(6, 14), (7, 13), (8, 12), (9, 12), (10, 12), (11, 13), (12, 14)])
+# B: trampoline up to the plateau (geometry as in ch11)
+g.ground(17, 19, F); g.put(18, F - 1, 'j')
+g.fill(20, 31, 12, 12); g.ground(26, 31, 12)
+g.ground(20, 25, F + 3)
+g.gems([(18, 10), (18, 8), (21, 10), (23, 10), (25, 10)])
+# C: catapult over a pit, a line of gems along its arc
+g.put(28, 11, '>')
+g.ground(38, 41, 12)
+g.gems([(32, 9), (34, 8), (36, 8)])
+# D: big wheel over a pit, the egg above its top car
+g.ground(42, 43, F)
+g.put(48, F - 2, 'O')
+g.put(48, 8, 'e')
+g.gems([(45, 10), (51, 10)])
+g.ground(53, 60, F)
+g.put(56, F - 1, 'C'); g.put(59, F - 1, '+')
+# E: balloon up through a cloud of gems and over the tall wall
+g.ground(61, 72, F)
+g.put(64, F - 1, '2')
+g.fill(76, 79, 3, F); g.ground(73, 79, F)
+g.put(78, 2, '0')
+g.gems([(66, 11), (68, 9), (70, 7), (72, 5), (74, 3), (68, 13), (72, 9)])
+# F: down the other side, a second trampoline for fun, then the cannon
+g.ground(80, 104, F)
+g.put(86, F - 1, 'j')
+g.gems([(86, 11), (86, 9), (86, 7), (92, 14), (96, 14), (100, 14)])
+g.put(90, F - 1, '+')
+g.put(100, F - 1, 'K')
+g.ground(105, 129, 10)
+g.gems([(103, 7), (110, 8), (114, 8), (118, 8)])
+g.put(122, 9, 'E')
+g.save('tools/levels/ascii/ch15.txt')
